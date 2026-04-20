@@ -40,7 +40,7 @@ Each table payload is one Arrow IPC file written with `FileWriter`. Payloads MUS
 in canonical tag order, immediately following `PACKAGE_MAGIC` and preceding `manifest_json`.
 
 A producer MUST include all REQUIRED tables. A producer MUST NOT include any table more
-than once. See [Package schema](package-schema.md#canonical-tables) for the full table list
+than once. See [Canonical table schema](package-schema.md#canonical-tables) for the full table list
 and requirement levels.
 
 ## Footer
@@ -60,7 +60,7 @@ A producer writes the manifest last, so no seek-back pass is needed.
 ## Manifest
 
 `manifest_json` is a UTF-8 JSON object at `manifest_offset` with byte length
-`manifest_length`. See [Package schema](package-schema.md#persistent-manifest) for the full
+`manifest_length`. See [Canonical table schema](package-schema.md#persistent-manifest) for the full
 field specification and a JSON example.
 
 ## Reader rules

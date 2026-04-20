@@ -8,18 +8,33 @@ This document describes the design decisions behind `cityjson-parquet`.
 process-to-process transport and persistent file storage have different access
 patterns and should not share a single implementation.
 
-The persistent package layer owns:
+The durable storage layer owns:
 
 - a seekable single-file container format
+- a native Parquet dataset format for ecosystem interoperability
 - memory-mapped lazy payload access
 - a reader that can inspect a file's manifest without decoding any geometry
 
 The live stream layer stays in `cityjson-arrow`.
 
-## Container format
+## Format surfaces
 
-The format is not a Parquet columnar file despite the crate name. It is a
-custom seekable container that stores Arrow IPC file payloads:
+`cityjson-parquet` exposes two durable representations of the same canonical
+CityJSON Arrow tables:
+
+| Format | Physical layout | Use case |
+|---|---|---|
+| `.cityjson-parquet` package | One seekable file containing Arrow IPC table payloads and a footer manifest | Compact package distribution, package manifest inspection, and viewer-oriented access patterns |
+| Native Parquet dataset | `manifest.json` plus `tables/{canonical_table}.parquet` | Cross-library Parquet interoperability, column projection, and predicate pushdown |
+
+These formats intentionally do not try to produce identical bytes. The stable
+contract is the canonical table schema plus semantic CityJSON equivalence after
+decode.
+
+## Package container format
+
+The `.cityjson-parquet` package is not a Parquet columnar file despite the crate
+name. It is a custom seekable container that stores Arrow IPC file payloads:
 
 - The writer appends payloads sequentially. No seek-back pass is required.
 - The manifest is written last. The reader finds it by reading the fixed-size
@@ -30,6 +45,19 @@ custom seekable container that stores Arrow IPC file payloads:
 This design prioritises write simplicity and read efficiency for the
 random-access patterns typical of 3D city model viewers (load by viewport,
 load by object type).
+
+## Native Parquet dataset format
+
+The native Parquet dataset writes each canonical table as a standalone Parquet
+file and records table order, row counts, projection layout, and model metadata
+in `manifest.json`.
+
+This design prioritises independent implementation and ecosystem validation:
+PyArrow, DuckDB, Polars, and other Parquet-native tools can project and filter
+the table files directly. Nullable canonical `FixedSizeList` fields are encoded
+as nullable Parquet lists with fixed-length validation at the reader boundary,
+because this shape has better cross-library behavior than nullable Parquet
+fixed-size list columns.
 
 ## Shared canonical tables
 

@@ -3,6 +3,18 @@
 `cityjson-parquet` stores a `cityjson-rs` city model as either a seekable
 single-file package or a native Parquet canonical-table dataset.
 
+## Formats
+
+| Format | API | Physical representation | Primary use |
+|---|---|---|---|
+| `.cityjson-parquet` package | `PackageWriter`, `PackageReader` | Custom single-file container with Arrow IPC payloads | Persistent package IO, manifest inspection, and package-style distribution |
+| Native Parquet dataset | `ParquetDatasetWriter`, `ParquetDatasetReader` | Directory with `manifest.json` and one Parquet file per canonical table | Parquet-native interoperability, column projection, and predicate pushdown |
+
+Both formats use the same canonical table contract documented in
+[Canonical table schema](package-schema.md). The native dataset is the format expected
+to interoperate directly with PyArrow, DuckDB, Polars, and independent Parquet
+writers.
+
 ## Public API
 
 ### PackageWriter
@@ -90,5 +102,5 @@ from this crate.
 
 - [Package layout](cityjson-parquet-spec.md): binary layout, magic bytes, and manifest contract
 - [Native Parquet dataset](native-parquet-dataset.md): directory layout and interop target
-- [Package schema](package-schema.md): canonical table contract shared with `cityjson-arrow`
-- [Transport design](design.md): why persistent package I/O is a separate crate
+- [Canonical table schema](package-schema.md): canonical table contract shared with `cityjson-arrow`
+- [Transport design](design.md): why durable package and dataset I/O is a separate crate

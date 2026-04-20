@@ -10,7 +10,8 @@ nav:
   - cityjson-parquet: cityjson-parquet.md
   - Specifications:
       - Package layout: cityjson-parquet-spec.md
-      - Package schema: package-schema.md
+      - Native Parquet dataset: native-parquet-dataset.md
+      - Canonical table schema: package-schema.md
   - Design:
       - Transport design: design.md
       - "ADR 1: benchmark performance profile": adr/001-benchmark-performance-profile.md

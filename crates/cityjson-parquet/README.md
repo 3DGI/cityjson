@@ -14,6 +14,19 @@ one native Parquet file per table.
 - `ParquetDatasetReader` — decode a native Parquet dataset directory back into a model
 - `spatial::SpatialIndex` — Hilbert-curve index over city object bounding boxes for viewport queries
 
+## Formats
+
+`cityjson-parquet` now has two durable formats:
+
+| Format | API | Layout | Primary use |
+|---|---|---|---|
+| `.cityjson-parquet` package | `PackageWriter`, `PackageReader` | One seekable file containing Arrow IPC table payloads plus a footer manifest | Compact package IO and fast manifest inspection |
+| Native Parquet dataset | `ParquetDatasetWriter`, `ParquetDatasetReader` | Directory with `manifest.json` and `tables/{canonical_table}.parquet` | Cross-library Parquet interoperability, column projection, and predicate pushdown |
+
+Both formats use the same CityJSON Arrow canonical table schema. They are not
+binary-equivalent encodings, and tests should compare semantic CityJSON equality
+rather than byte-for-byte output.
+
 ## How it works
 
 - The package format is a seekable single-file container: `PACKAGE_MAGIC`, ordered Arrow IPC

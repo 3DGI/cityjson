@@ -1,7 +1,7 @@
-# Package schema
+# Canonical Table Schema
 
-This document specifies the canonical table contract shared by `cityjson-arrow` streams
-and `cityjson-parquet` packages.
+This document specifies the canonical table contract shared by `cityjson-arrow`
+streams, `.cityjson-parquet` packages, and native Parquet datasets.
 
 ## Terminology
 
@@ -17,10 +17,10 @@ interpreted as described in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119).
 
 ## Canonical tables
 
-The schema defines 24 canonical tables. Each table has a fixed integer tag used in
-the live stream and a string name used in the persistent package manifest. Tables
-MUST appear in tag order. A conforming producer MUST include all REQUIRED tables and
-MUST NOT include any table more than once.
+The schema defines 24 canonical tables. Each table has a fixed integer tag used
+in the live stream and a string name used in package and dataset manifests.
+Tables MUST appear in tag order. A conforming producer MUST include all REQUIRED
+tables and MUST NOT include any table more than once.
 
 | Tag | Name | Required | Description |
 |-----|------|----------|-------------|
@@ -55,8 +55,8 @@ metadata is not part of the package schema.
 
 ## Header
 
-Both live streams and persistent packages carry a `CityArrowHeader` object that
-identifies the format version and the source model.
+Live streams, persistent packages, and native Parquet datasets carry version and
+source-model metadata derived from `CityArrowHeader`.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -66,14 +66,15 @@ identifies the format version and the source model.
 
 ## Projection layout
 
-Both live streams and persistent packages carry a `ProjectionLayout` object. It records
-the typed attribute column layout discovered from the model at export time. The decoder
-uses it to validate column schemas and reconstruct nested dynamic attributes.
+Live streams, persistent packages, and native Parquet datasets carry a
+`ProjectionLayout` object. It records the typed attribute column layout discovered
+from the model at export time. The decoder uses it to validate column schemas and
+reconstruct nested dynamic attributes.
 
 In the live stream, `ProjectionLayout` is embedded in the prelude JSON. In the persistent
-package, it is embedded in the manifest JSON. A producer MUST include `ProjectionLayout`
-in the prelude or manifest even when the model has no dynamic attributes; in that case
-the value is an empty object (`{}`).
+package and native Parquet dataset, it is embedded in the manifest JSON. A producer MUST
+include `ProjectionLayout` in the prelude or manifest even when the model has no dynamic
+attributes; in that case the value is an empty object (`{}`).
 
 ## Live stream prelude
 
@@ -99,8 +100,8 @@ Minimal example:
 
 ## Persistent manifest
 
-The package manifest is a UTF-8 JSON object appended to the file after all table payloads.
-It MUST contain:
+The package manifest is a UTF-8 JSON object appended to a `.cityjson-parquet`
+file after all table payloads. It MUST contain:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -140,6 +141,36 @@ Minimal example (five required tables only):
   ]
 }
 ```
+
+## Native Parquet dataset manifest
+
+The native Parquet dataset manifest is a UTF-8 JSON object stored at
+`manifest.json` in the dataset root. It MUST contain:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `package_schema` | string | REQUIRED | Always `"cityjson-arrow.package.v3alpha3"` |
+| `cityjson_version` | string | REQUIRED | CityJSON version of the source data |
+| `citymodel_id` | string | REQUIRED | Identifier for the source city model |
+| `projection` | object | REQUIRED | A `ProjectionLayout` object |
+| `tables` | array | REQUIRED | Ordered list of table entries; see below |
+
+Each entry in `tables` MUST contain:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | REQUIRED | Canonical table name |
+| `path` | string | REQUIRED | Safe relative path to the native Parquet table file |
+| `rows` | uint64 | REQUIRED | Declared row count of the table file |
+
+A reader MUST reject a dataset manifest whose `tables` array is not in canonical
+tag order. A reader MUST reject a manifest that lists the same table name more
+than once. A reader MUST reject a manifest that omits any REQUIRED table. A
+reader MUST reject absolute paths, parent-directory traversal, and paths that
+resolve outside the dataset root.
+
+The table schemas are the canonical schemas below after applying the native
+Parquet physical mappings in [Native Parquet dataset](native-parquet-dataset.md).
 
 ## Table schemas
 

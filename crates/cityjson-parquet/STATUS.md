@@ -2,14 +2,23 @@
 
 ## Current State
 
-`cityjson-parquet` is the persistent package layer for `cityjson-rs`. It
-produces and reads seekable single-file packages whose table payloads use Arrow
-IPC framing and whose manifest is located via a fixed-size binary footer.
+`cityjson-parquet` is the durable CityJSON Arrow storage layer for
+`cityjson-rs`. It currently exposes two formats:
+
+- `.cityjson-parquet` package: a seekable single-file container whose table
+  payloads use Arrow IPC framing and whose manifest is located via a fixed-size
+  binary footer
+- native Parquet dataset: a directory containing `manifest.json` and one native
+  Parquet file per canonical table
 
 - `PackageWriter` encodes any `OwnedCityModel` to a `.cityjson-parquet` file
 - `PackageReader` decodes the file back to an `OwnedCityModel` or a manifest
 - `read_package_manifest` reads only the footer and manifest JSON without
   loading any table payload
+- `ParquetDatasetWriter` encodes any `OwnedCityModel` to a native Parquet
+  dataset directory
+- `ParquetDatasetReader` decodes the native Parquet dataset back to an
+  `OwnedCityModel` or reads only its manifest
 - `spatial::SpatialIndex` constructs a Hilbert-curve ordered spatial index from
   a decoded `CityModelArrowParts`
 
@@ -20,6 +29,9 @@ IPC framing and whose manifest is located via a fixed-size binary footer.
 - added docs/ with index, API overview, package spec, schema, and design docs
 - fixed `Cargo.toml` bug: `readme` now points to this repo's own `README.md`
   instead of `../cityjson-arrow/README.md`
+- added native Parquet dataset IO and documented the split between the
+  `.cityjson-parquet` package format and the native Parquet dataset format
+- added native Parquet shared-corpus roundtrip tests
 
 ## Verification Snapshot
 
@@ -41,3 +53,6 @@ The tree is expected to pass:
   public API boundary between the two crates does not yet exist
 - tests require both repos checked out as siblings; there is no standalone test
   corpus
+- native Parquet dataset interoperability is validated in the sibling
+  `../cityjson-test-interop` repository rather than directly in this crate's
+  Rust test suite

@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- native Parquet dataset format with `ParquetDatasetWriter` and
+  `ParquetDatasetReader`
+- docs for the two durable format surfaces: `.cityjson-parquet` package and
+  native Parquet dataset
+- shared-corpus roundtrip tests for native Parquet datasets
+
+### Changed
+
+- nullable canonical `FixedSizeList` columns are written to native Parquet
+  datasets as nullable Parquet lists with reader-side fixed-length validation
+  for PyArrow, DuckDB, and Polars interoperability
+
 ## [0.5.2] - 2026-04-17
 
 ### Changed

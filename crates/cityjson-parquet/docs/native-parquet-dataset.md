@@ -4,6 +4,10 @@ The native Parquet dataset format stores each canonical CityJSON Arrow table as 
 separate Parquet file. It is the interoperability target for PyArrow, DuckDB,
 Polars, and other Parquet-native tools.
 
+It is a separate physical format from the `.cityjson-parquet` package. The two
+formats share the same semantic CityJSON Arrow table contract but are optimized
+for different consumers: package IO versus Parquet-native ecosystem tooling.
+
 ## Layout
 
 ```text
@@ -41,6 +45,8 @@ Each table entry contains:
 - Required canonical tables MUST be present.
 - Table entries MUST appear in canonical order.
 - Table paths MUST be relative paths inside the dataset directory.
+- Table paths MUST NOT be absolute, contain parent-directory traversal, or
+  resolve outside the dataset root.
 - Each Parquet file schema MUST match the canonical schema for that table after
   applying the native Parquet physical mappings below.
 - Canonical `fixed_size_list<float64>[N]` fields are encoded in native Parquet
@@ -61,3 +67,9 @@ Arrow IPC payloads. It remains the compact package API.
 
 The native Parquet dataset is a separate API for ecosystem interoperability and
 columnar query engines.
+
+Conformance tests for this format should verify that independently written
+datasets decode to the same CityJSON semantics. They should not require
+byte-for-byte Parquet equality because different Parquet implementations may
+choose different row groups, encodings, statistics, and metadata while still
+representing the same canonical table data.
