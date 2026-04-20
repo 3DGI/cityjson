@@ -76,6 +76,33 @@ jobs:
       - uses: extractions/setup-just@v4
       - run: just lint
 
+  ffi:
+    name: FFI
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: cityjson-index
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-index
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-lib
+          path: cityjson-lib
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-json
+          path: cityjson-json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: extractions/setup-just@v4
+      - run: just ffi
+
   test:
     name: Test (${{matrix.os}})
     runs-on: ${{matrix.os}}-latest

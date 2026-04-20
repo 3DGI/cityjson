@@ -8,7 +8,7 @@ from cityjson_index import OpenedIndex
 from cityjson_lib import ModelType
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 CITYJSON_DATASET = REPO_ROOT / "tests" / "data" / "cityjson"
 
 

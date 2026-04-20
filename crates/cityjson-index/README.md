@@ -29,7 +29,7 @@ This crate gives you a consistent indexing layer so you can:
 
 ```toml
 [dependencies]
-cityjson-index = "0.3.0"
+cityjson-index = "0.3.1"
 ```
 
 ### CLI
@@ -116,6 +116,7 @@ Each feature lives in its own file. Metadata is discovered through ancestor `.js
 
 This repository includes helper binaries and benchmarks under `src/bin/` and `benches/`.
 They are gated behind the `dev-binaries` feature so the published CLI stays focused on `cjindex`.
+The release-facing FFI and Python packaging live under `ffi/`.
 
 Useful local commands:
 
@@ -123,11 +124,17 @@ Useful local commands:
 just check
 just lint
 just test
+just ffi
 just ci
 just prep-test-data
 ```
 
 `just prep-test-data` and `just bench-release` require the `dev-binaries` feature.
+
+## Use of AI in this project
+
+This crate was written with AI assistance and human guidance.
+Development used an iterative process of testing, benchmarking, and optimization controlled and verified by me.
 
 ## License
 

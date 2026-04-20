@@ -1,4 +1,6 @@
 use std::ffi::c_char;
+use std::fs;
+use std::io::{ErrorKind, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::ptr::{self, NonNull};
 use std::slice;
@@ -10,7 +12,9 @@ use cityjson_lib_ffi_core::{
     last_error_message_len, run_ffi,
 };
 
-use crate::{CityIndex, IndexedFeatureRef, ResolvedDataset, read_exact_range, resolve_dataset};
+use cityjson_index::{
+    CityIndex, FeatureBounds, IndexedFeatureRef, ResolvedDataset, resolve_dataset,
+};
 
 #[allow(non_camel_case_types)]
 #[repr(C)]
@@ -78,7 +82,7 @@ impl TryFrom<&cjx_feature_ref_t> for IndexedFeatureRef {
             vertices_offset: has_vertices_range.then_some(feature.vertices_offset),
             vertices_length: has_vertices_range.then_some(feature.vertices_length),
             member_ranges_json,
-            bounds: crate::FeatureBounds {
+            bounds: FeatureBounds {
                 min_x: 0.0,
                 max_x: 0.0,
                 min_y: 0.0,
@@ -154,6 +158,65 @@ impl OpenedIndex {
         let model = self.index.read_feature(&feature).map_err(AbiError::from)?;
         json::to_vec(&model).map_err(AbiError::from)
     }
+}
+
+fn read_exact_range(path: &Path, offset: u64, length: u64) -> Result<Vec<u8>, AbiError> {
+    let mut file = fs::File::open(path).map_err(|error| {
+        AbiError::internal(format!("failed to open {}: {error}", path.display()))
+    })?;
+    read_exact_range_from_file(&mut file, path, offset, length)
+}
+
+fn read_exact_range_from_file(
+    file: &mut fs::File,
+    path: &Path,
+    offset: u64,
+    length: u64,
+) -> Result<Vec<u8>, AbiError> {
+    let length = usize::try_from(length).map_err(|_| {
+        AbiError::internal(format!(
+            "requested read of {length} bytes from {} exceeds the supported buffer size",
+            path.display()
+        ))
+    })?;
+    if length > isize::MAX as usize {
+        return Err(AbiError::internal(format!(
+            "requested read of {length} bytes from {} exceeds the supported buffer size",
+            path.display()
+        )));
+    }
+
+    let mut bytes = Vec::new();
+    bytes.try_reserve_exact(length).map_err(|error| {
+        AbiError::internal(format!(
+            "failed to allocate buffer for {} bytes from {}: {error}",
+            length,
+            path.display()
+        ))
+    })?;
+    bytes.resize(length, 0);
+
+    file.seek(SeekFrom::Start(offset)).map_err(|error| {
+        AbiError::internal(format!(
+            "failed to seek to byte offset {offset} in {}: {error}",
+            path.display()
+        ))
+    })?;
+    file.read_exact(&mut bytes).map_err(|error| {
+        if error.kind() == ErrorKind::UnexpectedEof {
+            AbiError::internal(format!(
+                "short read while reading {length} bytes at offset {offset} from {}",
+                path.display()
+            ))
+        } else {
+            AbiError::internal(format!(
+                "failed to read {length} bytes at offset {offset} from {}: {error}",
+                path.display()
+            ))
+        }
+    })?;
+
+    Ok(bytes)
 }
 
 fn bytes_to_string(bytes: cj_bytes_t, name: &'static str) -> Result<String, AbiError> {

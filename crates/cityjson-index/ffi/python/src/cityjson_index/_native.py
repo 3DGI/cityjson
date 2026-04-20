@@ -85,15 +85,15 @@ class _FeatureRef(Structure):
 
 def _library_name() -> str:
     if sys.platform.startswith("win"):
-        return "cityjson_index.dll"
+        return "cityjson_index_ffi_core.dll"
     if sys.platform == "darwin":
-        return "libcityjson_index.dylib"
-    return "libcityjson_index.so"
+        return "libcityjson_index_ffi_core.dylib"
+    return "libcityjson_index_ffi_core.so"
 
 
 def _find_repo_root(package_dir: Path) -> Path | None:
     for candidate in package_dir.parents:
-        if (candidate / "Cargo.toml").exists() and (candidate / "python" / "pyproject.toml").exists():
+        if (candidate / "Cargo.toml").exists() and (candidate / "ffi" / "python" / "pyproject.toml").exists():
             return candidate
     return None
 

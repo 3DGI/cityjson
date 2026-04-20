@@ -54,31 +54,39 @@ jobs:
       - name: Install uv
         run: python -m pip install --upgrade pip uv
 
-      - name: Test Rust crate
-        run: cargo test --locked --all-targets --all-features
+      - name: Install just
+        uses: extractions/setup-just@v4
+
+      - name: Run release-quality validation
+        run: just ci
 
       - name: Build Python artifacts
-        run: uv build python/ --wheel --sdist --out-dir python/dist
+        run: uv build ffi/python/ --wheel --sdist --out-dir ffi/python/dist
 
       - name: Verify Python wheel installs in a clean environment
         run: |
           python -m venv /tmp/cityjson-index-wheel
           /tmp/cityjson-index-wheel/bin/pip install --upgrade pip
-          /tmp/cityjson-index-wheel/bin/pip install python/dist/*.whl
+          /tmp/cityjson-index-wheel/bin/pip install ffi/python/dist/*.whl
           /tmp/cityjson-index-wheel/bin/python -c "import cityjson_index"
 
       - name: Run Python smoke tests
-        run: cd python && uv run tox run
+        run: cd ffi/python && uv run tox run
 
       - name: Publish Rust crate
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish --locked --package cityjson-index
 
+      - name: Publish FFI core
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --locked --package cityjson-index-ffi-core
+
       - name: Publish Python package
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
-        run: uv publish python/dist/*
+        run: uv publish ffi/python/dist/*
 
       - name: Create GitHub release
         env:

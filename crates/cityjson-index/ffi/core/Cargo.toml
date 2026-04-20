@@ -1,0 +1,32 @@
+[package]
+name = "cityjson-index-ffi-core"
+version = "0.3.1"
+authors = ["Balázs Dukai <balazs.dukai@3dgi.nl>"]
+edition = "2024"
+rust-version = "1.93"
+description = "Shared C-compatible FFI core for the cityjson-index Python bindings"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/3DGI/cityjson-index"
+keywords = ["cityjson", "ffi", "c-abi", "geospatial"]
+categories = ["api-bindings", "science::geo"]
+include = [
+    "/Cargo.toml",
+    "/README.md",
+    "/src",
+]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lib]
+name = "cityjson_index_ffi_core"
+path = "src/lib.rs"
+crate-type = ["rlib", "cdylib", "staticlib"]
+
+[dependencies]
+cityjson-index = { path = "../..", version = "0.3.1" }
+cityjson-lib = { path = "../../../cityjson-lib", version = "0.5.1" }
+cityjson-lib-ffi-core = { path = "../../../cityjson-lib/ffi/core", version = "0.5.1" }
+serde_json = { version = "1.0", features = ["raw_value"] }

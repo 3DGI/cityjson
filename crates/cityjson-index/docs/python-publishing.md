@@ -8,15 +8,15 @@ dependency, not as a local checkout path. `cityjson-lib` is already published,
 so `cityjson-index` can be published independently as long as the declared
 version range stays compatible.
 
-The package long description comes from [python/README.md](../python/README.md).
+The package long description comes from [ffi/python/README.md](../ffi/python/README.md).
 Keep that file short and distribution-focused.
 
 ## Dependency Policy
 
-Use this dependency line in [python/pyproject.toml](../python/pyproject.toml):
+Use this dependency line in [ffi/python/pyproject.toml](../ffi/python/pyproject.toml):
 
 ```toml
-dependencies = ["cityjson-lib~=0.5.0"]
+dependencies = ["cityjson-lib~=0.5.1"]
 ```
 
 That means:
@@ -37,7 +37,7 @@ That means:
 - Build an sdist and a wheel for this package.
 - Confirm the wheel metadata lists `cityjson-lib` as an install requirement.
 - Install both packages into a fresh environment with no local path overrides.
-- Run [python/tests/test_api.py](../python/tests/test_api.py) after installation.
+- Run [ffi/python/tests/test_api.py](../ffi/python/tests/test_api.py) after installation.
 - Keep the runtime dependency range compatible with the released `cityjson-lib`
   line, and widen it only when the Python API is confirmed to remain stable.
 

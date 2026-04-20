@@ -1,6 +1,6 @@
 [package]
 name = "cityjson-index"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Balázs Dukai <balazs.dukai@3dgi.nl>"]
 edition = "2024"
 rust-version = "1.93"
@@ -17,7 +17,7 @@ exclude = [
     "benches/",
     "docs/",
     ".github/",
-    "python/",
+    "ffi/",
     "src/bin/",
     "tests/",
     "justfile",
@@ -34,7 +34,11 @@ no-deps = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [lib]
-crate-type = ["rlib", "cdylib"]
+crate-type = ["rlib"]
+
+[workspace]
+members = ["ffi/core"]
+resolver = "2"
 
 [[bin]]
 name = "cjindex"
@@ -61,8 +65,7 @@ path = "src/bin/prep-test-data.rs"
 required-features = ["dev-binaries"]
 
 [dependencies]
-cityjson-lib = { path = "../cityjson-lib", version = "0.5.0" }
-cityjson-lib-ffi-core = { path = "../cityjson-lib/ffi/core", version = "0.5.0" }
+cityjson-lib = { path = "../cityjson-lib", version = "0.5.1" }
 clap = { version = "4.6.0", features = ["derive"] }
 flatgeobuf = { version = "6.0.1", default-features = false }
 flate2 = "1"

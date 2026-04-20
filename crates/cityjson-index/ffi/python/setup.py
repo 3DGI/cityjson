@@ -13,10 +13,10 @@ from setuptools.command.sdist import sdist as _sdist
 
 def _shared_library_name() -> str:
     if sys.platform.startswith("win"):
-        return "cityjson_index.dll"
+        return "cityjson_index_ffi_core.dll"
     if sys.platform == "darwin":
-        return "libcityjson_index.dylib"
-    return "libcityjson_index.so"
+        return "libcityjson_index_ffi_core.dylib"
+    return "libcityjson_index_ffi_core.so"
 
 
 def _repo_root() -> Path:
@@ -78,6 +78,14 @@ def _write_trimmed_root_manifest(
     destination.write_text(manifest, encoding="utf-8")
 
 
+def _rewrite_manifest_paths(source: Path, destination: Path, replacements: dict[str, str]) -> None:
+    manifest = source.read_text(encoding="utf-8")
+    for old, new in replacements.items():
+        manifest = manifest.replace(old, new)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(manifest, encoding="utf-8")
+
+
 class build_py(_build_py):
     def run(self) -> None:
         built_library = self._build_native_library()
@@ -89,14 +97,23 @@ class build_py(_build_py):
     def _build_native_library(self) -> Path:
         repo_root = _repo_root()
         subprocess.run(
-            ["cargo", "build", "--release", "--lib"],
+            [
+                "cargo",
+                "build",
+                "--release",
+                "--lib",
+                "--manifest-path",
+                "ffi/core/Cargo.toml",
+                "--target-dir",
+                "target",
+            ],
             check=True,
             cwd=repo_root,
         )
         built_library = repo_root / "target" / "release" / _shared_library_name()
         if not built_library.exists():
             raise FileNotFoundError(
-                f"expected cityjson-index shared library at {built_library}, but cargo build did not produce it"
+                f"expected cityjson-index ffi shared library at {built_library}, but cargo build did not produce it"
             )
         return built_library
 
@@ -111,14 +128,24 @@ class sdist(_sdist):
             source_root / "Cargo.toml",
             release_root / "Cargo.toml",
             drop_lines={"autobins = false", 'default-run = "cjindex"'},
-            drop_sections={"[[bin]]", "[[bench]]"},
+            drop_sections={"[[bin]]", "[[bench]]", "[workspace]"},
             replacements={
                 'path = "../cityjson-lib"': 'path = "./cityjson-lib"',
                 'path = "../cityjson-lib/ffi/core"': 'path = "./cityjson-lib/ffi/core"',
             },
         )
         _copy_path(source_root / "src", release_root / "src")
-        _copy_path(source_root / "python" / "README.md", release_root / "README.md")
+        _copy_path(source_root / "ffi" / "python" / "README.md", release_root / "README.md")
+        _rewrite_manifest_paths(
+            source_root / "ffi/core/Cargo.toml",
+            release_root / "ffi/core/Cargo.toml",
+            {
+                'path = "../../../cityjson-lib"': 'path = "../../cityjson-lib"',
+                'path = "../../../cityjson-lib/ffi/core"': 'path = "../../cityjson-lib/ffi/core"',
+            },
+        )
+        for relative in ("ffi/core/README.md", "ffi/core/src"):
+            _copy_path(source_root / relative, release_root / relative)
 
         sibling_root = source_root.parent
         for crate_name in ("cityjson-lib", "cityjson-rs", "cityjson-json"):
@@ -126,7 +153,19 @@ class sdist(_sdist):
             for relative in ("Cargo.toml", "README.md", "src"):
                 _copy_path(crate_root / relative, release_root / crate_name / relative)
 
-        for relative in ("docs/public-api.md", "ffi/core/Cargo.toml", "ffi/core/src"):
+        for relative in (
+            "ffi/core/Cargo.toml",
+            "ffi/core/README.md",
+            "ffi/core/LICENSE",
+            "ffi/core/LICENSE-APACHE",
+            "ffi/core/cbindgen.toml",
+            "ffi/core/include",
+            "ffi/core/src",
+            "ffi/core/tests",
+        ):
+            _copy_path(sibling_root / "cityjson-lib" / relative, release_root / "cityjson-lib" / relative)
+
+        for relative in ("docs/public-api.md",):
             _copy_path(sibling_root / "cityjson-lib" / relative, release_root / "cityjson-lib" / relative)
         _write_trimmed_root_manifest(
             sibling_root / "cityjson-lib" / "Cargo.toml",

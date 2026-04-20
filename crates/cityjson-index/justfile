@@ -3,6 +3,19 @@
 _default:
     just --list
 
+# Build the shared FFI core crate.
+ffi-build:
+    cargo build --manifest-path ffi/core/Cargo.toml --release --lib
+
+# Run the shared FFI core crate tests.
+ffi-test:
+    cargo test --manifest-path ffi/core/Cargo.toml --all-features
+
+# Run the shared FFI validation pipeline.
+ffi:
+    just ffi-build
+    just ffi-test
+
 # Prepare the local bootstrap corpus from the pinned 3DBAG data set.
 prep-test-data:
     cargo run --release --features dev-binaries --bin prep-test-data -- --skip-cjval
@@ -17,7 +30,7 @@ build *args:
 
 clean:
     cargo clean
-    rm -rf python/dist python/build
+    rm -rf ffi/python/dist ffi/python/build
     
 
 # Run clippy with the project's strict lint settings.
@@ -34,8 +47,8 @@ test:
 
 # Build the shared library and run the Python install smoke tests through tox and tox-uv.
 test-python:
-    cargo build --lib
-    cd python && uv run tox run
+    cargo build --manifest-path ffi/core/Cargo.toml --release --lib
+    sh -c 'tmpdir=$(mktemp -d); cd ../cityjson-lib/ffi/python && uv build --wheel --out-dir "$tmpdir" && cd ../../../cityjson-index/ffi/python && UV_FIND_LINKS="$tmpdir" uv run tox run'
 
 # Build API docs for all features without pulling in dependencies.
 doc:
@@ -55,7 +68,7 @@ bench-ndjson:
 
 # Build the Python bindings wheel.
 build-python:
-    uv build python/ --wheel --out-dir python/dist
+    uv build ffi/python/ --wheel --out-dir ffi/python/dist
 
 # Run the investigation binary and the release-mode benchmarks used for reporting.
 bench-release:
@@ -69,5 +82,6 @@ ci:
     just check
     just lint
     just test
+    just ffi
     just test-python
     just doc

@@ -1,4 +1,3 @@
-pub mod ffi;
 pub mod realistic_workload;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
