@@ -19,6 +19,17 @@ std::vector<std::uint8_t> read_file_bytes(const std::filesystem::path& path) {
       std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
 }
 
+void assert_same_summary(const cityjson_lib::ModelSummary& actual,
+                         const cityjson_lib::ModelSummary& expected) {
+  assert(actual.model_type == expected.model_type);
+  assert(actual.version == expected.version);
+  assert(actual.cityobject_count == expected.cityobject_count);
+  assert(actual.geometry_count == expected.geometry_count);
+  assert(actual.vertex_count == expected.vertex_count);
+  assert(actual.material_count == expected.material_count);
+  assert(actual.texture_count == expected.texture_count);
+}
+
 }  // namespace
 
 int main() {
@@ -82,6 +93,26 @@ int main() {
   assert(!serialized.empty());
   const auto serialized_bytes = model.serialize_document_bytes();
   assert(!serialized_bytes.empty());
+
+  const auto arrow_bytes = model.serialize_arrow_bytes();
+  assert(!arrow_bytes.empty());
+  auto arrow_model = cityjson_lib::Model::parse_arrow(arrow_bytes);
+  assert_same_summary(arrow_model.summary(), summary);
+
+  const auto temp_root = std::filesystem::temp_directory_path() / "cityjson-lib-cpp-smoke";
+  std::filesystem::remove_all(temp_root);
+  std::filesystem::create_directories(temp_root);
+
+  const auto parquet_package = temp_root / "minimal.cityjson-parquet";
+  model.serialize_parquet_file(parquet_package.string());
+  auto parquet_package_model = cityjson_lib::Model::parse_parquet_file(parquet_package.string());
+  assert_same_summary(parquet_package_model.summary(), summary);
+
+  const auto parquet_dataset = temp_root / "minimal.dataset";
+  model.serialize_parquet_dataset_dir(parquet_dataset.string());
+  auto parquet_dataset_model =
+      cityjson_lib::Model::parse_parquet_dataset_dir(parquet_dataset.string());
+  assert_same_summary(parquet_dataset_model.summary(), summary);
 
   auto created = cityjson_lib::Model::create(CJ_MODEL_TYPE_CITY_JSON);
   cityjson_lib::ModelCapacities capacities{};

@@ -930,6 +930,24 @@ class Model final {
     return Model(handle);
   }
 
+  [[nodiscard]] static Model parse_arrow(std::span<const std::uint8_t> bytes) {
+    cj_model_t* handle = nullptr;
+    check_status(cj_model_parse_arrow_bytes(span_data(bytes), bytes.size(), &handle));
+    return Model(handle);
+  }
+
+  [[nodiscard]] static Model parse_parquet_file(std::string_view path) {
+    cj_model_t* handle = nullptr;
+    check_status(cj_model_parse_parquet_file(to_view(path), &handle));
+    return Model(handle);
+  }
+
+  [[nodiscard]] static Model parse_parquet_dataset_dir(std::string_view path) {
+    cj_model_t* handle = nullptr;
+    check_status(cj_model_parse_parquet_dataset_dir(to_view(path), &handle));
+    return Model(handle);
+  }
+
   [[nodiscard]] static Model create(ModelType type) {
     cj_model_t* handle = nullptr;
     check_status(cj_model_create(type, &handle));
@@ -1063,6 +1081,20 @@ class Model final {
   [[nodiscard]] std::string serialize_feature(const WriteOptions& options = {}) const {
     const auto bytes = serialize_feature_bytes(options);
     return std::string(bytes.begin(), bytes.end());
+  }
+
+  [[nodiscard]] std::vector<std::uint8_t> serialize_arrow_bytes() const {
+    cj_bytes_t bytes{};
+    check_status(cj_model_serialize_arrow_bytes(handle_, &bytes));
+    return take_bytes(bytes);
+  }
+
+  void serialize_parquet_file(std::string_view path) const {
+    check_status(cj_model_serialize_parquet_file(handle_, to_view(path)));
+  }
+
+  void serialize_parquet_dataset_dir(std::string_view path) const {
+    check_status(cj_model_serialize_parquet_dataset_dir(handle_, to_view(path)));
   }
 
   [[nodiscard]] static std::vector<std::uint8_t> serialize_feature_stream(
