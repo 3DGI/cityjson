@@ -74,7 +74,7 @@ geometry.
 
 - the package magic bytes are `CITYJSON_ARROW_PKG_V3\0` and the footer magic
   is `CITYJSON_ARROW_PKG_V3IDX\0`; changing either breaks all existing files
-- the package schema id is `cityjson-arrow.package.v3alpha2`; it is embedded in
+- the package schema id is `cityjson-arrow.package.v3alpha3`; it is embedded in
   the manifest by `cityjson_arrow::schema` and must stay in sync with
   `cityjson-arrow`
 - `SpatialIndex` lives in `pub mod spatial` and is not re-exported at the crate

@@ -36,8 +36,8 @@ fn assert_package_roundtrip(case_id: &str) {
         .read_file(&path)
         .unwrap_or_else(|err| panic!("{case_id}: read failed: {err}"));
 
-    let expected = shared_corpus::normalized_json(&case.model);
-    let actual = shared_corpus::normalized_json(&decoded);
+    let expected = shared_corpus::transport_roundtrip_json(&case.model, &case.model);
+    let actual = shared_corpus::transport_roundtrip_json(&decoded, &case.model);
     assert_eq!(actual, expected, "{case_id}: roundtrip JSON mismatch");
 
     if case_id == "cityjsonfeature_minimal" {

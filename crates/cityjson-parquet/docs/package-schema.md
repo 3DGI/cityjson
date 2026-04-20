@@ -12,12 +12,12 @@ interpreted as described in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119).
 
 | Field | Value |
 |---|---|
-| Schema id | `cityjson-arrow.package.v3alpha2` |
+| Schema id | `cityjson-arrow.package.v3alpha3` |
 | Data model | `cityjson::v2_0::OwnedCityModel` |
 
 ## Canonical tables
 
-The schema defines 25 canonical tables. Each table has a fixed integer tag used in
+The schema defines 24 canonical tables. Each table has a fixed integer tag used in
 the live stream and a string name used in the persistent package manifest. Tables
 MUST appear in tag order. A conforming producer MUST include all REQUIRED tables and
 MUST NOT include any table more than once.
@@ -25,30 +25,33 @@ MUST NOT include any table more than once.
 | Tag | Name | Required | Description |
 |-----|------|----------|-------------|
 | 0 | `metadata` | REQUIRED | CityJSON metadata: model name, geographic extent, and spatial reference |
-| 1 | `transform` | OPTIONAL | Coordinate transform: scale and translation for integer vertex encoding |
-| 2 | `extensions` | OPTIONAL | CityJSON extension declarations referenced by city objects in this model |
-| 3 | `vertices` | REQUIRED | Shared 3D vertex coordinates for all city object geometries |
-| 4 | `template_vertices` | OPTIONAL | Vertex coordinates used by geometry templates |
-| 5 | `texture_vertices` | OPTIONAL | UV coordinates for texture mapping |
-| 6 | `semantics` | OPTIONAL | Semantic surface type definitions |
-| 7 | `semantic_children` | OPTIONAL | Parent-child relationships between semantic surfaces |
-| 8 | `materials` | OPTIONAL | Material definitions |
-| 9 | `textures` | OPTIONAL | Texture definitions |
-| 10 | `template_geometry_boundaries` | OPTIONAL | Boundary indices for geometry template surfaces |
-| 11 | `template_geometry_semantics` | OPTIONAL | Semantic surface assignments for geometry templates |
-| 12 | `template_geometry_materials` | OPTIONAL | Material assignments for geometry template surfaces |
-| 13 | `template_geometry_ring_textures` | OPTIONAL | Texture UV assignments for geometry template rings |
-| 14 | `template_geometries` | OPTIONAL | Geometry template definitions; instances reference these by ordinal |
-| 15 | `geometry_boundaries` | REQUIRED | Boundary indices for city object geometry surfaces |
-| 16 | `geometry_surface_semantics` | OPTIONAL | Semantic surface assignments for surface geometries |
-| 17 | `geometry_point_semantics` | OPTIONAL | Semantic point assignments for point geometries |
-| 18 | `geometry_linestring_semantics` | OPTIONAL | Semantic line assignments for line string geometries |
-| 19 | `geometry_surface_materials` | OPTIONAL | Material assignments for geometry surfaces |
-| 20 | `geometry_ring_textures` | OPTIONAL | Texture UV assignments for geometry rings |
-| 21 | `geometry_instances` | OPTIONAL | Geometry instance records: template ordinal and placement transform |
-| 22 | `geometries` | REQUIRED | Geometry definitions (type, LoD) linking city objects to boundary or instance tables |
-| 23 | `cityobjects` | REQUIRED | City object records: identifier, type, and typed attributes |
-| 24 | `cityobject_children` | OPTIONAL | Parent-child relationships between city objects |
+| 1 | `extensions` | OPTIONAL | CityJSON extension declarations referenced by city objects in this model |
+| 2 | `vertices` | REQUIRED | Shared 3D vertex coordinates for all city object geometries |
+| 3 | `template_vertices` | OPTIONAL | Vertex coordinates used by geometry templates |
+| 4 | `texture_vertices` | OPTIONAL | UV coordinates for texture mapping |
+| 5 | `semantics` | OPTIONAL | Semantic surface type definitions |
+| 6 | `semantic_children` | OPTIONAL | Parent-child relationships between semantic surfaces |
+| 7 | `materials` | OPTIONAL | Material definitions |
+| 8 | `textures` | OPTIONAL | Texture definitions |
+| 9 | `template_geometry_boundaries` | OPTIONAL | Boundary indices for geometry template surfaces |
+| 10 | `template_geometry_semantics` | OPTIONAL | Semantic surface assignments for geometry templates |
+| 11 | `template_geometry_materials` | OPTIONAL | Material assignments for template geometry surfaces |
+| 12 | `template_geometry_ring_textures` | OPTIONAL | Texture UV assignments for template geometry rings |
+| 13 | `template_geometries` | OPTIONAL | Geometry template definitions; instances reference these by ordinal |
+| 14 | `geometry_boundaries` | REQUIRED | Boundary indices for city object geometry surfaces |
+| 15 | `geometry_surface_semantics` | OPTIONAL | Semantic surface assignments for surface geometries |
+| 16 | `geometry_point_semantics` | OPTIONAL | Semantic point assignments for point geometries |
+| 17 | `geometry_linestring_semantics` | OPTIONAL | Semantic line assignments for line string geometries |
+| 18 | `geometry_surface_materials` | OPTIONAL | Material assignments for geometry surfaces |
+| 19 | `geometry_ring_textures` | OPTIONAL | Texture UV assignments for geometry rings |
+| 20 | `geometry_instances` | OPTIONAL | Geometry instance records: template ordinal and placement transform |
+| 21 | `geometries` | REQUIRED | Geometry definitions (type, LoD) linking city objects to boundary or instance tables |
+| 22 | `cityobjects` | REQUIRED | City object records: identifier, type, and typed attributes |
+| 23 | `cityobject_children` | OPTIONAL | Parent-child relationships between city objects |
+
+A producer MUST NOT write tag 1. That slot is reserved for the removed `transform`
+table. This transport stores materialized real-world coordinates; CityJSON transform
+metadata is not part of the package schema.
 
 ## Header
 
@@ -57,7 +60,7 @@ identifies the format version and the source model.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `package_version` | string | REQUIRED | Always `"cityjson-arrow.package.v3alpha2"` |
+| `package_version` | string | REQUIRED | Always `"cityjson-arrow.package.v3alpha3"` |
 | `citymodel_id` | string | REQUIRED | Identifier for the source city model |
 | `cityjson_version` | string | REQUIRED | CityJSON version of the source data, e.g. `"2.0"` |
 
@@ -86,7 +89,7 @@ Minimal example:
 ```json
 {
   "header": {
-    "package_version": "cityjson-arrow.package.v3alpha2",
+    "package_version": "cityjson-arrow.package.v3alpha3",
     "citymodel_id": "NL.IMBAG.Pand",
     "cityjson_version": "2.0"
   },
@@ -101,7 +104,7 @@ It MUST contain:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `package_schema` | string | REQUIRED | Always `"cityjson-arrow.package.v3alpha2"` |
+| `package_schema` | string | REQUIRED | Always `"cityjson-arrow.package.v3alpha3"` |
 | `cityjson_version` | string | REQUIRED | CityJSON version of the source data |
 | `citymodel_id` | string | REQUIRED | Identifier for the source city model |
 | `projection` | object | REQUIRED | A `ProjectionLayout` object |
@@ -124,7 +127,7 @@ Minimal example (five required tables only):
 
 ```json
 {
-  "package_schema": "cityjson-arrow.package.v3alpha2",
+  "package_schema": "cityjson-arrow.package.v3alpha3",
   "cityjson_version": "2.0",
   "citymodel_id": "NL.IMBAG.Pand",
   "projection": {},
@@ -201,15 +204,6 @@ One row per encoded city model.
 | `address` | `struct{...}` | Yes | **Projection-dependent** (`metadata_point_of_contact_address`): address attributes |
 
 ---
-
-### `transform` (tag 1)
-
-One row. Present only when the source model uses integer vertex encoding.
-
-| Column | Type | Nullable | Description |
-|--------|------|----------|-------------|
-| `scale` | `fixed_size_list<float64>[3]` | No | Scale factors `[sx, sy, sz]` |
-| `translate` | `fixed_size_list<float64>[3]` | No | Translation offsets `[tx, ty, tz]` |
 
 ---
 

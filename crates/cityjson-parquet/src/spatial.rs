@@ -1,4 +1,4 @@
-//! Spatial indexing for `CityParquet` files using Hilbert curves.
+//! Spatial indexing for `cityjson-parquet` files using Hilbert curves.
 //!
 //! Provides [`SpatialIndex`] - a lightweight spatial index over `CityObject`
 //! bounding boxes, sorted by Hilbert curve value. This enables efficient

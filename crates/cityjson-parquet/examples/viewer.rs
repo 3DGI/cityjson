@@ -161,7 +161,7 @@ impl SceneData {
 // Boundary decoding
 // ---------------------------------------------------------------------------
 
-/// Decode surfaces from offset-based boundary encoding (v3alpha2).
+/// Decode surfaces from offset-based boundary encoding (v3alpha3).
 ///
 /// - `ring_offsets[i]` = start index into `vertex_indices` for ring `i`.
 /// - `surface_offsets[i]` = start index into `ring_offsets` for surface `i`.
