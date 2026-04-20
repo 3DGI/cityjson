@@ -29,6 +29,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = ["json"]
 json = ["dep:cityjson-json"]
+arrow = ["json", "dep:cityjson-arrow"]
+parquet = ["json", "dep:cityjson-arrow", "dep:cityjson-parquet"]
 
 [workspace]
 members = [
@@ -46,7 +48,9 @@ path = "src/lib.rs"
 
 [dependencies]
 cityjson = { path = "../cityjson-rs", version = "0.7.1" }
+cityjson-arrow = { path = "../cityjson-arrow", version = "0.6.1", optional = true }
 cityjson-json = { path = "../cityjson-json", version = "0.7.2", optional = true }
+cityjson-parquet = { path = "../cityjson-parquet", version = "0.5.3", optional = true }
 
 [dev-dependencies]
 criterion = "0.7"

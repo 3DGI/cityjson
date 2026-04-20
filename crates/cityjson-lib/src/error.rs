@@ -93,6 +93,27 @@ impl From<cityjson::error::Error> for Error {
     }
 }
 
+#[cfg(any(feature = "arrow", feature = "parquet"))]
+impl From<cityjson_arrow::error::Error> for Error {
+    fn from(value: cityjson_arrow::error::Error) -> Self {
+        match value {
+            cityjson_arrow::error::Error::Arrow(error) => Self::Import(error.to_string()),
+            cityjson_arrow::error::Error::Parquet(error) => Self::Import(error.to_string()),
+            cityjson_arrow::error::Error::CityJSON(error) => Self::CityJSON(error),
+            cityjson_arrow::error::Error::Json(error) => Self::Syntax(error.to_string()),
+            cityjson_arrow::error::Error::Conversion(message) => Self::Import(message),
+            cityjson_arrow::error::Error::Unsupported(message) => Self::UnsupportedFeature(message),
+            cityjson_arrow::error::Error::SchemaMismatch { expected, found } => Self::Import(
+                format!("expected Arrow schema: {expected}, found schema: {found}"),
+            ),
+            cityjson_arrow::error::Error::MissingField(field) => {
+                Self::Import(format!("missing Arrow field: {field}"))
+            }
+            cityjson_arrow::error::Error::Io(error) => Self::Io(error),
+        }
+    }
+}
+
 #[cfg(feature = "json")]
 impl From<cityjson_json::Error> for Error {
     fn from(value: cityjson_json::Error) -> Self {
