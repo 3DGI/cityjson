@@ -37,6 +37,18 @@ fn bytes_to_string(bytes: cj_bytes_t) -> String {
     string
 }
 
+fn bytes_to_vec(bytes: cj_bytes_t) -> Vec<u8> {
+    if bytes.len == 0 {
+        let _ = cj_bytes_free(bytes);
+        return Vec::new();
+    }
+
+    // SAFETY: the ABI returned `len` readable bytes.
+    let value = unsafe { slice::from_raw_parts(bytes.data.cast_const(), bytes.len) }.to_vec();
+    assert_eq!(cj_bytes_free(bytes), cj_status_t::CJ_STATUS_SUCCESS);
+    value
+}
+
 fn bytes_list_to_vec(bytes: cj_bytes_list_t) -> Vec<String> {
     if bytes.len == 0 {
         let _ = cj_bytes_list_free(bytes);
@@ -142,6 +154,36 @@ fn boundary_to_payload(boundary: cj_geometry_boundary_t) -> BoundaryPayload {
         shell_offsets: indices_to_vec(boundary.shell_offsets),
         solid_offsets: indices_to_vec(boundary.solid_offsets),
     }
+}
+
+fn model_summary(handle: *const cj_model_t) -> cj_model_summary_t {
+    let mut summary = cj_model_summary_t::default();
+    assert_eq!(
+        cj_model_get_summary(handle, &raw mut summary),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    summary
+}
+
+fn assert_same_transport_summary(actual: cj_model_summary_t, expected: cj_model_summary_t) {
+    assert_eq!(actual.model_type, expected.model_type);
+    assert_eq!(actual.version, expected.version);
+    assert_eq!(actual.cityobject_count, expected.cityobject_count);
+    assert_eq!(actual.geometry_count, expected.geometry_count);
+    assert_eq!(
+        actual.geometry_template_count,
+        expected.geometry_template_count
+    );
+    assert_eq!(actual.vertex_count, expected.vertex_count);
+    assert_eq!(actual.template_vertex_count, expected.template_vertex_count);
+    assert_eq!(actual.uv_coordinate_count, expected.uv_coordinate_count);
+    assert_eq!(actual.semantic_count, expected.semantic_count);
+    assert_eq!(actual.material_count, expected.material_count);
+    assert_eq!(actual.texture_count, expected.texture_count);
+    assert_eq!(actual.extension_count, expected.extension_count);
+    assert_eq!(actual.has_metadata, expected.has_metadata);
+    assert_eq!(actual.has_templates, expected.has_templates);
+    assert_eq!(actual.has_appearance, expected.has_appearance);
 }
 
 #[test]
@@ -262,6 +304,69 @@ fn parse_feature_with_base_and_serialize_feature_round_trip() {
 
     assert_eq!(cj_model_free(round_trip), cj_status_t::CJ_STATUS_SUCCESS);
     assert_eq!(cj_bytes_free(serialized), cj_status_t::CJ_STATUS_SUCCESS);
+    assert_eq!(cj_model_free(handle), cj_status_t::CJ_STATUS_SUCCESS);
+}
+
+#[cfg(feature = "native-formats")]
+#[test]
+fn native_format_ffi_roundtrips_arrow_and_parquet() {
+    let mut handle = ptr::null_mut();
+    let status =
+        cj_model_parse_document_bytes(v2_document().as_ptr(), v2_document().len(), &raw mut handle);
+    assert_eq!(status, cj_status_t::CJ_STATUS_SUCCESS);
+    let expected = model_summary(handle);
+
+    let mut arrow_payload = cj_bytes_t::default();
+    assert_eq!(
+        cj_model_serialize_arrow_bytes(handle, &raw mut arrow_payload),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    let arrow_bytes = bytes_to_vec(arrow_payload);
+    assert!(!arrow_bytes.is_empty());
+
+    let mut arrow_handle = ptr::null_mut();
+    assert_eq!(
+        cj_model_parse_arrow_bytes(arrow_bytes.as_ptr(), arrow_bytes.len(), &raw mut arrow_handle),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_same_transport_summary(model_summary(arrow_handle), expected);
+
+    let tempdir = tempfile::tempdir().expect("tempdir should be created");
+    let package_path = tempdir.path().join("minimal.cityjson-parquet");
+    let package_path = package_path
+        .to_str()
+        .expect("test path should be valid UTF-8")
+        .to_owned();
+    assert_eq!(
+        cj_model_serialize_parquet_file(handle, string_view(&package_path)),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    let mut package_handle = ptr::null_mut();
+    assert_eq!(
+        cj_model_parse_parquet_file(string_view(&package_path), &raw mut package_handle),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_same_transport_summary(model_summary(package_handle), expected);
+
+    let dataset_path = tempdir.path().join("minimal.dataset");
+    let dataset_path = dataset_path
+        .to_str()
+        .expect("test path should be valid UTF-8")
+        .to_owned();
+    assert_eq!(
+        cj_model_serialize_parquet_dataset_dir(handle, string_view(&dataset_path)),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    let mut dataset_handle = ptr::null_mut();
+    assert_eq!(
+        cj_model_parse_parquet_dataset_dir(string_view(&dataset_path), &raw mut dataset_handle),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_same_transport_summary(model_summary(dataset_handle), expected);
+
+    assert_eq!(cj_model_free(dataset_handle), cj_status_t::CJ_STATUS_SUCCESS);
+    assert_eq!(cj_model_free(package_handle), cj_status_t::CJ_STATUS_SUCCESS);
+    assert_eq!(cj_model_free(arrow_handle), cj_status_t::CJ_STATUS_SUCCESS);
     assert_eq!(cj_model_free(handle), cj_status_t::CJ_STATUS_SUCCESS);
 }
 

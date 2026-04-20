@@ -291,6 +291,14 @@ typedef struct cj_probe_t {
 } cj_probe_t;
 
 /**
+ * Borrowed UTF-8 string view passed into the ABI.
+ */
+typedef struct cj_string_view_t {
+  const uint8_t *data;
+  uintptr_t len;
+} cj_string_view_t;
+
+/**
  * Aggregate model inspection summary returned across the ABI.
  */
 typedef struct cj_model_summary_t {
@@ -326,14 +334,6 @@ typedef struct cj_model_capacities_t {
   uintptr_t template_geometries;
   uintptr_t uv_coordinates;
 } cj_model_capacities_t;
-
-/**
- * Borrowed UTF-8 string view passed into the ABI.
- */
-typedef struct cj_string_view_t {
-  const uint8_t *data;
-  uintptr_t len;
-} cj_string_view_t;
 
 /**
  * Explicit root-transform state for JSON write and edit workflows.
@@ -550,11 +550,30 @@ enum cj_status_t cj_model_parse_feature_with_base_bytes(const uint8_t *feature_d
                                                         uintptr_t base_len,
                                                         struct cj_model_t **out_model);
 
+enum cj_status_t cj_model_parse_arrow_bytes(const uint8_t *data,
+                                            uintptr_t len,
+                                            struct cj_model_t **out_model);
+
+enum cj_status_t cj_model_parse_parquet_file(struct cj_string_view_t path,
+                                             struct cj_model_t **out_model);
+
+enum cj_status_t cj_model_parse_parquet_dataset_dir(struct cj_string_view_t path,
+                                                    struct cj_model_t **out_model);
+
 enum cj_status_t cj_model_serialize_document(const struct cj_model_t *model,
                                              struct cj_bytes_t *out_bytes);
 
 enum cj_status_t cj_model_serialize_feature(const struct cj_model_t *model,
                                             struct cj_bytes_t *out_bytes);
+
+enum cj_status_t cj_model_serialize_arrow_bytes(const struct cj_model_t *model,
+                                                struct cj_bytes_t *out_bytes);
+
+enum cj_status_t cj_model_serialize_parquet_file(const struct cj_model_t *model,
+                                                 struct cj_string_view_t path);
+
+enum cj_status_t cj_model_serialize_parquet_dataset_dir(const struct cj_model_t *model,
+                                                        struct cj_string_view_t path);
 
 enum cj_status_t cj_model_get_summary(const struct cj_model_t *model,
                                       struct cj_model_summary_t *out_summary);

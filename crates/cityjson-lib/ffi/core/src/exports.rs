@@ -1,6 +1,8 @@
 #![allow(non_camel_case_types)]
 
 use std::ffi::c_char;
+#[cfg(feature = "native-formats")]
+use std::io::Cursor;
 use std::ptr::{self, NonNull};
 use std::slice;
 use std::str::FromStr;
@@ -1349,6 +1351,46 @@ pub extern "C" fn cj_model_parse_feature_with_base_bytes(
     }))
 }
 
+#[cfg(feature = "native-formats")]
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_parse_arrow_bytes(
+    data: *const u8,
+    len: usize,
+    out_model: *mut *mut cj_model_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let input = required_bytes(data, len, "data")?;
+        let model = cityjson_lib::arrow::from_reader(Cursor::new(input))?;
+        write_model_handle(out_model, model)
+    }))
+}
+
+#[cfg(feature = "native-formats")]
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_parse_parquet_file(
+    path: cj_string_view_t,
+    out_model: *mut *mut cj_model_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let path = view_utf8(path, "path")?;
+        let model = cityjson_lib::parquet::from_file(path)?;
+        write_model_handle(out_model, model)
+    }))
+}
+
+#[cfg(feature = "native-formats")]
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_parse_parquet_dataset_dir(
+    path: cj_string_view_t,
+    out_model: *mut *mut cj_model_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let path = view_utf8(path, "path")?;
+        let model = cityjson_lib::parquet::from_dir(path)?;
+        write_model_handle(out_model, model)
+    }))
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn cj_model_serialize_document(
     model: *const cj_model_t,
@@ -1373,6 +1415,47 @@ pub extern "C" fn cj_model_serialize_feature(
             cityjson_lib::json::WriteOptions::default(),
         )?;
         write_bytes(out_bytes, bytes)
+    }))
+}
+
+#[cfg(feature = "native-formats")]
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_serialize_arrow_bytes(
+    model: *const cj_model_t,
+    out_bytes: *mut cj_bytes_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let model = required_model_ref(model)?;
+        let bytes = cityjson_lib::arrow::to_vec(model)?;
+        write_bytes(out_bytes, bytes)
+    }))
+}
+
+#[cfg(feature = "native-formats")]
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_serialize_parquet_file(
+    model: *const cj_model_t,
+    path: cj_string_view_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let model = required_model_ref(model)?;
+        let path = view_utf8(path, "path")?;
+        let _ = cityjson_lib::parquet::to_file(path, model)?;
+        Ok(())
+    }))
+}
+
+#[cfg(feature = "native-formats")]
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_serialize_parquet_dataset_dir(
+    model: *const cj_model_t,
+    path: cj_string_view_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let model = required_model_ref(model)?;
+        let path = view_utf8(path, "path")?;
+        let _ = cityjson_lib::parquet::to_dir(path, model)?;
+        Ok(())
     }))
 }
 
