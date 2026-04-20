@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import tempfile
 import unittest
 
 from cityjson_lib import (
@@ -23,6 +24,7 @@ from cityjson_lib import (
     RGB,
     RingDraft,
     ModelCapacities,
+    ModelSummary,
     ModelType,
     RootKind,
     SemanticId,
@@ -58,6 +60,23 @@ FAKE_COMPLETE_FIXTURE_PATH = (
 
 
 class PythonBindingSmokeTest(unittest.TestCase):
+    def assert_transport_shape_equal(self, actual: ModelSummary, expected: ModelSummary) -> None:
+        self.assertEqual(actual.model_type, expected.model_type)
+        self.assertEqual(actual.version, expected.version)
+        self.assertEqual(actual.cityobject_count, expected.cityobject_count)
+        self.assertEqual(actual.geometry_count, expected.geometry_count)
+        self.assertEqual(actual.geometry_template_count, expected.geometry_template_count)
+        self.assertEqual(actual.vertex_count, expected.vertex_count)
+        self.assertEqual(actual.template_vertex_count, expected.template_vertex_count)
+        self.assertEqual(actual.uv_coordinate_count, expected.uv_coordinate_count)
+        self.assertEqual(actual.semantic_count, expected.semantic_count)
+        self.assertEqual(actual.material_count, expected.material_count)
+        self.assertEqual(actual.texture_count, expected.texture_count)
+        self.assertEqual(actual.extension_count, expected.extension_count)
+        self.assertEqual(actual.has_metadata, expected.has_metadata)
+        self.assertEqual(actual.has_templates, expected.has_templates)
+        self.assertEqual(actual.has_appearance, expected.has_appearance)
+
     def test_parse_edit_extract_and_serialize_document(self) -> None:
         payload = FIXTURE_PATH.read_bytes()
 
@@ -145,6 +164,33 @@ class PythonBindingSmokeTest(unittest.TestCase):
         self.assertIn(b"fixture-1-updated", model.serialize_document_bytes())
         self.assertEqual(len(model.uv_coordinates()), 4)
         self.assertIn('"type":"CityJSON"', model.serialize_document())
+
+    def test_native_format_roundtrips(self) -> None:
+        payload = FIXTURE_PATH.read_bytes()
+        model = CityModel.parse_document_bytes(payload)
+        self.addCleanup(model.close)
+        expected = model.summary()
+
+        arrow_payload = model.serialize_arrow_bytes()
+        self.assertGreater(len(arrow_payload), 0)
+        from_arrow = CityModel.parse_arrow_bytes(arrow_payload)
+        self.addCleanup(from_arrow.close)
+        self.assert_transport_shape_equal(from_arrow.summary(), expected)
+
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+
+            package_path = temp_path / "minimal.cityjson-parquet"
+            model.serialize_parquet_file(str(package_path))
+            from_package = CityModel.parse_parquet_file(str(package_path))
+            self.addCleanup(from_package.close)
+            self.assert_transport_shape_equal(from_package.summary(), expected)
+
+            dataset_path = temp_path / "minimal.dataset"
+            model.serialize_parquet_dataset_dir(str(dataset_path))
+            from_dataset = CityModel.parse_parquet_dataset_dir(str(dataset_path))
+            self.addCleanup(from_dataset.close)
+            self.assert_transport_shape_equal(from_dataset.summary(), expected)
 
     def test_append_and_cleanup_workflows(self) -> None:
         model = CityModel.parse_feature_bytes(

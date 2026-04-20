@@ -407,6 +407,19 @@ class FfiLibrary:
             POINTER(c_void_p),
         ]
         self._lib.cj_model_parse_feature_with_base_bytes.restype = c_int
+        self._lib.cj_model_parse_arrow_bytes.argtypes = [
+            POINTER(c_ubyte),
+            c_size_t,
+            POINTER(c_void_p),
+        ]
+        self._lib.cj_model_parse_arrow_bytes.restype = c_int
+        self._lib.cj_model_parse_parquet_file.argtypes = [StringViewStruct, POINTER(c_void_p)]
+        self._lib.cj_model_parse_parquet_file.restype = c_int
+        self._lib.cj_model_parse_parquet_dataset_dir.argtypes = [
+            StringViewStruct,
+            POINTER(c_void_p),
+        ]
+        self._lib.cj_model_parse_parquet_dataset_dir.restype = c_int
         self._lib.cj_model_create.argtypes = [c_int, POINTER(c_void_p)]
         self._lib.cj_model_create.restype = c_int
 
@@ -447,6 +460,12 @@ class FfiLibrary:
         self._lib.cj_model_serialize_document.restype = c_int
         self._lib.cj_model_serialize_feature.argtypes = [c_void_p, POINTER(BytesStruct)]
         self._lib.cj_model_serialize_feature.restype = c_int
+        self._lib.cj_model_serialize_arrow_bytes.argtypes = [c_void_p, POINTER(BytesStruct)]
+        self._lib.cj_model_serialize_arrow_bytes.restype = c_int
+        self._lib.cj_model_serialize_parquet_file.argtypes = [c_void_p, StringViewStruct]
+        self._lib.cj_model_serialize_parquet_file.restype = c_int
+        self._lib.cj_model_serialize_parquet_dataset_dir.argtypes = [c_void_p, StringViewStruct]
+        self._lib.cj_model_serialize_parquet_dataset_dir.restype = c_int
         self._lib.cj_model_serialize_document_with_options.argtypes = [
             c_void_p,
             WriteOptionsStruct,
@@ -980,6 +999,28 @@ class FfiLibrary:
         )
         return int(handle.value)
 
+    def parse_arrow(self, data: bytes) -> int:
+        handle = c_void_p()
+        pointer_data = self._data_pointer(data)
+        self._raise_if_error(
+            self._lib.cj_model_parse_arrow_bytes(pointer_data, len(data), pointer(handle))
+        )
+        return int(handle.value)
+
+    def parse_parquet_file(self, path: str) -> int:
+        handle = c_void_p()
+        path_view, _path_buffer = self._string_view(path)
+        self._raise_if_error(self._lib.cj_model_parse_parquet_file(path_view, pointer(handle)))
+        return int(handle.value)
+
+    def parse_parquet_dataset_dir(self, path: str) -> int:
+        handle = c_void_p()
+        path_view, _path_buffer = self._string_view(path)
+        self._raise_if_error(
+            self._lib.cj_model_parse_parquet_dataset_dir(path_view, pointer(handle))
+        )
+        return int(handle.value)
+
     def create(self, model_type: ModelType) -> int:
         handle = c_void_p()
         self._raise_if_error(self._lib.cj_model_create(int(model_type), pointer(handle)))
@@ -1021,6 +1062,25 @@ class FfiLibrary:
         payload = BytesStruct()
         self._raise_if_error(self._lib.cj_model_serialize_feature(c_void_p(handle), pointer(payload)))
         return self._take_bytes(payload)
+
+    def serialize_arrow(self, handle: int) -> bytes:
+        payload = BytesStruct()
+        self._raise_if_error(
+            self._lib.cj_model_serialize_arrow_bytes(c_void_p(handle), pointer(payload))
+        )
+        return self._take_bytes(payload)
+
+    def serialize_parquet_file(self, handle: int, path: str) -> None:
+        path_view, _path_buffer = self._string_view(path)
+        self._raise_if_error(
+            self._lib.cj_model_serialize_parquet_file(c_void_p(handle), path_view)
+        )
+
+    def serialize_parquet_dataset_dir(self, handle: int, path: str) -> None:
+        path_view, _path_buffer = self._string_view(path)
+        self._raise_if_error(
+            self._lib.cj_model_serialize_parquet_dataset_dir(c_void_p(handle), path_view)
+        )
 
     def summary(self, handle: int) -> ModelSummaryStruct:
         summary = ModelSummaryStruct()

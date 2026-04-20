@@ -63,6 +63,8 @@ def _write_trimmed_root_manifest(source: Path, destination: Path) -> None:
     manifest = "\n".join(trimmed) + "\n"
     manifest = manifest.replace('path = "../cityjson-rs"', 'path = "./cityjson-rs"')
     manifest = manifest.replace('path = "../cityjson-json"', 'path = "./cityjson-json"')
+    manifest = manifest.replace('path = "../cityjson-arrow"', 'path = "./cityjson-arrow"')
+    manifest = manifest.replace('path = "../cityjson-parquet"', 'path = "./cityjson-parquet"')
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(manifest, encoding="utf-8")
 
@@ -132,7 +134,7 @@ class sdist(_sdist):
             _copy_release_tree_file(source_root, release_root, relative)
 
         sibling_root = source_root.parent
-        for crate_name in ("cityjson-rs", "cityjson-json"):
+        for crate_name in ("cityjson-rs", "cityjson-json", "cityjson-arrow", "cityjson-parquet"):
             crate_root = sibling_root / crate_name
             for relative in ("Cargo.toml", "README.md", "src"):
                 _copy_path(crate_root / relative, release_root / crate_name / relative)

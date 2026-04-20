@@ -672,6 +672,30 @@ class CityModel(_OwnedHandle):
         return cls(_ffi.parse_feature_with_base(_as_bytes(feature_data), _as_bytes(base_data)))
 
     @classmethod
+    def from_arrow_bytes(cls, data: bytes | bytearray | memoryview) -> Self:
+        return cls.parse_arrow_bytes(data)
+
+    @classmethod
+    def parse_arrow_bytes(cls, data: bytes | bytearray | memoryview) -> Self:
+        return cls(_ffi.parse_arrow(_as_bytes(data)))
+
+    @classmethod
+    def from_parquet_file(cls, path: str) -> Self:
+        return cls.parse_parquet_file(path)
+
+    @classmethod
+    def parse_parquet_file(cls, path: str) -> Self:
+        return cls(_ffi.parse_parquet_file(path))
+
+    @classmethod
+    def from_parquet_dataset_dir(cls, path: str) -> Self:
+        return cls.parse_parquet_dataset_dir(path)
+
+    @classmethod
+    def parse_parquet_dataset_dir(cls, path: str) -> Self:
+        return cls(_ffi.parse_parquet_dataset_dir(path))
+
+    @classmethod
     def create(cls, *, model_type: ModelType) -> Self:
         return cls(_ffi.create(model_type))
 
@@ -790,6 +814,24 @@ class CityModel(_OwnedHandle):
     def serialize_feature_bytes(self, options: WriteOptions | None = None) -> bytes:
         payload = options.to_native() if options is not None else WriteOptions().to_native()
         return _ffi.serialize_feature_with_options(self._require_handle(), payload)
+
+    def serialize_arrow_bytes(self) -> bytes:
+        return _ffi.serialize_arrow(self._require_handle())
+
+    def to_arrow_bytes(self) -> bytes:
+        return self.serialize_arrow_bytes()
+
+    def serialize_parquet_file(self, path: str) -> None:
+        _ffi.serialize_parquet_file(self._require_handle(), path)
+
+    def to_parquet_file(self, path: str) -> None:
+        self.serialize_parquet_file(path)
+
+    def serialize_parquet_dataset_dir(self, path: str) -> None:
+        _ffi.serialize_parquet_dataset_dir(self._require_handle(), path)
+
+    def to_parquet_dataset_dir(self, path: str) -> None:
+        self.serialize_parquet_dataset_dir(path)
 
     def reserve_import(self, capacities: ModelCapacities) -> None:
         _ffi.reserve_import(self._require_handle(), capacities.to_native())
