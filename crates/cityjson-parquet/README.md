@@ -90,6 +90,11 @@ just site-build
 just bench-check
 ```
 
+## Use of AI in this project
+
+This crate was written with AI assistance after the schema and specs were defined by hand.
+Development used an iterative process of testing, benchmarking, and optimization controlled and verified by me.
+
 ## Repository map
 
 - `src/lib.rs` — public exports; re-exports schema types from `cityjson-arrow`

@@ -1,14 +1,14 @@
-//! Persistent CityJSON package and native Parquet dataset IO.
+//! Persistent `CityJSON` package and native Parquet dataset IO.
 //!
 //! `cityjson-parquet` exposes two durable representations of the same canonical
-//! CityJSON Arrow tables:
+//! `CityJSON` Arrow tables:
 //!
 //! - [`PackageWriter`] / [`PackageReader`] read and write the `.cityjson-parquet`
 //!   single-file package. This is a seekable container backed by Arrow IPC table
 //!   payloads.
 //! - [`ParquetDatasetWriter`] / [`ParquetDatasetReader`] read and write a native
 //!   Parquet dataset directory with one Parquet file per canonical table. This
-//!   is the interoperability target for PyArrow, DuckDB, Polars, and similar
+//!   is the interoperability target for `PyArrow`, `DuckDB`, `Polars`, and similar
 //!   Parquet-native tools.
 
 mod dataset;
