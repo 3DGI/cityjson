@@ -72,10 +72,7 @@ pub fn collect_feature_records(layout_root: &Path) -> Result<Vec<FeatureRecord>>
         if path.extension().and_then(|ext| ext.to_str()) != Some("jsonl") {
             continue;
         }
-        if fs::metadata(&path)
-            .map(|meta| meta.len() == 0)
-            .unwrap_or(true)
-        {
+        if fs::metadata(&path).is_ok_and(|meta| meta.len() == 0) {
             continue;
         }
 

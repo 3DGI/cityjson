@@ -2044,11 +2044,7 @@ fn scan_feature_files_root(
         if !entry.file_type().is_some_and(|ft| ft.is_file()) {
             continue;
         }
-        if entry
-            .metadata()
-            .map(|meta| meta.len() == 0)
-            .unwrap_or(false)
-        {
+        if entry.metadata().is_ok_and(|meta| meta.len() == 0) {
             continue;
         }
         let path = entry.into_path();

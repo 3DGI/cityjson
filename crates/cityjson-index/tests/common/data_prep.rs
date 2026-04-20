@@ -853,7 +853,13 @@ fn tile_path(tile_id: &str) -> PathBuf {
 }
 
 fn tool_version(tool: &str) -> Result<String> {
-    let output = Command::new(tool).arg("--version").output()?;
+    let output = match Command::new(tool).arg("--version").output() {
+        Ok(output) => output,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok("unavailable".to_owned());
+        }
+        Err(error) => return Err(error.into()),
+    };
     if !output.status.success() {
         return Err(import_error(format!(
             "{tool} --version failed: {}",
