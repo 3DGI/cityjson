@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display, Formatter};
 use std::sync::Arc;
 
-pub const PACKAGE_SCHEMA_ID: &str = "cityjson-arrow.package.v3alpha2";
+pub const PACKAGE_SCHEMA_ID: &str = "cityjson-arrow.package.v3alpha3";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CityArrowPackageVersion {
-    #[serde(rename = "cityjson-arrow.package.v3alpha2")]
-    V3Alpha2,
+    #[serde(rename = "cityjson-arrow.package.v3alpha3")]
+    V3Alpha3,
 }
 
 impl CityArrowPackageVersion {
@@ -156,7 +156,6 @@ pub struct CityModelArrowParts {
     pub header: CityArrowHeader,
     pub projection: ProjectionLayout,
     pub metadata: RecordBatch,
-    pub transform: Option<RecordBatch>,
     pub extensions: Option<RecordBatch>,
     pub vertices: RecordBatch,
     pub cityobjects: RecordBatch,
@@ -207,7 +206,7 @@ impl PackageManifest {
         projection: ProjectionLayout,
     ) -> Self {
         Self {
-            package_schema: CityArrowPackageVersion::V3Alpha2,
+            package_schema: CityArrowPackageVersion::V3Alpha3,
             cityjson_version: cityjson_version.into(),
             citymodel_id: citymodel_id.into(),
             projection,
@@ -229,7 +228,6 @@ impl From<&PackageManifest> for CityArrowHeader {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalSchemaSet {
     pub metadata: SchemaRef,
-    pub transform: SchemaRef,
     pub extensions: SchemaRef,
     pub vertices: SchemaRef,
     pub cityobjects: SchemaRef,
@@ -259,7 +257,6 @@ pub struct CanonicalSchemaSet {
 pub fn canonical_schema_set(layout: &ProjectionLayout) -> CanonicalSchemaSet {
     CanonicalSchemaSet {
         metadata: schema_ref(metadata_fields(layout)),
-        transform: schema_ref(transform_fields()),
         extensions: schema_ref(extensions_fields()),
         vertices: schema_ref(vertices_fields()),
         cityobjects: schema_ref(cityobjects_fields(layout)),
@@ -375,13 +372,6 @@ fn metadata_fields(layout: &ProjectionLayout) -> Vec<Field> {
         fields.push(field);
     }
     fields
-}
-
-fn transform_fields() -> Vec<Field> {
-    vec![
-        fixed_size_list_field("scale", DataType::Float64, false, 3, false),
-        fixed_size_list_field("translate", DataType::Float64, false, 3, false),
-    ]
 }
 
 fn extensions_fields() -> Vec<Field> {

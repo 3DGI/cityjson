@@ -17,7 +17,7 @@ interpreted as described in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119).
 |---|---|
 | Package magic | `CITYJSON_ARROW_PKG_V3\0` (22 bytes, including null terminator) |
 | Footer magic | `CITYJSON_ARROW_PKG_V3IDX\0` (25 bytes, including null terminator) |
-| Schema id | `cityjson-arrow.package.v3alpha2` |
+| Schema id | `cityjson-arrow.package.v3alpha3` |
 
 ## Overall layout
 

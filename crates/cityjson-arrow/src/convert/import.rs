@@ -97,7 +97,6 @@ impl IncrementalDecoder {
                     batch,
                 )?);
             }
-            CanonicalTable::Transform => import_transform_batch(batch, self.state_mut()?)?,
             CanonicalTable::Extensions => import_extensions_batch(batch, self.state_mut()?)?,
             CanonicalTable::Vertices => import_vertex_batch(batch, self.state_mut()?)?,
             CanonicalTable::TemplateVertices => {
@@ -600,13 +599,6 @@ fn import_semantic_child_batch(batch: &RecordBatch, state: &mut ImportState) -> 
             .children_mut()
             .push(child);
     }
-    Ok(())
-}
-
-fn import_transform_batch(batch: &RecordBatch, state: &mut ImportState) -> Result<()> {
-    let row = read_transform_row(batch)?;
-    state.model.transform_mut().set_scale(row.scale);
-    state.model.transform_mut().set_translate(row.translate);
     Ok(())
 }
 

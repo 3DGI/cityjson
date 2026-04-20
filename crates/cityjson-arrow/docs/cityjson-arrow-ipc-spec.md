@@ -12,7 +12,7 @@ interpreted as described in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119).
 | Field | Value |
 |---|---|
 | Stream magic | `CITYJSON_ARROW_STREAM_V3\0` (25 bytes, including null terminator) |
-| Schema id | `cityjson-arrow.package.v3alpha2` |
+| Schema id | `cityjson-arrow.package.v3alpha3` |
 
 ## Overall layout
 

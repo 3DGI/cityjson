@@ -35,8 +35,8 @@ fn assert_stream_roundtrip(case_id: &str) {
         .unwrap_or_else(|err| panic!("{case_id}: stream write failed: {err}"));
     let decoded = read_stream(bytes.as_slice(), &ImportOptions::default())
         .unwrap_or_else(|err| panic!("{case_id}: stream read failed: {err}"));
-    let expected = shared_corpus::normalized_json(&case.model);
-    let actual = shared_corpus::normalized_json(&decoded);
+    let expected = shared_corpus::transport_roundtrip_json(&case.model, &case.model);
+    let actual = shared_corpus::transport_roundtrip_json(&decoded, &case.model);
     assert_eq!(actual, expected, "{case_id}: stream roundtrip mismatch");
 }
 
@@ -49,9 +49,38 @@ fn assert_batch_roundtrip(case_id: &str) {
     let batches = reader.collect::<Vec<_>>();
     let decoded = import_batches(header, projection, batches, &ImportOptions::default())
         .unwrap_or_else(|err| panic!("{case_id}: import failed: {err}"));
-    let expected = shared_corpus::normalized_json(&case.model);
-    let actual = shared_corpus::normalized_json(&decoded);
+    let expected = shared_corpus::transport_roundtrip_json(&case.model, &case.model);
+    let actual = shared_corpus::transport_roundtrip_json(&decoded, &case.model);
     assert_eq!(actual, expected, "{case_id}: batch roundtrip mismatch");
+}
+
+#[test]
+fn removed_transform_stream_tag_is_rejected() {
+    let case = shared_corpus::load_named_conformance_case("cityjson_minimal");
+    let mut bytes = Vec::new();
+    write_stream(&mut bytes, &case.model, &ExportOptions::default()).expect("stream write");
+    let first_tag = first_stream_frame_tag_offset(&bytes);
+    bytes[first_tag] = 1;
+
+    let Err(err) = read_stream(bytes.as_slice(), &ImportOptions::default()) else {
+        panic!("stream tag 1 should be rejected");
+    };
+    assert!(
+        err.to_string().contains("tag 1"),
+        "unexpected error for removed transform tag: {err}"
+    );
+}
+
+fn first_stream_frame_tag_offset(bytes: &[u8]) -> usize {
+    let magic_len = b"CITYJSON_ARROW_STREAM_V3\0".len();
+    let prelude_len_start = magic_len;
+    let prelude_len_end = prelude_len_start + 8;
+    let prelude_len = u64::from_le_bytes(
+        bytes[prelude_len_start..prelude_len_end]
+            .try_into()
+            .expect("prelude length bytes"),
+    );
+    prelude_len_end + usize::try_from(prelude_len).expect("prelude length fits usize")
 }
 
 conformance_roundtrip_tests!(

@@ -61,12 +61,13 @@ Coverage layers:
 - `docs/package-schema.md`: canonical table contract
 - `docs/cityjson-arrow.md`: public API reference
 - `docs/cityjson-arrow-ipc-spec.md`: binary stream layout
-- `docs/cityjson-parquet-spec.md`: persistent package binary layout
+- `docs/package.md`: persistent package API reference
+- `docs/package-spec.md`: persistent package binary layout
 - `docs/adr/`: architecture decision records
 
 ## Development Notes
 
-- The canonical package schema id is `cityjson-arrow.package.v3alpha2`.
+- The canonical package schema id is `cityjson-arrow.package.v3alpha3`.
 - Keep docs aligned with the code in `src/schema.rs` and `src/codec.rs`.
 - Avoid introducing claims about formats, modules, or APIs that are not
   implemented in this repository.

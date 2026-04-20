@@ -1,9 +1,10 @@
-# cityjson-parquet
+# Persistent package
 
-`cityjson-parquet` stores a `cityjson-rs` city model as a seekable single-file package.
+`cityjson-parquet` stores a `cityjson-rs` city model as a seekable single-file
+package.
 
 It uses the same canonical table schema as `cityjson-arrow` and produces files that
-are compatible with the `cityjson-arrow.package.v3alpha2` format version.
+are compatible with the `cityjson-arrow.package.v3alpha3` format version.
 
 ## Public API
 
@@ -17,6 +18,6 @@ The input and output type is always `cityjson::v2_0::OwnedCityModel`.
 
 ## Related documents
 
-- [Package layout](cityjson-parquet-spec.md): binary layout, magic bytes, and manifest contract
+- [Package layout](package-spec.md): binary layout, magic bytes, and manifest contract
 - [Package schema](package-schema.md): canonical table contract shared with `cityjson-arrow`
 - [Transport design](design.md): why persistent package I/O is a separate crate

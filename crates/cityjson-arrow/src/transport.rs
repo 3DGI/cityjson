@@ -6,7 +6,6 @@ use arrow::record_batch::RecordBatch;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CanonicalTable {
     Metadata,
-    Transform,
     Extensions,
     Vertices,
     CityObjects,
@@ -37,7 +36,6 @@ impl CanonicalTable {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Metadata => "metadata",
-            Self::Transform => "transform",
             Self::Extensions => "extensions",
             Self::Vertices => "vertices",
             Self::CityObjects => "cityobjects",
@@ -70,7 +68,6 @@ impl CanonicalTable {
     pub fn parse(name: &str) -> Result<Self> {
         match name {
             "metadata" => Ok(Self::Metadata),
-            "transform" => Ok(Self::Transform),
             "extensions" => Ok(Self::Extensions),
             "vertices" => Ok(Self::Vertices),
             "cityobjects" => Ok(Self::CityObjects),
@@ -104,7 +101,6 @@ impl CanonicalTable {
     pub const fn stream_tag(self) -> u8 {
         match self {
             Self::Metadata => 0,
-            Self::Transform => 1,
             Self::Extensions => 2,
             Self::Vertices => 3,
             Self::TemplateVertices => 4,
@@ -137,7 +133,10 @@ impl CanonicalTable {
     pub fn from_stream_tag(tag: u8) -> Result<Self> {
         match tag {
             0 => Ok(Self::Metadata),
-            1 => Ok(Self::Transform),
+            1 => Err(Error::Unsupported(
+                "canonical stream frame tag 1 is reserved for the removed transform table"
+                    .to_string(),
+            )),
             2 => Ok(Self::Extensions),
             3 => Ok(Self::Vertices),
             4 => Ok(Self::TemplateVertices),
@@ -197,7 +196,6 @@ pub trait CanonicalTableSink {
 pub const fn canonical_table_order() -> &'static [CanonicalTable] {
     &[
         CanonicalTable::Metadata,
-        CanonicalTable::Transform,
         CanonicalTable::Extensions,
         CanonicalTable::Vertices,
         CanonicalTable::TemplateVertices,
@@ -240,7 +238,6 @@ pub fn collect_tables(parts: &CityModelArrowParts) -> Vec<(CanonicalTable, Recor
     let mut tables = Vec::new();
     for (table, batch) in [
         (CanonicalTable::Metadata, Some(parts.metadata.clone())),
-        (CanonicalTable::Transform, parts.transform.clone()),
         (CanonicalTable::Extensions, parts.extensions.clone()),
         (CanonicalTable::Vertices, Some(parts.vertices.clone())),
         (
@@ -332,7 +329,6 @@ fn push_optional(
 pub fn schema_for_table(schemas: &CanonicalSchemaSet, table: CanonicalTable) -> &SchemaRef {
     match table {
         CanonicalTable::Metadata => &schemas.metadata,
-        CanonicalTable::Transform => &schemas.transform,
         CanonicalTable::Extensions => &schemas.extensions,
         CanonicalTable::Vertices => &schemas.vertices,
         CanonicalTable::CityObjects => &schemas.cityobjects,

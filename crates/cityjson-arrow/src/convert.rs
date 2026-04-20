@@ -96,12 +96,6 @@ struct MetadataRow {
     metadata_extra: Option<cityjson::v2_0::OwnedAttributes>,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct TransformRow {
-    scale: [f64; 3],
-    translate: [f64; 3],
-}
-
 struct U32ListBatchBuffer {
     offsets: Vec<i32>,
     values: Vec<u32>,
@@ -593,7 +587,6 @@ struct ExportContext<'a> {
 
 struct ExportCoreBatches {
     metadata: RecordBatch,
-    transform: Option<RecordBatch>,
     extensions: Option<RecordBatch>,
     vertices: RecordBatch,
     cityobjects: RecordBatch,
@@ -633,7 +626,6 @@ struct PartsSink {
     header: Option<CityArrowHeader>,
     projection: Option<ProjectionLayout>,
     metadata: Option<RecordBatch>,
-    transform: Option<RecordBatch>,
     extensions: Option<RecordBatch>,
     vertices: Option<RecordBatch>,
     template_vertices: Option<RecordBatch>,

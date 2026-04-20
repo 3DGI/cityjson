@@ -1,6 +1,7 @@
 # cityjson-arrow documentation
 
-`cityjson-arrow` and `cityjson-parquet` are the Arrow transport layer for `cityjson-rs`.
+`cityjson-arrow` is the Arrow transport layer for `cityjson-rs`. The sibling
+`cityjson-parquet` crate provides the persistent package surface.
 
 This site documents the live stream API, the persistent package API, the shared
 table schema, and the binary format layouts.
@@ -8,10 +9,10 @@ table schema, and the binary format layouts.
 ## Start Here
 
 - [cityjson-arrow](cityjson-arrow.md): live Arrow IPC stream and batch codec
-- [cityjson-parquet](cityjson-parquet.md): persistent single-file package
+- [Persistent package](package.md): seekable single-file package API
 - [Package schema](package-schema.md): shared canonical table contract
 - [Arrow IPC layout](cityjson-arrow-ipc-spec.md): binary layout of the live stream format
-- [Package layout](cityjson-parquet-spec.md): binary layout of the persistent package format
+- [Package layout](package-spec.md): binary layout of the persistent package format
 
 ## Design decisions
 
@@ -32,4 +33,4 @@ This site covers the transport layer only, not the CityJSON data model itself.
 - `cityjson-arrow` owns the live Arrow stream and batch codec surface.
 - `cityjson-parquet` owns the persistent package I/O surface.
 - Both crates share the same canonical table schema and reconstruction rules.
-- The current package format version is `cityjson-arrow.package.v3alpha2`.
+- The current package format version is `cityjson-arrow.package.v3alpha3`.

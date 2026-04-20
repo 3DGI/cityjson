@@ -761,13 +761,6 @@ pub(super) fn read_metadata_row(
     })
 }
 
-pub(super) fn read_transform_row(batch: &RecordBatch) -> Result<TransformRow> {
-    Ok(TransformRow {
-        scale: read_fixed_size_f64_required::<3>(batch, "scale", 0)?,
-        translate: read_fixed_size_f64_required::<3>(batch, "translate", 0)?,
-    })
-}
-
 pub(super) fn apply_metadata_row(
     model: &mut OwnedCityModel,
     row: &MetadataRow,
@@ -1028,15 +1021,6 @@ pub(super) fn read_list_f64_array_optional<const N: usize>(
     Ok(Some(slice.try_into().map_err(|_| {
         Error::Conversion(format!("list does not have length {N}"))
     })?))
-}
-
-pub(super) fn read_fixed_size_f64_required<const N: usize>(
-    batch: &RecordBatch,
-    name: &str,
-    row: usize,
-) -> Result<[f64; N]> {
-    read_fixed_size_f64_optional::<N>(batch, name, row)?
-        .ok_or_else(|| Error::Conversion(format!("missing required fixed-size list {name}")))
 }
 
 pub(super) fn read_fixed_size_f64_optional<const N: usize>(

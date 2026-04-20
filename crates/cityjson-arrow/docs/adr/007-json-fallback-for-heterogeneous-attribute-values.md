@@ -80,5 +80,5 @@ Trade-offs:
   a documented limitation.
 - Adding `Json` to the `ProjectedValueSpec` enum extends the package manifest
   schema. Old readers that encounter a `Json`-typed field will fail to
-  deserialize the manifest. The schema ID (`cityjson-arrow.package.v3alpha2`)
+  deserialize the manifest. The schema ID (`cityjson-arrow.package.v3alpha3`)
   already signals instability.

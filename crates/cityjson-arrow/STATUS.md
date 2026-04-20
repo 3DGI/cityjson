@@ -9,7 +9,7 @@ stream-oriented Arrow codec over `cityjson-rs`.
 - ordered batch export is `export_reader`
 - ordered batch import is `ModelBatchDecoder` / `import_batches`
 - doc-hidden parts bridges remain for the sibling `cityjson-parquet` crate
-- the package schema id is `cityjson-arrow.package.v3alpha2`
+- the package schema id is `cityjson-arrow.package.v3alpha3`
 
 ## What Changed In This Slice
 

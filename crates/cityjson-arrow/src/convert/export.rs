@@ -19,7 +19,6 @@ pub(crate) fn emit_tables<S: CanonicalTableSink>(
 
     let core = export_core_batches(&context)?;
     sink.push_batch(CanonicalTable::Metadata, core.metadata)?;
-    push_optional_batch(sink, CanonicalTable::Transform, core.transform)?;
     push_optional_batch(sink, CanonicalTable::Extensions, core.extensions)?;
     sink.push_batch(CanonicalTable::Vertices, core.vertices)?;
 
@@ -183,7 +182,7 @@ fn build_export_context<'a>(relational: &'a ModelRelationalView<'a>) -> Result<E
     Ok(ExportContext {
         relational,
         header: CityArrowHeader::new(
-            CityArrowPackageVersion::V3Alpha2,
+            CityArrowPackageVersion::V3Alpha3,
             citymodel_id,
             model
                 .version()
@@ -216,7 +215,6 @@ impl CanonicalTableSink for PartsSink {
     fn push_batch(&mut self, table: CanonicalTable, batch: RecordBatch) -> Result<()> {
         let slot = match table {
             CanonicalTable::Metadata => &mut self.metadata,
-            CanonicalTable::Transform => &mut self.transform,
             CanonicalTable::Extensions => &mut self.extensions,
             CanonicalTable::Vertices => &mut self.vertices,
             CanonicalTable::TemplateVertices => &mut self.template_vertices,
@@ -257,7 +255,6 @@ impl PartsSink {
                 Error::Conversion("missing canonical table projection".to_string())
             })?,
             metadata: required_batch(self.metadata, CanonicalTable::Metadata)?,
-            transform: self.transform,
             extensions: self.extensions,
             vertices: required_batch(self.vertices, CanonicalTable::Vertices)?,
             cityobjects: required_batch(self.cityobjects, CanonicalTable::CityObjects)?,
@@ -313,22 +310,14 @@ fn required_batch(batch: Option<RecordBatch>, table: CanonicalTable) -> Result<R
 
 fn export_core_batches(context: &ExportContext<'_>) -> Result<ExportCoreBatches> {
     let relational = context.relational;
-    let model = relational.model();
     let metadata = metadata_batch(
         &context.schemas.metadata,
         metadata_row(relational, &context.header),
         &context.projection,
     )?;
-    let transform_row = model.transform().map(|transform| TransformRow {
-        scale: transform.scale(),
-        translate: transform.translate(),
-    });
 
     Ok(ExportCoreBatches {
         metadata,
-        transform: transform_row
-            .map(|row| transform_batch(&context.schemas.transform, row))
-            .transpose()?,
         extensions: extensions_batch_from_view(&context.schemas.extensions, relational)?,
         vertices: vertices_batch_from_view(&context.schemas.vertices, relational)?,
         cityobjects: cityobjects_batch_from_view(
@@ -1152,29 +1141,6 @@ fn metadata_batch(
         )?);
     }
     RecordBatch::try_new(schema.clone(), arrays).map_err(Error::from)
-}
-
-fn transform_batch(
-    schema: &Arc<::arrow::datatypes::Schema>,
-    row: TransformRow,
-) -> Result<RecordBatch> {
-    let mut fields = SchemaFieldLookup::new(schema);
-    RecordBatch::try_new(
-        schema.clone(),
-        vec![
-            Arc::new(fixed_size_f64_array(
-                &fields.field("scale")?,
-                3,
-                vec![Some(row.scale)],
-            )?),
-            Arc::new(fixed_size_f64_array(
-                &fields.field("translate")?,
-                3,
-                vec![Some(row.translate)],
-            )?),
-        ],
-    )
-    .map_err(Error::from)
 }
 
 fn geometries_batch(

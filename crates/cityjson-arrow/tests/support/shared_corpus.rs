@@ -8,7 +8,7 @@ use std::sync::LazyLock;
 use cityjson::v2_0::OwnedCityModel;
 use cityjson_json::{ReadOptions, WriteOptions, read_feature, read_model, to_vec};
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{Number, Value};
 
 const CORRECTNESS_INDEX_PATH: &str = "artifacts/correctness-index.json";
 
@@ -76,6 +76,42 @@ pub fn normalized_json(model: &OwnedCityModel) -> Value {
         .unwrap_or_else(|err| panic!("failed to serialize model: {err}"));
     serde_json::from_slice(&bytes)
         .unwrap_or_else(|err| panic!("failed to parse serialized model: {err}"))
+}
+
+pub fn transport_roundtrip_json(model: &OwnedCityModel, source: &OwnedCityModel) -> Value {
+    let mut value = normalized_json(model);
+    if source.transform().is_some() {
+        let root = value
+            .as_object_mut()
+            .expect("serialized CityJSON model is an object");
+        root.remove("transform");
+        root.insert("vertices".to_string(), real_world_vertices(model));
+    }
+    value
+}
+
+fn real_world_vertices(model: &OwnedCityModel) -> Value {
+    Value::Array(
+        model
+            .vertices()
+            .as_slice()
+            .iter()
+            .map(|coordinate| {
+                Value::Array(vec![
+                    finite_f64(coordinate.x()),
+                    finite_f64(coordinate.y()),
+                    finite_f64(coordinate.z()),
+                ])
+            })
+            .collect(),
+    )
+}
+
+fn finite_f64(value: f64) -> Value {
+    Number::from_f64(value).map_or_else(
+        || panic!("coordinate value is not finite: {value}"),
+        Value::Number,
+    )
 }
 
 fn resolve_artifact_path(case_id: &str, entry: &CorrectnessEntry) -> PathBuf {
