@@ -1,11 +1,8 @@
 # cityjson-parquet
 
-`cityjson-parquet` is the persistent package crate for `cityjson-rs`.
+`cityjson-parquet` stores a `cityjson-rs` city model as a seekable single-file package.
 
-It owns the durable storage boundary in the ADR 3 architecture and uses the
-same canonical transport tables as `cityjson-arrow`.
-
-## Public Surface
+## Public API
 
 ### PackageWriter
 
@@ -13,8 +10,8 @@ same canonical transport tables as `cityjson-arrow`.
 let manifest = PackageWriter.write_file("model.cityjson-parquet", &model)?;
 ```
 
-Encodes an `OwnedCityModel` into a seekable single-file package. Returns the
-`PackageManifest` describing the written tables.
+Encodes an `OwnedCityModel` into a package file. Returns the `PackageManifest`
+describing the written tables.
 
 ### PackageReader
 
@@ -24,48 +21,32 @@ let manifest = PackageReader.read_manifest("model.cityjson-parquet")?;
 ```
 
 `read_file` decodes the full model. `read_manifest` reads only the footer and
-manifest JSON — it does not load any table payload.
-
-### read_package_manifest
-
-```rust
-let manifest = read_package_manifest("model.cityjson-parquet")?;
-```
-
-Standalone function equivalent to `PackageReader::read_manifest`. Use this for
-inspection or fast extent queries without paying the cost of decoding geometry.
+manifest JSON; it does not load any table payload and is fast for inspection.
 
 ### spatial::SpatialIndex
 
-```rust
-let parts = cityjson_parquet::read_package_parts_file("model.cityjson-parquet")?;
-let index = SpatialIndex::build(&parts);
-let visible = index.query(&BBox2D::new(80_000.0, 440_000.0, 81_000.0, 441_000.0));
-```
+A Hilbert-curve sorted index over city object bounding boxes. `query` returns
+all entries whose bounding boxes overlap a given 2D rectangle. Objects without
+a stored `geographical_extent` get a bounding box derived from their geometry
+vertices.
 
-Builds a Hilbert-curve sorted index over `CityObject` bounding boxes. The
-`query` method returns all entries whose bounding boxes intersect the supplied
-2D rectangle. Objects without a stored `geographical_extent` get a fallback
-bounding box computed from their geometry vertices.
+`SpatialIndex` is in the `spatial` module and is not re-exported at the crate
+root. Use it as `cityjson_parquet::spatial::SpatialIndex`.
 
-`SpatialIndex` lives in the `spatial` module and is not re-exported at the
-crate root. Reference it as `cityjson_parquet::spatial::SpatialIndex`.
+!!! note
+    `SpatialIndex::build` currently takes an internal parts type. A public
+    constructor is planned for a future release.
 
-## Execution Model
+## How it works
 
-- `PackageSink` implements `CanonicalTableSink` from `cityjson-arrow`
-- `emit_tables` drives the sink with canonical table batches derived from the
-  model
-- each batch is serialised as an Arrow IPC file payload written sequentially
-  to the output file
-- the manifest is written after all payloads; its byte offset and length are
-  written as the footer alongside `PACKAGE_FOOTER_MAGIC`
-- `PackageReader` memory-maps the file and decodes only the byte slices
-  referenced by the manifest
+`PackageWriter` serialises each canonical Arrow table as an Arrow IPC file
+payload and appends them to the output file in order. The manifest is written
+last, so the writer never seeks back. `PackageReader` maps the file into memory
+and decodes only the byte slices referenced by the manifest.
 
-## Re-exported Schema Types
+## Re-exported types
 
-The following types are re-exported from `cityjson_arrow::schema`:
+The following types from `cityjson_arrow::schema` are available at the crate root:
 
 - `CityArrowHeader`
 - `CityArrowPackageVersion`
@@ -75,8 +56,8 @@ The following types are re-exported from `cityjson_arrow::schema`:
 - `ProjectionLayout`
 - `canonical_schema_set`
 
-## Related Documents
+## Related documents
 
-- [Package layout specification](cityjson-parquet-spec.md)
-- [Package schema](package-schema.md)
-- [Transport design](design.md)
+- [Package layout](cityjson-parquet-spec.md): binary layout, magic bytes, and manifest contract
+- [Package schema](package-schema.md): canonical table contract shared with `cityjson-arrow`
+- [Transport design](design.md): why persistent package I/O is a separate crate

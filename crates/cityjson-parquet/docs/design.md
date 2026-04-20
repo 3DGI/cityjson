@@ -1,68 +1,63 @@
-# cityjson-parquet Design
+# Design
 
-This document records the design decisions behind `cityjson-parquet`.
+This document describes the design decisions behind `cityjson-parquet`.
 
-## Origin
+## Why a separate crate
 
-`cityjson-parquet` was created by ADR 3 ("Separate Live Arrow IPC From
-Persistent Package IO"). ADR 3 established that live process-to-process
-transport and persistent file storage have different access patterns and should
-not share a single implementation.
+`cityjson-parquet` was created by [ADR 3](https://github.com/). Live
+process-to-process transport and persistent file storage have different access
+patterns and should not share a single implementation.
 
-The persistent package layer therefore owns:
+The persistent package layer owns:
 
 - a seekable single-file container format
 - memory-mapped lazy payload access
-- a manifest-first reader that can inspect a file without decoding geometry
+- a reader that can inspect a file's manifest without decoding any geometry
 
-The live stream layer remains in `cityjson-arrow`.
+The live stream layer stays in `cityjson-arrow`.
 
-## Package Container
+## Container format
 
-The format is intentionally not a Parquet columnar file despite the crate name.
-It is a bespoke seekable container that embeds Arrow IPC file payloads:
+The format is not a Parquet columnar file despite the crate name. It is a
+custom seekable container that stores Arrow IPC file payloads:
 
-- the writer appends payloads sequentially — no seek-back pass is required
-- the manifest is written last; the reader finds it by reading the fixed-size
-  footer at the end of the file
-- memory-mapped access lets the reader slice individual payloads without
-  allocating or deserialising the full file
+- The writer appends payloads sequentially. No seek-back pass is required.
+- The manifest is written last. The reader finds it by reading the fixed-size
+  footer at the end of the file.
+- Memory-mapped access lets the reader slice individual payloads without
+  loading the full file into memory.
 
-The container design prioritises write simplicity and read efficiency for the
+This design prioritises write simplicity and read efficiency for the
 random-access patterns typical of 3D city model viewers (load by viewport,
 load by object type).
 
-## Canonical Table Sharing
+## Shared canonical tables
 
 Both `cityjson-arrow` and `cityjson-parquet` use the same canonical table
-schema, `IncrementalDecoder`, and `CanonicalTableSink`. The package crate
-depends on doc-hidden bridges from `cityjson-arrow` for this.
+schema. `cityjson-parquet` depends on internal bridges from `cityjson-arrow`
+for this. A clean stable API boundary between the two crates is planned but not
+yet implemented.
 
-A clean public API boundary between the two crates is planned but not yet
-implemented.
+## Data model
 
-## Semantic Boundary
+The public data model is `cityjson::v2_0::OwnedCityModel`. Callers interact
+with model values only through `PackageWriter` and `PackageReader`. The
+canonical Arrow tables are a transport detail and are not part of the public API.
 
-The semantic unit remains `cityjson::v2_0::OwnedCityModel`. The package format
-is a transport-layer detail; callers interact only with `OwnedCityModel` values
-via `PackageWriter` and `PackageReader`.
+## Spatial index
 
-## Spatial Index
-
-`SpatialIndex` is built on a Hilbert space-filling curve. Objects are ranked by
-their 2D centroid on a 2^16 × 2^16 grid, then sorted by Hilbert index. This
-layout clusters spatially nearby objects in the index array, making
+`SpatialIndex` is built on a Hilbert space-filling curve. City objects are
+ranked by their 2D centroid on a 2^16 × 2^16 grid and sorted by Hilbert index.
+This layout clusters spatially nearby objects in the index array, making
 viewport-based queries cache-friendly.
 
-The index is computed at read time and is not stored in the file, so it adds no
+The index is computed at query time and is not stored in the file. It adds no
 write cost and no file-format version constraints.
 
-## Upstream Dependency
+## Build dependency
 
 `cityjson-parquet` requires `cityjson-arrow` to be checked out as a sibling
-directory. There is no published crates.io release of `cityjson-arrow` that
-this crate consumes; the dependency is `path = "../cityjson-arrow"`.
+directory (`../cityjson-arrow`). There is no published crates.io release.
 
-The shared corpus test suite also lives in `../cityjson-arrow/tests/support/`
-and is included directly via a Rust path include. Both repos must be present as
-siblings for the tests to compile.
+The shared corpus test suite lives in `../cityjson-arrow/tests/support/`. Both
+repos must be present as siblings for the tests to compile.
