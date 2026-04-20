@@ -35,3 +35,4 @@ Start with:
 - [`docs/guide.md`](docs/guide.md)
 - [`docs/public-api.md`](docs/public-api.md)
 - [`docs/ffi/api.md`](docs/ffi/api.md)
+- [`docs/ffi/performance.md`](docs/ffi/performance.md)
