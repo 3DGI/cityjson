@@ -91,6 +91,8 @@ class build_py(_build_py):
                 "--lib",
                 "--manifest-path",
                 "ffi/core/Cargo.toml",
+                "--features",
+                "native-formats",
                 "--target-dir",
                 "target",
             ],

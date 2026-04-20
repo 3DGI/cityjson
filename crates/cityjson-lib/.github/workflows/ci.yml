@@ -11,13 +11,6 @@ permissions:
 env:
   RUSTFLAGS: -Dwarnings
 
-# Sibling checkout layout under $GITHUB_WORKSPACE:
-#   cityjson-lib/      ← this repo
-#   cityjson-rs/       ← path dep ../cityjson-rs
-#   cityjson-json/     ← path dep ../cityjson-json (optional feature)
-#   cityjson-arrow/    ← path dep ../cityjson-arrow (optional feature)
-#   cityjson-parquet/  ← path dep ../cityjson-parquet (optional feature)
-
 jobs:
   fmt:
     name: Format
@@ -28,39 +21,9 @@ jobs:
         working-directory: cityjson-lib
     steps:
       - uses: actions/checkout@v6
-        with:
-          path: cityjson-lib
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-rs
-          path: cityjson-rs
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-json
-          path: cityjson-json
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-arrow
-          path: cityjson-arrow
-          token: ${{ secrets.GH_PAT }}
-          sparse-checkout: |
-            Cargo.toml
-            src
-            tests/support
-          sparse-checkout-cone-mode: false
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-parquet
-          path: cityjson-parquet
-          token: ${{ secrets.GH_PAT }}
-          sparse-checkout: |
-            Cargo.toml
-            src
-          sparse-checkout-cone-mode: false
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-cityjson-workspace
         with:
           components: rustfmt
-      - uses: extractions/setup-just@v4
       - run: cargo fmt --all --check
 
   lint:
@@ -72,44 +35,14 @@ jobs:
         working-directory: cityjson-lib
     steps:
       - uses: actions/checkout@v6
-        with:
-          path: cityjson-lib
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-rs
-          path: cityjson-rs
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-json
-          path: cityjson-json
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-arrow
-          path: cityjson-arrow
-          token: ${{ secrets.GH_PAT }}
-          sparse-checkout: |
-            Cargo.toml
-            src
-            tests/support
-          sparse-checkout-cone-mode: false
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-parquet
-          path: cityjson-parquet
-          token: ${{ secrets.GH_PAT }}
-          sparse-checkout: |
-            Cargo.toml
-            src
-          sparse-checkout-cone-mode: false
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-cityjson-workspace
         with:
           components: clippy
-      - uses: extractions/setup-just@v4
       - run: just lint
 
   test:
-    name: Test (${{matrix.os}})
-    runs-on: ${{matrix.os}}-latest
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}-latest
     strategy:
       fail-fast: false
       matrix:
@@ -120,89 +53,27 @@ jobs:
         working-directory: cityjson-lib
     steps:
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-cityjson-workspace
         with:
-          path: cityjson-lib
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-rs
-          path: cityjson-rs
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-json
-          path: cityjson-json
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-arrow
-          path: cityjson-arrow
-          token: ${{ secrets.GH_PAT }}
-          sparse-checkout: |
-            Cargo.toml
-            src
-            tests/support
-          sparse-checkout-cone-mode: false
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-parquet
-          path: cityjson-parquet
-          token: ${{ secrets.GH_PAT }}
-          sparse-checkout: |
-            Cargo.toml
-            src
-          sparse-checkout-cone-mode: false
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-fake
-          path: cityjson-fake
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: extractions/setup-just@v4
+          checkout-fake: "true"
       - run: just test
 
   build:
-    name: Build (MSRV ${{matrix.rust}})
+    name: Build (MSRV ${{ matrix.rust }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        rust: [ 1.93.0 ]
+        rust: [1.93.0]
     timeout-minutes: 45
     defaults:
       run:
         working-directory: cityjson-lib
     steps:
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-cityjson-workspace
         with:
-          path: cityjson-lib
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-rs
-          path: cityjson-rs
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-json
-          path: cityjson-json
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-arrow
-          path: cityjson-arrow
-          token: ${{ secrets.GH_PAT }}
-          sparse-checkout: |
-            Cargo.toml
-            src
-            tests/support
-          sparse-checkout-cone-mode: false
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-parquet
-          path: cityjson-parquet
-          token: ${{ secrets.GH_PAT }}
-          sparse-checkout: |
-            Cargo.toml
-            src
-          sparse-checkout-cone-mode: false
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{matrix.rust}}
-      - uses: extractions/setup-just@v4
+          toolchain: ${{ matrix.rust }}
       - run: just build
 
   nightly:
@@ -214,37 +85,9 @@ jobs:
         working-directory: cityjson-lib
     steps:
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-cityjson-workspace
         with:
-          path: cityjson-lib
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-rs
-          path: cityjson-rs
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-json
-          path: cityjson-json
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-arrow
-          path: cityjson-arrow
-          token: ${{ secrets.GH_PAT }}
-          sparse-checkout: |
-            Cargo.toml
-            src
-            tests/support
-          sparse-checkout-cone-mode: false
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-parquet
-          path: cityjson-parquet
-          token: ${{ secrets.GH_PAT }}
-          sparse-checkout: |
-            Cargo.toml
-            src
-          sparse-checkout-cone-mode: false
-      - uses: dtolnay/rust-toolchain@nightly
-      - uses: extractions/setup-just@v4
+          toolchain: nightly
       - run: just build
 
   doc:
@@ -258,44 +101,16 @@ jobs:
         working-directory: cityjson-lib
     steps:
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-cityjson-workspace
         with:
-          path: cityjson-lib
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-rs
-          path: cityjson-rs
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-json
-          path: cityjson-json
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-arrow
-          path: cityjson-arrow
-          token: ${{ secrets.GH_PAT }}
-          sparse-checkout: |
-            Cargo.toml
-            src
-            tests/support
-          sparse-checkout-cone-mode: false
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-parquet
-          path: cityjson-parquet
-          token: ${{ secrets.GH_PAT }}
-          sparse-checkout: |
-            Cargo.toml
-            src
-          sparse-checkout-cone-mode: false
-      - uses: dtolnay/rust-toolchain@nightly
-      - uses: extractions/setup-just@v4
-      - uses: astral-sh/setup-uv@v6
+          toolchain: nightly
+          setup-uv: "true"
       - run: cargo doc --all-features --no-deps -p cityjson-lib
       - run: just docs-build
 
   test-python:
-    name: Python bindings (${{matrix.os}})
-    runs-on: ${{matrix.os}}-latest
+    name: Python bindings (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}-latest
     strategy:
       fail-fast: false
       matrix:
@@ -306,34 +121,9 @@ jobs:
         working-directory: cityjson-lib
     steps:
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-cityjson-workspace
         with:
-          path: cityjson-lib
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-rs
-          path: cityjson-rs
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-json
-          path: cityjson-json
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-arrow
-          path: cityjson-arrow
-          token: ${{ secrets.GH_PAT }}
-          sparse-checkout: |
-            Cargo.toml
-            src
-            tests/support
-          sparse-checkout-cone-mode: false
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-parquet
-          path: cityjson-parquet
-          token: ${{ secrets.GH_PAT }}
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: extractions/setup-just@v4
-      - uses: astral-sh/setup-uv@v6
+          setup-uv: "true"
       - run: just test-python
 
   ffi:
@@ -345,36 +135,6 @@ jobs:
         working-directory: cityjson-lib
     steps:
       - uses: actions/checkout@v6
-        with:
-          path: cityjson-lib
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-rs
-          path: cityjson-rs
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-json
-          path: cityjson-json
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-arrow
-          path: cityjson-arrow
-          token: ${{ secrets.GH_PAT }}
-          sparse-checkout: |
-            Cargo.toml
-            src
-            tests/support
-          sparse-checkout-cone-mode: false
-      - uses: actions/checkout@v6
-        with:
-          repository: 3DGI/cityjson-parquet
-          path: cityjson-parquet
-          token: ${{ secrets.GH_PAT }}
-          sparse-checkout: |
-            Cargo.toml
-            src
-          sparse-checkout-cone-mode: false
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: extractions/setup-just@v4
+      - uses: ./.github/actions/setup-cityjson-workspace
       - run: cargo install cbindgen --version 0.29.2 --locked
       - run: just ffi test
