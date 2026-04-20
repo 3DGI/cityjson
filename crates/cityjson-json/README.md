@@ -204,10 +204,9 @@ without additional terms or conditions.
 
 ## Use of AI in this project
 
-This crate was originally developed without the use of AI.
-Since then, it underwent multiple significant refactors and various LLM models (Claude, `ChatGPT`) were used for experimenting with alternative designs, in particular for the (de)serialization strategies and borrowed-parsing paths.
-LLM generated code is also used for improving the test coverage and documentation and mechanical improvements.
-Code correctness and performance are verified by carefully curated test cases and benchmarks that cover the `CityJSON` 2.0 specification.
+This crate was originally hand written.
+It was later refactored to the `cityjson-rs` API with AI assistance.
+AI was also used for documentation, and for the test and benchmark harnesses.
 
 ## Roadmap
 
