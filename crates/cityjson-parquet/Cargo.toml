@@ -22,6 +22,8 @@ arrow-ipc = "58.1.0"
 arrow-schema = "58.1.0"
 cityjson = { path = "../cityjson-rs", version = "0.7.0" }
 memmap2 = "0.9.9"
+parquet = "58.1.0"
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 [[bench]]
@@ -29,7 +31,6 @@ name = "package"
 harness = false
 
 [dev-dependencies]
-serde = { version = "1.0", features = ["derive"] }
 cityjson-json = { path = "../cityjson-json" }
 tempfile = "3"
 criterion = { version = "0.8.2", features = ["html_reports"] }

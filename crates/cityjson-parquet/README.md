@@ -1,12 +1,17 @@
 # cityjson-parquet
 
-`cityjson-parquet` stores `cityjson-rs` city models as seekable single-file packages.
+`cityjson-parquet` stores `cityjson-rs` city models as seekable single-file packages
+and native Parquet canonical-table datasets.
 
 `PackageWriter` and `PackageReader` encode and decode `cityjson::v2_0::OwnedCityModel`
 into a container backed by Arrow IPC table payloads.
+`ParquetDatasetWriter` and `ParquetDatasetReader` encode the same canonical tables as
+one native Parquet file per table.
 
 - `PackageWriter` — encode a model into a `.cityjson-parquet` file
 - `PackageReader` — decode a file into a model, or read its manifest without loading geometry
+- `ParquetDatasetWriter` — encode a model into a native Parquet dataset directory
+- `ParquetDatasetReader` — decode a native Parquet dataset directory back into a model
 - `spatial::SpatialIndex` — Hilbert-curve index over city object bounding boxes for viewport queries
 
 ## How it works
@@ -16,6 +21,11 @@ into a container backed by Arrow IPC table payloads.
 - The manifest is written last, so the writer never seeks back.
 - Table payloads are accessed via memory-mapped I/O. The reader decodes only the slices
   referenced by the manifest.
+- The native Parquet dataset format writes `manifest.json` plus `tables/{name}.parquet`
+  files for PyArrow, DuckDB, Polars, and similar tools.
+- Native Parquet encodes canonical nullable `FixedSizeList` fields as variable
+  Parquet lists with reader-side fixed-length validation, because PyArrow cannot
+  reliably full-scan nullable fixed-size list columns.
 - Schema and manifest types are shared with `cityjson-arrow` and re-exported from
   `cityjson_arrow::schema`.
 - `SpatialIndex` is built at read time and is not stored in the file.
@@ -70,7 +80,9 @@ just bench-check
 ## Repository map
 
 - `src/lib.rs` — public exports; re-exports schema types from `cityjson-arrow`
+- `src/dataset.rs` — `ParquetDatasetWriter`, `ParquetDatasetReader`, and native Parquet dataset I/O
 - `src/package/mod.rs` — `PackageWriter`, `PackageReader`, and package I/O helpers
 - `src/spatial.rs` — `SpatialIndex`, `SpatialEntry`, `BBox2D`, and Hilbert curve
 - `examples/viewer.rs` — three.js web viewer served over TCP; uses `SpatialIndex` for frustum culling
 - `tests/package_shared_corpus_roundtrip.rs` — conformance roundtrip tests over the shared corpus
+- `tests/native_parquet_dataset_roundtrip.rs` — native Parquet dataset roundtrip tests over the shared corpus
