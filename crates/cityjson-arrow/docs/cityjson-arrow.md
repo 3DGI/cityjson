@@ -1,38 +1,43 @@
 # cityjson-arrow
 
-`cityjson-arrow` is the live Arrow codec crate for `cityjson-rs`.
+`cityjson-arrow` is the Arrow stream and batch codec for `cityjson-rs`.
 
-## Public Surface
+## Public API
 
-- `write_stream(writer, model, &ExportOptions)`
-- `read_stream(reader, &ImportOptions)`
-- `export_reader(model, &ExportOptions)`
-- `ModelBatchDecoder`
-- `import_batches(header, projection, batches, &ImportOptions)`
+| Function / type | Purpose |
+|---|---|
+| `write_stream(writer, model, &ExportOptions)` | Write a model to a live Arrow IPC stream |
+| `read_stream(reader, &ImportOptions)` | Read a model from a live Arrow IPC stream |
+| `export_reader(model, &ExportOptions)` | Iterate over ordered canonical table batches |
+| `ModelBatchDecoder` | Decode canonical table batches incrementally |
+| `import_batches(header, projection, batches, &ImportOptions)` | Reconstruct a model from batches |
 
-The semantic boundary remains `cityjson::v2_0::OwnedCityModel`.
+The input and output type is always `cityjson::v2_0::OwnedCityModel`.
 
-## Execution Model
+## How it works
 
-- batch export and stream writes start from `cityjson::relational::ModelRelationalView`
-- stream writes emit canonical table batches directly to Arrow IPC frames
-- stream reads decode ordered frames into the incremental model decoder
-- batch export exposes ordered canonical tables without rebuilding a public
-  `CityModelArrowParts` API surface
-- doc-hidden parts helpers remain only for the sibling package crate and local
-  diagnostics
+- Export reads the model through `cityjson::relational::ModelRelationalView` and
+  writes canonical Arrow table batches in a fixed order.
+- Stream write emits each batch directly as an Arrow IPC frame; no intermediate
+  aggregate is built.
+- Stream read decodes ordered frames one table at a time and reconstructs the
+  model incrementally.
+- Batch export (via `export_reader`) exposes the same ordered tables without
+  writing a stream.
 
-## Remaining Gap Versus The VNext Plan
+## Current limits
 
-`cityjson-arrow` now consumes the borrowed relational export view exposed by
-`cityjson-rs`, and `cityjson-rs` also exposes an owned relational
-snapshot/import builder.
+- Attribute projection layout is discovered from the model at export time. There
+  is no schema registry or pre-declared projection.
+- Import reconstructs `OwnedCityModel` through direct mutation. A future version
+  may use a dedicated import builder when one is available in `cityjson-rs`.
 
-The remaining work is narrower:
+## Shared schema types
 
-- `cityjson-arrow` still owns projection discovery
-- Arrow schema assembly still lives here
-- Arrow-specific import glue still rebuilds the owned model in this crate
+The following types from `cityjson_arrow::schema` are used by both this crate
+and `cityjson-parquet`:
 
-That keeps the crate thin, but it is still an Arrow transport layer rather than
-pure forwarding around a fully upstreamed relational codec.
+- `CityArrowHeader` — identifies the package version, city model id, and CityJSON version
+- `ProjectionLayout` — records the typed attribute layout used during export
+- `PackageManifest` — describes the tables written to a persistent package
+- `ExportOptions`, `ImportOptions` — control export and import behaviour

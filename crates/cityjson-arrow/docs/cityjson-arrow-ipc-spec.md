@@ -1,63 +1,80 @@
-# cityjson-arrow Live Arrow IPC Stream Specification
+# Arrow IPC stream layout
 
-This document describes the current live transport format used by
-`cityjson_arrow::write_stream` and `cityjson_arrow::read_stream`.
+This document specifies the binary format written by `write_stream` and read by `read_stream`.
+
+## Terminology
+
+The key words MUST, MUST NOT, REQUIRED, SHOULD, and OPTIONAL in this document are to be
+interpreted as described in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119).
 
 ## Version
 
-- stream magic: `CITYJSON_ARROW_STREAM_V3\0`
-- package schema carried in the prelude header:
-  `cityjson-arrow.package.v3alpha2`
+| Field | Value |
+|---|---|
+| Stream magic | `CITYJSON_ARROW_STREAM_V3\0` (25 bytes, including null terminator) |
+| Schema id | `cityjson-arrow.package.v3alpha2` |
 
-## Layout
+## Overall layout
 
 ```text
-STREAM_MAGIC
-prelude_len: u64 little-endian
-prelude_json
+STREAM_MAGIC          (25 bytes)
+prelude_len: u64 LE   (8 bytes)
+prelude_json          (prelude_len bytes, UTF-8)
 frame_0
 frame_1
 ...
-0xFF
+end_marker: 0xFF      (1 byte)
 ```
+
+All multi-byte integers are little-endian.
 
 ## Prelude
 
-`prelude_json` is UTF-8 JSON with:
+`prelude_json` is a UTF-8 JSON object. It MUST contain:
 
-- `header: CityArrowHeader`
-- `projection: ProjectionLayout`
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `header` | object | REQUIRED | A `CityArrowHeader` object; see [Package schema](package-schema.md#header) |
+| `projection` | object | REQUIRED | A `ProjectionLayout` object; see [Package schema](package-schema.md#projection-layout) |
 
-The prelude is intentionally small. It carries only the semantic header and the
-projected column layout needed to validate later frames.
+The prelude is small by design. It carries only the information needed to validate and
+decode the frames that follow.
 
 ## Frames
 
-Each frame encodes one canonical table batch:
+Each frame carries one canonical table. Frames MUST appear in canonical tag order.
 
 ```text
-table_tag: u8
-rows: u64 little-endian
-arrow_ipc_stream_payload
+table_tag:             u8      (1 byte)
+rows:                  u64 LE  (8 bytes)
+arrow_ipc_stream_payload       (self-delimiting)
 ```
 
-- `table_tag` identifies the canonical table
-- `rows` is the declared row count for validation
-- the payload is one Arrow IPC stream written with Arrow `StreamWriter`
+| Field | Type | Description |
+|-------|------|-------------|
+| `table_tag` | uint8 | Integer tag identifying the canonical table; see [Package schema](package-schema.md#canonical-tables) |
+| `rows` | uint64 LE | Declared row count; the reader MUST verify this against the decoded batch |
+| `arrow_ipc_stream_payload` | bytes | One Arrow IPC stream written with `StreamWriter`; self-delimiting |
 
-The payload is self-delimiting, so the writer can stream frames directly
-without knowing payload lengths up front.
+The Arrow IPC stream payload is self-delimiting. A producer does not need to know its
+length before writing.
 
-## End Marker
+## End marker
 
-The live stream ends with a single tag byte `255`.
+The stream ends with a single byte `0xFF`. A reader MUST treat any byte other than `0xFF`
+after the last frame as a format error.
 
-## Reader Rules
+## Reader rules
 
-- the reader must validate `STREAM_MAGIC`
-- the reader must decode the JSON prelude first
-- frames must appear in canonical order
-- duplicate table tags are invalid
-- required tables may not be skipped
-- each decoded payload schema must match the canonical schema for that table
-- each decoded batch row count must match the declared `rows` value
+- A reader MUST verify `STREAM_MAGIC` before reading anything else. A reader MUST reject
+  any stream where the first 25 bytes do not exactly match `CITYJSON_ARROW_STREAM_V3\0`.
+- A reader MUST decode the JSON prelude before reading any frames.
+- Frames MUST appear in canonical tag order. A reader MUST reject a stream where frames
+  are out of order.
+- A reader MUST reject a stream that contains duplicate table tags.
+- A reader MUST reject a stream that omits any REQUIRED table
+  (`metadata`, `vertices`, `geometry_boundaries`, `geometries`, `cityobjects`).
+- For each frame, the Arrow IPC payload schema MUST match the canonical schema for that
+  table. A reader MUST reject any frame whose payload schema does not match.
+- For each frame, the decoded row count MUST match the declared `rows` value. A reader
+  MUST reject any frame where they differ.

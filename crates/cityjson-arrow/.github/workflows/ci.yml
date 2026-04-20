@@ -12,11 +12,6 @@ env:
   RUSTFLAGS: -Dwarnings
   CITYJSON_PARQUET_SHARED_CORPUS_ROOT: ${{ github.workspace }}/cityjson-corpus
 
-# Sibling checkout layout under $GITHUB_WORKSPACE:
-#   cityjson-arrow/  ← this repo
-#   cityjson-rs/     ← path dep ../cityjson-rs
-#   cityjson-json/   ← path dep ../cityjson-json (dev-dep)
-
 jobs:
   fmt:
     name: Format

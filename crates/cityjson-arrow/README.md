@@ -1,32 +1,28 @@
 # cityjson-arrow
 
-`cityjson-arrow` is the Arrow codec crate for `cityjson-rs`.
+`cityjson-arrow` is the Arrow stream and batch codec for `cityjson-rs`.
 
-It exposes a batch-first and stream-oriented transport surface over
-`cityjson::v2_0::OwnedCityModel`:
+It moves `cityjson::v2_0::OwnedCityModel` across Arrow IPC boundaries:
 
-- `write_stream` / `read_stream` for live Arrow IPC transport
-- `export_reader` for ordered canonical table batches
-- `ModelBatchDecoder` / `import_batches` for batch-native import
-- shared schema and manifest types used by `cityjson-parquet`
+- `write_stream` / `read_stream` — live Arrow IPC stream transport
+- `export_reader` — ordered canonical table batches (used by `cityjson-parquet`)
+- `ModelBatchDecoder` / `import_batches` — reconstruct a model from ordered batches
+- shared schema and manifest types re-exported by `cityjson-parquet`
 
-## Current Architecture
+## How it works
 
-- the semantic model stays in `cityjson-rs`
-- canonical Arrow tables are an internal transport contract, not the public
-  user model
-- the live stream path writes batches directly without rebuilding a public
-  parts aggregate
-- doc-hidden parts bridges remain only for the sibling `cityjson-parquet`
-  package crate
+- Export reads the model through `cityjson::relational::ModelRelationalView` and
+  emits canonical Arrow table batches in a fixed order.
+- The live stream path writes batches directly as Arrow IPC frames without
+  building an intermediate aggregate.
+- Import decodes ordered frames one table at a time and reconstructs the model
+  incrementally.
 
-## Current Limits
+## Current limits
 
-- `cityjson-rs` currently exposes raw pool views and dense remaps, not the
-  full proposed relational import/view API
-- export still derives `ProjectionLayout` from the semantic model
-- import still reconstructs the semantic model through the existing
-  `OwnedCityModel` mutation path
+- Attribute projection layout is derived at export time. There is no
+  pre-declared schema registry.
+- Import reconstructs `OwnedCityModel` through direct mutation.
 
 ## Benchmarks
 
@@ -58,21 +54,21 @@ Full results and plots: `benches/results/`.
 
 ## Verification
 
-The repository keeps:
+```shell
+just fmt
+just lint
+just check
+just test
+just bench-check
+just rustdoc
+just site-build
+```
 
-- local roundtrip tests for the live stream and batch surfaces
-- split benchmarks for conversion-only, transport-only, and end-to-end paths
-- `just fmt`
-- `just lint`
-- `just check`
-- `just test`
-- `just bench-check`
+## Repository map
 
-## Repository Map
-
-- `src/codec.rs`: public batch and stream codec surface
-- `src/convert/`: canonical export/import implementation
-- `src/stream.rs`: live Arrow IPC framing
-- `src/schema.rs`: shared schema and manifest definitions
-- `src/internal.rs`: doc-hidden bridges kept for sibling crates and benchmarks
-- `docs/`: ADRs, design notes, and format docs
+- `src/codec.rs` — public stream and batch codec surface
+- `src/stream.rs` — live Arrow IPC framing
+- `src/convert/` — export and import implementation
+- `src/schema.rs` — shared schema and manifest types
+- `src/internal.rs` — bridges for `cityjson-parquet` and benchmarks
+- `docs/` — format specs, design notes, and ADRs

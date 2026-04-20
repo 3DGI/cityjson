@@ -1,26 +1,22 @@
 # cityjson-parquet
 
-`cityjson-parquet` is the persistent package crate for `cityjson-rs`.
+`cityjson-parquet` stores a `cityjson-rs` city model as a seekable single-file package.
 
-It owns the durable package/container boundary in the ADR 3 architecture and
-uses the same canonical transport tables as `cityjson-arrow`.
+It uses the same canonical table schema as `cityjson-arrow` and produces files that
+are compatible with the `cityjson-arrow.package.v3alpha2` format version.
 
-## What It Provides
+## Public API
 
-- package write/read support for seekable single-file packages
-- the same canonical table layout as `cityjson-arrow`
-- the same reconstruction rules and manifest contract
-- round-trip compatibility with the shared `cityjson-arrow.package.v3alpha2` schema
+| Type | Purpose |
+|---|---|
+| `PackageWriter` | Encode a model into a `.cityjson-parquet` file |
+| `PackageReader` | Decode a file back into a model or read its manifest |
+| `spatial::SpatialIndex` | Viewport query index built from city object bounding boxes |
 
-## Related Documents
+The input and output type is always `cityjson::v2_0::OwnedCityModel`.
 
-- [Package layout specification](package-schema.md)
-- [Shared package schema](package-schema.md)
-- [Transport design](design.md)
+## Related documents
 
-## Public Surface
-
-The crate exposes:
-
-- `PackageWriter` and `PackageReader`
-- the shared package manifest and schema types
+- [Package layout](cityjson-parquet-spec.md): binary layout, magic bytes, and manifest contract
+- [Package schema](package-schema.md): canonical table contract shared with `cityjson-arrow`
+- [Transport design](design.md): why persistent package I/O is a separate crate
