@@ -1,10 +1,10 @@
 # FFI Layout
 
-This directory holds the non-Rust binding work for `cityjson_lib`.
+This directory holds the release-facing non-Rust binding work for `cityjson_lib`.
 
 ## Layout
 
-- `core/`: shared low-level Rust FFI surface
+- `core/`: publishable shared C ABI crate for the wrapper packages
 - `cpp/`: installable C++ wrapper over the shared core
 - `python/`: publishable Python package over the shared core
 - `wasm/`: work-in-progress wasm adapter over the shared core

@@ -1,7 +1,7 @@
 # FFI and Bindings
 
 This section documents the publishable Rust, Python, and C++ bindings around
-the shared low-level FFI core.
+the shared low-level FFI core in `ffi/core`.
 
 ## Pages
 

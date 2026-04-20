@@ -1,10 +1,10 @@
 #![allow(clippy::all, clippy::pedantic)]
 
-//! Shared low-level FFI core for non-Rust bindings.
+//! Shared low-level FFI core for the publishable non-Rust bindings.
 //!
-//! This crate will own the common low-level substrate used by the C++, Python,
-//! and wasm layers. The public contract stays intentionally narrow: opaque
-//! model handles, explicit ownership, stable status/error categories, and
+//! This crate owns the common low-level substrate used by the C++ and Python
+//! layers. The public contract stays intentionally narrow: opaque model
+//! handles, explicit ownership, stable status/error categories, and
 //! bytes-in/bytes-out entry points on top.
 
 pub mod abi;

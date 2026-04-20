@@ -3,12 +3,12 @@ use std::hint::black_box;
 use std::ptr;
 use std::time::Instant;
 
-use cityjson_lib::ops;
 use cityjson_lib::CityModel;
+use cityjson_lib::ops;
 use cityjson_lib_ffi_core::exports::{
     cj_bytes_free, cj_bytes_list_free, cj_geometry_types_free, cj_model_append_model,
-    cj_model_create, cj_model_free, cj_model_parse_document_bytes, cj_model_serialize_document,
-    cj_model_set_transform, cj_model_clear_cityobject_geometry,
+    cj_model_clear_cityobject_geometry, cj_model_create, cj_model_free,
+    cj_model_parse_document_bytes, cj_model_serialize_document, cj_model_set_transform,
 };
 use cityjson_lib_ffi_core::{
     cj_bytes_list_t, cj_bytes_t, cj_geometry_type_t, cj_geometry_types_t, cj_model_t,
@@ -223,7 +223,8 @@ fn benchmark_append(mode: Mode) -> Vec<serde_json::Value> {
     };
 
     let direct_append = measure_append_direct(mode.append_repeats, || {
-        let mut target = cityjson_lib::CityModel::new(cityjson_lib::cityjson::CityModelType::CityJSON);
+        let mut target =
+            cityjson_lib::CityModel::new(cityjson_lib::cityjson::CityModelType::CityJSON);
         apply_unit_transform(&mut target);
         let mut source_model = cityjson_lib::json::from_slice(source.bytes).unwrap();
         apply_unit_transform(&mut source_model);
@@ -313,7 +314,10 @@ where
     for _ in 0..repeats {
         let (target, source) = setup();
         let started = Instant::now();
-        assert_eq!(cj_model_append_model(target, source), cj_status_t::CJ_STATUS_SUCCESS);
+        assert_eq!(
+            cj_model_append_model(target, source),
+            cj_status_t::CJ_STATUS_SUCCESS
+        );
         samples.push(started.elapsed().as_nanos());
         assert_eq!(cj_model_free(target), cj_status_t::CJ_STATUS_SUCCESS);
         assert_eq!(cj_model_free(source), cj_status_t::CJ_STATUS_SUCCESS);
@@ -446,7 +450,10 @@ fn take_bytes_list(bytes: cj_bytes_list_t) -> Vec<String> {
 
 fn take_geometry_types(types: cj_geometry_types_t) -> Vec<cj_geometry_type_t> {
     if types.len == 0 {
-        assert_eq!(cj_geometry_types_free(types), cj_status_t::CJ_STATUS_SUCCESS);
+        assert_eq!(
+            cj_geometry_types_free(types),
+            cj_status_t::CJ_STATUS_SUCCESS
+        );
         return Vec::new();
     }
 
@@ -456,7 +463,10 @@ fn take_geometry_types(types: cj_geometry_types_t) -> Vec<cj_geometry_type_t> {
         .iter()
         .copied()
         .collect::<Vec<_>>();
-    assert_eq!(cj_geometry_types_free(types), cj_status_t::CJ_STATUS_SUCCESS);
+    assert_eq!(
+        cj_geometry_types_free(types),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
     values
 }
 

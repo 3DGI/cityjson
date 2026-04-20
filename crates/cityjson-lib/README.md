@@ -12,6 +12,11 @@ The current published surface is intentionally small:
 
 Arrow, Parquet, and wasm are not part of the current release-facing surface.
 
+## License
+
+This repository is dual-licensed under MIT or Apache-2.0.
+See [LICENSE](LICENSE) and [LICENSE-APACHE](LICENSE-APACHE).
+
 ## Quick Start
 
 ```rust

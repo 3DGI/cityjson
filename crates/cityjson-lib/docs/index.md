@@ -22,6 +22,7 @@ The current release-facing surface is:
 - Rust JSON and CityJSONSeq IO
 - Rust `ops` helpers: `cleanup`, `extract`, `append`, `merge`
 - Rust `query::summary`
+- the shared FFI core in `ffi/core`
 - Python bindings
 - C++ bindings
 

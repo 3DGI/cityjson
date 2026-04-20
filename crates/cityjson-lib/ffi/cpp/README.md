@@ -27,3 +27,5 @@ low-level contract rather than duplicating declarations.
 
 The wrapper is installable through CMake and exposes a generated package config
 that installs the headers and links to the shared Rust FFI library.
+
+The wrapper follows the same MIT-or-Apache-2.0 licensing as the Rust crates.

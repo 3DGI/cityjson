@@ -19,3 +19,5 @@ source distribution.
 The main end-to-end Python reference is
 [`examples/fake_complete.py`](examples/fake_complete.py), which builds the full
 `cityjson_fake_complete.city.json` fixture through the public Python API.
+
+The package follows the same MIT-or-Apache-2.0 licensing as the Rust crates.

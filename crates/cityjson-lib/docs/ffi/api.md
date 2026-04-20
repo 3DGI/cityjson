@@ -10,6 +10,9 @@ The wrappers are aligned around the same core ideas:
 - run explicit cleanup, append, and extract workflows
 - serialize back to document, feature, or feature-stream bytes
 
+The shared C ABI itself is owned by `ffi/core`; this page documents the
+user-facing contracts layered on top of it.
+
 The typed write-side authoring flow is documented separately in
 [Writing Data](../guide-writing.md). The full end-to-end references live in
 `ffi/cpp/examples/fake_complete.cpp` and `ffi/python/examples/fake_complete.py`.

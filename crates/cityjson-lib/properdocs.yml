@@ -18,6 +18,7 @@ nav:
   - FFI & Bindings:
       - Overview: ffi/index.md
       - Binding API: ffi/api.md
+      - Performance Visibility: ffi/performance.md
       - Authoring API Proposal: ffi/authoring-api-proposal.md
 theme:
   name: materialx

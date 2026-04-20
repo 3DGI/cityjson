@@ -67,6 +67,10 @@ def _write_trimmed_root_manifest(source: Path, destination: Path) -> None:
     destination.write_text(manifest, encoding="utf-8")
 
 
+def _copy_release_tree_file(source_root: Path, release_root: Path, relative: str) -> None:
+    _copy_path(source_root / relative, release_root / relative)
+
+
 class build_py(_build_py):
     def run(self) -> None:
         built_library = self._build_native_library()
@@ -82,6 +86,7 @@ class build_py(_build_py):
                 "cargo",
                 "build",
                 "--release",
+                "--lib",
                 "--manifest-path",
                 "ffi/core/Cargo.toml",
                 "--target-dir",
@@ -105,8 +110,26 @@ class sdist(_sdist):
         release_root = Path(base_dir)
         source_root = _repo_root()
         _write_trimmed_root_manifest(source_root / "Cargo.toml", release_root / "Cargo.toml")
-        for relative in ("src", "docs/public-api.md", "ffi/core/Cargo.toml", "ffi/core/src"):
-            _copy_path(source_root / relative, release_root / relative)
+        for relative in (
+            "src",
+            "docs/public-api.md",
+            "LICENSE",
+            "LICENSE-APACHE",
+            "tests/data",
+        ):
+            _copy_release_tree_file(source_root, release_root, relative)
+
+        for relative in (
+            "ffi/core/Cargo.toml",
+            "ffi/core/README.md",
+            "ffi/core/LICENSE",
+            "ffi/core/LICENSE-APACHE",
+            "ffi/core/cbindgen.toml",
+            "ffi/core/include",
+            "ffi/core/src",
+            "ffi/core/tests",
+        ):
+            _copy_release_tree_file(source_root, release_root, relative)
 
         sibling_root = source_root.parent
         for crate_name in ("cityjson-rs", "cityjson-json"):
