@@ -14,7 +14,7 @@ concurrency:
 
 defaults:
   run:
-    working-directory: cityjson-json
+    working-directory: .
 
 jobs:
   release:
@@ -24,7 +24,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          path: cityjson-json
           fetch-depth: 0
 
       - name: Checkout sibling repository
