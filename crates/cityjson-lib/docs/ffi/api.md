@@ -187,3 +187,84 @@ The wasm adapter is still work in progress and is not covered here.
     const auto document_bytes = model.serialize_document_bytes();
     const auto feature_bytes = model.serialize_feature_bytes();
     ```
+
+## Arrow I/O
+
+The `arrow` feature must be enabled for Rust (`features = ["arrow"]`).
+Python and C++ bindings always include it.
+
+=== "Rust"
+    ```rust
+    # #[cfg(feature = "arrow")]
+    # {
+    use cityjson_lib::{arrow, json};
+
+    let model = json::from_file("amsterdam.city.json")?;
+
+    let bytes = arrow::to_vec(&model)?;
+    let roundtrip = arrow::from_bytes(&bytes)?;
+
+    arrow::to_file("model.cjarrow", &model)?;
+    let from_file = arrow::from_file("model.cjarrow")?;
+    # let _ = (roundtrip, from_file);
+    # }
+    # Ok::<(), cityjson_lib::Error>(())
+    ```
+
+=== "Python"
+    ```python
+    from cityjson_lib import CityModel
+
+    arrow_bytes = model.serialize_arrow_bytes()
+    roundtrip = CityModel.parse_arrow_bytes(arrow_bytes)
+    ```
+
+=== "C++"
+    ```cpp
+    const auto arrow_bytes = model.serialize_arrow_bytes();
+    auto roundtrip = cityjson_lib::Model::parse_arrow(arrow_bytes);
+    ```
+
+## Parquet I/O
+
+The `parquet` feature must be enabled for Rust (`features = ["parquet"]`).
+Two layouts are supported: a self-contained package file and a bare dataset
+directory.
+
+=== "Rust"
+    ```rust
+    # #[cfg(feature = "parquet")]
+    # {
+    use cityjson_lib::{json, parquet};
+
+    let model = json::from_file("amsterdam.city.json")?;
+
+    parquet::to_file("city.cityjson-parquet", &model)?;
+    let from_pkg = parquet::from_file("city.cityjson-parquet")?;
+
+    parquet::to_dir("city.dataset", &model)?;
+    let from_dir = parquet::from_dir("city.dataset")?;
+    # let _ = (from_pkg, from_dir);
+    # }
+    # Ok::<(), cityjson_lib::Error>(())
+    ```
+
+=== "Python"
+    ```python
+    from cityjson_lib import CityModel
+
+    model.serialize_parquet_file("city.cityjson-parquet")
+    from_pkg = CityModel.parse_parquet_file("city.cityjson-parquet")
+
+    model.serialize_parquet_dataset_dir("city.dataset")
+    from_dir = CityModel.parse_parquet_dataset_dir("city.dataset")
+    ```
+
+=== "C++"
+    ```cpp
+    model.serialize_parquet_file("city.cityjson-parquet");
+    auto from_pkg = cityjson_lib::Model::parse_parquet_file("city.cityjson-parquet");
+
+    model.serialize_parquet_dataset_dir("city.dataset");
+    auto from_dir = cityjson_lib::Model::parse_parquet_dataset_dir("city.dataset");
+    ```

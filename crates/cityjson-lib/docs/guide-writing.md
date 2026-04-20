@@ -185,5 +185,68 @@ exercised in the automated test suite.
     const auto payload = cityjson_lib::Model::serialize_feature_stream(models);
     ```
 
+## Serialize To Arrow
+
+Arrow I/O requires the `arrow` feature (`features = ["arrow"]` in `Cargo.toml`).
+The Python and C++ bindings always include it.
+
+=== "Rust"
+    ```rust
+    # #[cfg(feature = "arrow")]
+    # {
+    use cityjson_lib::{arrow, json};
+
+    let model = json::from_file("amsterdam.city.json")?;
+    let bytes = arrow::to_vec(&model)?;
+    arrow::to_file("model.cjarrow", &model)?;
+    # let _ = bytes;
+    # }
+    # Ok::<(), cityjson_lib::Error>(())
+    ```
+
+=== "Python"
+    ```python
+    arrow_bytes = model.serialize_arrow_bytes()
+    model.serialize_parquet_file("model.cjarrow")  # via file path
+    ```
+
+=== "C++"
+    ```cpp
+    const auto arrow_bytes = model.serialize_arrow_bytes();
+    model.serialize_parquet_file("model.cjarrow");
+    ```
+
+## Serialize To Parquet
+
+Parquet I/O requires the `parquet` feature.
+Two layouts are supported: a self-contained package file and a bare dataset
+directory.
+
+=== "Rust"
+    ```rust
+    # #[cfg(feature = "parquet")]
+    # {
+    use cityjson_lib::{json, parquet};
+
+    let model = json::from_file("amsterdam.city.json")?;
+    let manifest = parquet::to_file("city.cityjson-parquet", &model)?;
+    let dataset_manifest = parquet::to_dir("city.dataset", &model)?;
+    # let _ = (manifest, dataset_manifest);
+    # }
+    # Ok::<(), cityjson_lib::Error>(())
+    ```
+
+=== "Python"
+    ```python
+    model.serialize_parquet_file("city.cityjson-parquet")
+    model.serialize_parquet_dataset_dir("city.dataset")
+    ```
+
+=== "C++"
+    ```cpp
+    model.serialize_parquet_file("city.cityjson-parquet");
+    model.serialize_parquet_dataset_dir("city.dataset");
+    ```
+
 The wasm adapter remains work in progress and is intentionally omitted from the
 published write guide.

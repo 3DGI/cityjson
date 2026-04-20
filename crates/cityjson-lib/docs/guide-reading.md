@@ -134,3 +134,71 @@ CityJSONSeq stays explicit.
 
 The wasm adapter is still being shaped and is not part of the published docs
 surface yet.
+
+## Read From Arrow
+
+Arrow I/O requires the `arrow` feature (`features = ["arrow"]` in `Cargo.toml`).
+The Python and C++ bindings always include it.
+
+=== "Rust"
+    ```rust
+    # #[cfg(feature = "arrow")]
+    # {
+    use cityjson_lib::arrow;
+
+    let bytes = std::fs::read("model.cjarrow")?;
+    let model = arrow::from_bytes(&bytes)?;
+
+    let model = arrow::from_file("model.cjarrow")?;
+    # let _ = model;
+    # }
+    # Ok::<(), cityjson_lib::Error>(())
+    ```
+
+=== "Python"
+    ```python
+    from cityjson_lib import CityModel
+
+    model = CityModel.parse_arrow_bytes(open("model.cjarrow", "rb").read())
+    ```
+
+=== "C++"
+    ```cpp
+    std::ifstream file("model.cjarrow", std::ios::binary);
+    std::vector<std::uint8_t> bytes(std::istreambuf_iterator<char>(file), {});
+
+    auto model = cityjson_lib::Model::parse_arrow(bytes);
+    ```
+
+## Read From Parquet
+
+Parquet I/O requires the `parquet` feature.
+Two layouts are supported: a self-contained package file and a bare dataset
+directory.
+
+=== "Rust"
+    ```rust
+    # #[cfg(feature = "parquet")]
+    # {
+    use cityjson_lib::parquet;
+
+    let model = parquet::from_file("city.cityjson-parquet")?;
+    let model = parquet::from_dir("city.dataset")?;
+    # let _ = model;
+    # }
+    # Ok::<(), cityjson_lib::Error>(())
+    ```
+
+=== "Python"
+    ```python
+    from cityjson_lib import CityModel
+
+    model = CityModel.parse_parquet_file("city.cityjson-parquet")
+    model = CityModel.parse_parquet_dataset_dir("city.dataset")
+    ```
+
+=== "C++"
+    ```cpp
+    auto model = cityjson_lib::Model::parse_parquet_file("city.cityjson-parquet");
+    auto model = cityjson_lib::Model::parse_parquet_dataset_dir("city.dataset");
+    ```

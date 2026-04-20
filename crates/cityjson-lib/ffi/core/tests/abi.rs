@@ -326,7 +326,11 @@ fn native_format_ffi_roundtrips_arrow_and_parquet() {
 
     let mut arrow_handle = ptr::null_mut();
     assert_eq!(
-        cj_model_parse_arrow_bytes(arrow_bytes.as_ptr(), arrow_bytes.len(), &raw mut arrow_handle),
+        cj_model_parse_arrow_bytes(
+            arrow_bytes.as_ptr(),
+            arrow_bytes.len(),
+            &raw mut arrow_handle
+        ),
         cj_status_t::CJ_STATUS_SUCCESS
     );
     assert_same_transport_summary(model_summary(arrow_handle), expected);
@@ -364,8 +368,14 @@ fn native_format_ffi_roundtrips_arrow_and_parquet() {
     );
     assert_same_transport_summary(model_summary(dataset_handle), expected);
 
-    assert_eq!(cj_model_free(dataset_handle), cj_status_t::CJ_STATUS_SUCCESS);
-    assert_eq!(cj_model_free(package_handle), cj_status_t::CJ_STATUS_SUCCESS);
+    assert_eq!(
+        cj_model_free(dataset_handle),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cj_model_free(package_handle),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
     assert_eq!(cj_model_free(arrow_handle), cj_status_t::CJ_STATUS_SUCCESS);
     assert_eq!(cj_model_free(handle), cj_status_t::CJ_STATUS_SUCCESS);
 }

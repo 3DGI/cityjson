@@ -11,6 +11,8 @@ The crate root is intentionally small:
 - `Error`
 - `ErrorKind`
 - `json`
+- `arrow` *(feature `arrow`)*
+- `parquet` *(feature `parquet`)*
 - `ops`
 - `query`
 
@@ -45,6 +47,59 @@ It owns:
 
 The implementation lives in `cityjson-json`.
 `cityjson-lib` keeps the public contract and error/version translation.
+
+## `arrow` *(feature `arrow`)*
+
+`arrow` is the optional columnar I/O boundary backed by `cityjson-arrow`.
+Enable it with `features = ["arrow"]` in your `Cargo.toml`.
+
+It owns:
+
+- reading from bytes, a reader, or a file
+- writing to bytes, a writer, or a file
+- lower-level `read_stream` / `write_stream` primitives
+- re-exported `ExportOptions`, `ImportOptions`, `SchemaVersion`, `WriteReport`
+
+```rust
+# #[cfg(feature = "arrow")]
+# {
+use cityjson_lib::{arrow, json};
+
+let model = json::from_file("tests/data/v2_0/minimal.city.json")?;
+let bytes = arrow::to_vec(&model)?;
+let roundtrip = arrow::from_bytes(&bytes)?;
+# let _ = roundtrip;
+# }
+# Ok::<(), cityjson_lib::Error>(())
+```
+
+## `parquet` *(feature `parquet`)*
+
+`parquet` is the optional Parquet I/O boundary backed by `cityjson-parquet`.
+Enable it with `features = ["parquet"]` in your `Cargo.toml`.
+Enabling `parquet` also enables `arrow`.
+
+It owns:
+
+- reading and writing as a self-contained package file (`.cityjson-parquet`)
+- reading and writing as a bare dataset directory
+- re-exported `PackageManifest`, `ParquetDatasetManifest`
+
+```rust
+# #[cfg(feature = "parquet")]
+# {
+use cityjson_lib::{json, parquet};
+
+let model = json::from_file("tests/data/v2_0/minimal.city.json")?;
+let dir = tempfile::tempdir()?;
+let path = dir.path().join("model.cityjson-parquet");
+let manifest = parquet::to_file(&path, &model)?;
+assert!(!manifest.tables.is_empty());
+let roundtrip = parquet::from_file(&path)?;
+# let _ = roundtrip;
+# }
+# Ok::<(), cityjson_lib::Error>(())
+```
 
 ## `ops`
 
