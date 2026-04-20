@@ -1,6 +1,6 @@
 [package]
 name = "cityjson-fake"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["Balázs Dukai <balazs.dukai@3dgi.nl>"]
 categories = ["development-tools::testing", "simulation"]
 keywords = ["cityjson", "testing", "faker"]
@@ -27,8 +27,8 @@ json = ["dep:cityjson-json"]
 cli = ["json", "dep:serde", "dep:serde_json", "dep:jsonschema"]
 
 [dependencies]
-cityjson = { path = "../cityjson-rs", version = "0.7.0" }
-cityjson-json = { path = "../cityjson-json", version = "0.7.1", optional = true }
+cityjson = { path = "../cityjson-rs", version = "0.7.1" }
+cityjson-json = { path = "../cityjson-json", version = "0.7.2", optional = true }
 fake = { version = "5.1.0", features = ["uuid", "chrono"] }
 rand = "0.10.1"
 clap = { version = "4.5.51", features = ["derive"] }

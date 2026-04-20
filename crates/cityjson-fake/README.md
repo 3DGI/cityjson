@@ -191,11 +191,10 @@ Regardless of handwritten or LLM-generated code, the PR should follow these guid
 
 ## Use of AI in this project
 
-This project was originally developed in full functionality without the use of AI.
-Since then, AI tools (Claude, ChatGPT) were used to migrate the codebase to the new `cityjson-rs` API and refactore the crate into a more clear, maintainable structure and implement the CLI.
-LLM generated code is also used for improving the test coverage and documentation and mechanical improvements.
+This crate was originally hand written.
+It was later refactored to the new `cityjson-rs` and `cityjson-lib` APIs with AI assistance.
+AI was also used for documentation.
 
 ## Roadmap
 
 There are no major features planned for the near future, beyond bug fixes, test coverage, performance optimization, and documentation improvements.
-
