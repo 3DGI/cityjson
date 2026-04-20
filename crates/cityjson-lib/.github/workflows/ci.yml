@@ -24,7 +24,7 @@ jobs:
       - uses: ./.github/actions/setup-cityjson-workspace
         with:
           components: rustfmt
-      - run: cargo fmt --all --check
+      - run: cargo fmt --manifest-path Cargo.toml -p cityjson-lib -- --check
 
   lint:
     name: Lint
