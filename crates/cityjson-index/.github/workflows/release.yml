@@ -47,10 +47,9 @@ jobs:
           fi
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: 1.93.0
-          components: rustfmt, clippy
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal --component rustfmt --component clippy
+          rustup default 1.93.0
 
       - name: Install Python tooling
         uses: actions/setup-python@v5

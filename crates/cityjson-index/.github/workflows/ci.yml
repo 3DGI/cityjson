@@ -43,9 +43,8 @@ jobs:
         with:
           repository: 3DGI/cityjson-json
           path: cityjson-json
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
+      - run: rustup toolchain install stable --profile minimal --component rustfmt
+      - run: rustup default stable
       - uses: extractions/setup-just@v4
       - run: just fmt-check
 
@@ -72,9 +71,8 @@ jobs:
         with:
           repository: 3DGI/cityjson-json
           path: cityjson-json
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
+      - run: rustup toolchain install stable --profile minimal --component clippy
+      - run: rustup default stable
       - uses: extractions/setup-just@v4
       - run: just lint
 
@@ -101,7 +99,8 @@ jobs:
         with:
           repository: 3DGI/cityjson-json
           path: cityjson-json
-      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup toolchain install stable --profile minimal
+      - run: rustup default stable
       - uses: extractions/setup-just@v4
       - run: just ffi
 
@@ -132,7 +131,8 @@ jobs:
         with:
           repository: 3DGI/cityjson-json
           path: cityjson-json
-      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup toolchain install stable --profile minimal
+      - run: rustup default stable
       - uses: extractions/setup-just@v4
       - run: just test
 
@@ -163,9 +163,8 @@ jobs:
         with:
           repository: 3DGI/cityjson-json
           path: cityjson-json
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{matrix.rust}}
+      - run: rustup toolchain install ${{ matrix.rust }} --profile minimal
+      - run: rustup default ${{ matrix.rust }}
       - uses: extractions/setup-just@v4
       - run: just build
 
@@ -192,7 +191,8 @@ jobs:
         with:
           repository: 3DGI/cityjson-json
           path: cityjson-json
-      - uses: dtolnay/rust-toolchain@nightly
+      - run: rustup toolchain install nightly --profile minimal
+      - run: rustup default nightly
       - uses: extractions/setup-just@v4
       - run: just build
 
@@ -219,7 +219,8 @@ jobs:
         with:
           repository: 3DGI/cityjson-json
           path: cityjson-json
-      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup toolchain install stable --profile minimal
+      - run: rustup default stable
       - uses: extractions/setup-just@v4
       - run: just doc
 
@@ -260,7 +261,8 @@ jobs:
           repository: 3DGI/cityjson-parquet
           ref: v0.5.3
           path: cityjson-parquet
-      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup toolchain install stable --profile minimal
+      - run: rustup default stable
       - uses: extractions/setup-just@v4
       - uses: astral-sh/setup-uv@v6
       - run: just test-python
