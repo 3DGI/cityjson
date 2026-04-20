@@ -18,19 +18,19 @@ ffi:
 
 # Prepare the local bootstrap corpus from the pinned 3DBAG data set.
 prep-test-data:
-    cargo run --release --features dev-binaries --bin prep-test-data -- --skip-cjval
+    cargo run -p cityjson-index --release --features dev-binaries --bin prep-test-data -- --skip-cjval
 
 # Prepare the minimal corpus needed for CI and release validation.
 prep-test-data-ci:
-    cargo run --release --features dev-binaries --bin prep-test-data -- --skip-cjval --max-tiles 1
+    cargo run -p cityjson-index --release --features dev-binaries --bin prep-test-data -- --skip-cjval --max-tiles 1
 
-# Fast compile-time validation across all targets and features.
+# Fast compile-time validation for library, binary, and test targets.
 check:
-    cargo check --all-targets --all-features
+    cargo check -p cityjson-index --lib --bin cjindex --tests
 
-# Build all targets with all features enabled.
+# Build the production binary.
 build *args:
-    cargo build --all-targets --all-features {{args}}
+    cargo build -p cityjson-index --bin cjindex {{args}}
 
 clean:
     cargo clean
@@ -39,15 +39,15 @@ clean:
 
 # Run clippy with the project's strict lint settings.
 lint:
-    cargo clippy --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic
+    cargo clippy -p cityjson-index --lib --bin cjindex --tests -- -Dclippy::all -Dclippy::pedantic
 
 # Format the workspace with rustfmt.
 fmt:
     cargo fmt --all
 
-# Run the library and integration tests with all features enabled.
+# Run the library and integration tests.
 test:
-    cargo test --lib --tests --all-features
+    cargo test -p cityjson-index --lib --tests
 
 # Build the shared library and run the Python install smoke tests through tox and tox-uv.
 test-python:
@@ -58,27 +58,9 @@ test-python:
 doc:
     cargo doc --all-features --no-deps
 
-# Benchmark the feature-files backend in the default bench profile.
-bench-feature-files:
-    cargo bench --bench feature_files
-
-# Benchmark the CityJSON backend in the default bench profile.
-bench-cityjson:
-    cargo bench --bench cityjson
-
-# Benchmark the NDJSON backend in the default bench profile.
-bench-ndjson:
-    cargo bench --bench ndjson
-
 # Build the Python bindings wheel.
 build-python:
     uv build ffi/python/ --wheel --out-dir ffi/python/dist
-
-# Run the investigation binary and the release-mode benchmarks used for reporting.
-bench-release:
-    cargo run --release --features dev-binaries --bin investigate-read-performance
-    cargo bench --bench cityjson
-    cargo bench --bench feature_files --bench ndjson
 
 # Run the release-quality validation pipeline.
 ci:

@@ -5,6 +5,7 @@ authors = ["Balázs Dukai <balazs.dukai@3dgi.nl>"]
 edition = "2024"
 rust-version = "1.93"
 autobins = false
+autobenches = false
 default-run = "cjindex"
 description = "Index CityJSON datasets with a persistent SQLite sidecar"
 license = "MIT OR Apache-2.0"
@@ -45,27 +46,12 @@ name = "cjindex"
 path = "src/main.rs"
 
 [[bin]]
-name = "investigate-read-performance"
-path = "src/bin/investigate-read-performance.rs"
-required-features = ["dev-binaries"]
-
-[[bin]]
-name = "parallel-bench"
-path = "src/bin/parallel-bench.rs"
-required-features = ["dev-binaries"]
-
-[[bin]]
-name = "perf-test"
-path = "src/bin/perf-test.rs"
-required-features = ["dev-binaries"]
-
-[[bin]]
 name = "prep-test-data"
 path = "src/bin/prep-test-data.rs"
 required-features = ["dev-binaries"]
 
 [dependencies]
-cityjson-lib = { path = "../cityjson-lib", version = "0.5.1" }
+cityjson-lib = { path = "../cityjson-lib", version = "0.6.0", default-features = false, features = ["json"] }
 clap = { version = "4.6.0", features = ["derive"] }
 flatgeobuf = { version = "6.0.1", default-features = false }
 flate2 = "1"
@@ -81,21 +67,4 @@ sha2 = "0.10"
 thiserror = "2"
 
 [dev-dependencies]
-criterion = { version = "0.8.2", features = ["html_reports"] }
 walkdir = "2"
-
-[[bench]]
-name = "cityjson"
-harness = false
-
-[[bench]]
-name = "ndjson"
-harness = false
-
-[[bench]]
-name = "parallel_get"
-harness = false
-
-[[bench]]
-name = "feature_files"
-harness = false
