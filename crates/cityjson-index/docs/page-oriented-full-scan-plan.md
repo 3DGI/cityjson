@@ -107,17 +107,13 @@ Change Tyler's cityjson-index path to:
 - decode each grid-indexing page in parallel with `rayon`
 - integrate the decoded page back into the world serially
 
-### 7. Validate and benchmark
+### 7. Validate
 
 Run in both repos:
 
 - `cargo fmt`
 - `cargo clippy --locked --all-targets --all-features -- -D warnings`
 - `cargo test --locked`
-
-Then rerun Tyler's release benchmark on
-`/home/balazs/Data/3DBAG_3dtiles_test/input` and append the new result to the
-performance note.
 
 ## Expected result
 

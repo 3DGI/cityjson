@@ -124,9 +124,9 @@ Add tests that verify:
 Add at least one regression test with more than one page of results so the paging logic is
 actually exercised.
 
-### 4. Add a micro-benchmark or investigation command
+### 4. Add local measurement coverage
 
-Extend the existing `perf-test` or investigation tooling to measure:
+Use ad-hoc local measurement tooling, outside CI, to measure:
 
 - `iter_all` location lookup only
 - `iter_all` full decode

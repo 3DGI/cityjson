@@ -1,7 +1,5 @@
 /target/
 /.idea/
-/tests/data
-
 **/__pycache__
 **/*.egg-info
 python/build

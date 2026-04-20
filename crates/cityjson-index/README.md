@@ -114,9 +114,7 @@ Each feature lives in its own file. Metadata is discovered through ancestor `.js
 
 ## Development
 
-This repository includes helper binaries and benchmarks under `src/bin/` and `benches/`.
-They are gated behind the `dev-binaries` feature so the published CLI stays focused on `cjindex`.
-The release-facing FFI and Python packaging live under `ffi/`.
+The repository ships the `cjindex` CLI, the Rust library, and release-facing FFI/Python packaging under `ffi/`.
 
 Useful local commands:
 
@@ -126,15 +124,12 @@ just lint
 just test
 just ffi
 just ci
-just prep-test-data
 ```
-
-`just prep-test-data` and `just bench-release` require the `dev-binaries` feature.
 
 ## Use of AI in this project
 
 This crate was written with AI assistance and human guidance.
-Development used an iterative process of testing, benchmarking, and optimization controlled and verified by me.
+Development used an iterative process of testing and optimization controlled and verified by me.
 
 ## License
 

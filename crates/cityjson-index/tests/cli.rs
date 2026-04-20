@@ -511,7 +511,7 @@ fn first_two_feature_files(root: &Path) -> Vec<PathBuf> {
         if entry.path().extension().and_then(|ext| ext.to_str()) != Some("jsonl") {
             continue;
         }
-        if entry.metadata().map(|meta| meta.len() == 0).unwrap_or(true) {
+        if entry.metadata().map_or(true, |meta| meta.len() == 0) {
             continue;
         }
         features.push(entry.path().to_path_buf());

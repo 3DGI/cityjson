@@ -1,0 +1,1 @@
+{"type":"CityJSONFeature","id":"fixture-a","CityObjects":{"fixture-a":{"type":"Building","geometry":[{"type":"MultiSurface","lod":"1.0","boundaries":[[[0,1,2]]]}]}},"vertices":[[0,0,0],[10,0,0],[0,10,0]]}

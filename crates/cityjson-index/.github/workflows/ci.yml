@@ -16,6 +16,8 @@ env:
 #   cityjson-lib/    ← path dep ../cityjson-lib
 #   cityjson-rs/     ← transitive path dep ../cityjson-rs
 #   cityjson-json/   ← transitive path dep ../cityjson-json
+# The Python bindings job also checks out cityjson-lib's native-format
+# dependencies so the upstream cityjson-lib Python wheel can import cleanly.
 
 jobs:
   fmt:
@@ -45,7 +47,7 @@ jobs:
         with:
           components: rustfmt
       - uses: extractions/setup-just@v4
-      - run: cargo fmt --all --check
+      - run: just fmt-check
 
   lint:
     name: Lint
@@ -132,7 +134,6 @@ jobs:
           path: cityjson-json
       - uses: dtolnay/rust-toolchain@stable
       - uses: extractions/setup-just@v4
-      - run: just prep-test-data-ci
       - run: just test
 
   build:
@@ -249,6 +250,16 @@ jobs:
         with:
           repository: 3DGI/cityjson-json
           path: cityjson-json
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-arrow
+          ref: v0.6.1
+          path: cityjson-arrow
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-parquet
+          ref: v0.5.3
+          path: cityjson-parquet
       - uses: dtolnay/rust-toolchain@stable
       - uses: extractions/setup-just@v4
       - uses: astral-sh/setup-uv@v6

@@ -16,14 +16,6 @@ ffi:
     just ffi-build
     just ffi-test
 
-# Prepare the local bootstrap corpus from the pinned 3DBAG data set.
-prep-test-data:
-    cargo run -p cityjson-index --release --features dev-binaries --bin prep-test-data -- --skip-cjval
-
-# Prepare the minimal corpus needed for CI and release validation.
-prep-test-data-ci:
-    cargo run -p cityjson-index --release --features dev-binaries --bin prep-test-data -- --skip-cjval --max-tiles 1
-
 # Fast compile-time validation for library, binary, and test targets.
 check:
     cargo check -p cityjson-index --lib --bin cjindex --tests
@@ -41,9 +33,13 @@ clean:
 lint:
     cargo clippy -p cityjson-index --lib --bin cjindex --tests -- -Dclippy::all -Dclippy::pedantic
 
-# Format the workspace with rustfmt.
+# Format this workspace with rustfmt without traversing sibling path dependencies.
 fmt:
-    cargo fmt --all
+    cargo fmt -p cityjson-index -p cityjson-index-ffi-core
+
+# Check rustfmt without traversing sibling path dependencies.
+fmt-check:
+    cargo fmt -p cityjson-index -p cityjson-index-ffi-core -- --check
 
 # Run the library and integration tests.
 test:
@@ -52,7 +48,7 @@ test:
 # Build the shared library and run the Python install smoke tests through tox and tox-uv.
 test-python:
     cargo build --manifest-path ffi/core/Cargo.toml --release --lib
-    sh -c 'tmpdir=$(mktemp -d); cd ../cityjson-lib/ffi/python && uv build --wheel --out-dir "$tmpdir" && cd ../../../cityjson-index/ffi/python && UV_FIND_LINKS="$tmpdir" uv run tox run'
+    sh -c 'set -eu; tmpdir=$(mktemp -d); cd ../cityjson-lib/ffi/python && uv build --wheel --out-dir "$tmpdir"; cd ../../../cityjson-index/ffi/python && UV_FIND_LINKS="$tmpdir" uv run tox run'
 
 # Build API docs for all features without pulling in dependencies.
 doc:
@@ -64,10 +60,9 @@ build-python:
 
 # Run the release-quality validation pipeline.
 ci:
-    just fmt
+    just fmt-check
     just check
     just lint
-    just prep-test-data-ci
     just test
     just ffi
     just test-python

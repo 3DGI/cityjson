@@ -35,9 +35,9 @@ Those are intentionally simple, but they are also inherently serial:
 - one decoded `CityModel` delivered at a time
 
 Tyler still uses `rayon` in other parts of the pipeline, but not in the
-`cityjson-index` full-scan hot path. The benchmark on
-`/home/balazs/Data/3DBAG_3dtiles_test/input` showed the current head running at
-roughly one core, while the historical baseline used more than one core.
+`cityjson-index` full-scan hot path. Local profiling showed the current head
+running at roughly one core, while the historical baseline used more than one
+core.
 
 At the same time, adding a `rayon::ParallelIterator` directly to `cityjson-index`
 would be the wrong abstraction:

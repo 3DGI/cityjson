@@ -68,7 +68,7 @@ pub fn find_first(root: &std::path::Path, suffix: &str, require_nonempty: bool) 
         if !entry.file_type().is_file() || !entry.path().to_string_lossy().ends_with(suffix) {
             continue;
         }
-        if require_nonempty && entry.metadata().map(|meta| meta.len() == 0).unwrap_or(true) {
+        if require_nonempty && entry.metadata().map_or(true, |meta| meta.len() == 0) {
             continue;
         }
         return entry.path().to_path_buf();
