@@ -117,8 +117,8 @@ class sdist(_sdist):
                 'path = "../cityjson-lib/ffi/core"': 'path = "./cityjson-lib/ffi/core"',
             },
         )
-        for relative in ("src", "README.md"):
-            _copy_path(source_root / relative, release_root / relative)
+        _copy_path(source_root / "src", release_root / "src")
+        _copy_path(source_root / "python" / "README.md", release_root / "README.md")
 
         sibling_root = source_root.parent
         for crate_name in ("cityjson-lib", "cityjson-rs", "cityjson-json"):

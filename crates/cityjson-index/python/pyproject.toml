@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "cityjson-index"
 version = "0.3.0"
 description = "Python bindings for cityjson-index"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = ["cityjson-lib~=0.5.0"]
 

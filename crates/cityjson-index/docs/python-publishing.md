@@ -8,6 +8,9 @@ dependency, not as a local checkout path. `cityjson-lib` is already published,
 so `cityjson-index` can be published independently as long as the declared
 version range stays compatible.
 
+The package long description comes from [python/README.md](../python/README.md).
+Keep that file short and distribution-focused.
+
 ## Dependency Policy
 
 Use this dependency line in [python/pyproject.toml](../python/pyproject.toml):
@@ -23,7 +26,7 @@ That means:
 
 ## Publish Flow
 
-1. Build and publish `cityjson-index` Python.
+1. Build and publish the `cityjson-index` Python package.
 2. Verify `pip install cityjson-index` in a clean virtualenv.
 3. Run the Python smoke tests against the installed wheel.
 4. If the dependency range ever changes, confirm the new `cityjson-lib`
