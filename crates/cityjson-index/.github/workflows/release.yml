@@ -14,7 +14,7 @@ concurrency:
 
 defaults:
   run:
-    working-directory: cityjson-index
+    working-directory: .
 
 jobs:
   release:
@@ -24,7 +24,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          path: cityjson-index
           fetch-depth: 0
 
       - name: Checkout sibling repositories
@@ -45,6 +44,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.93.0
+          components: rustfmt, clippy
 
       - name: Install Python tooling
         uses: actions/setup-python@v5
