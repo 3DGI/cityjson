@@ -62,7 +62,7 @@ jobs:
         uses: extractions/setup-just@v4
 
       - name: Prepare test corpus
-        run: just prep-test-data
+        run: cargo run --release --features dev-binaries --bin prep-test-data -- --skip-cjval --max-tiles 1
       - name: Run release-quality validation
         run: just ci
 

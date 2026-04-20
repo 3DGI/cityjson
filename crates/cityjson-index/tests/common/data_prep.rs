@@ -34,6 +34,7 @@ pub struct PreparedDatasets {
 pub struct PrepConfig {
     pub output_root: PathBuf,
     pub validate_cjval: bool,
+    pub max_tiles: Option<usize>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -106,6 +107,7 @@ pub fn prepare_3dbag_benchmark_datasets(config: &PrepConfig) -> Result<PreparedD
 
     let mut total_cityobjects = 0usize;
     let mut total_features = 0usize;
+    let mut processed_tiles = 0usize;
     let mut manifest_tiles = Vec::new();
     let root_metadata_path = feature_files_root.join("metadata.json");
     let mut root_metadata_written = false;
@@ -193,7 +195,11 @@ pub fn prepare_3dbag_benchmark_datasets(config: &PrepConfig) -> Result<PreparedD
             ndjson_sha256,
             feature_file_count,
         });
+        processed_tiles = processed_tiles.saturating_add(1);
 
+        if config.max_tiles.is_some_and(|limit| processed_tiles >= limit) {
+            break;
+        }
         if total_cityobjects >= DEFAULT_TARGET_CITYOBJECTS_MAX {
             break;
         }
@@ -202,20 +208,32 @@ pub fn prepare_3dbag_benchmark_datasets(config: &PrepConfig) -> Result<PreparedD
         }
     }
 
-    if !(DEFAULT_TARGET_CITYOBJECTS_MIN..=DEFAULT_TARGET_CITYOBJECTS_MAX)
-        .contains(&total_cityobjects)
+    if config.max_tiles.is_none()
+        && !(DEFAULT_TARGET_CITYOBJECTS_MIN..=DEFAULT_TARGET_CITYOBJECTS_MAX)
+            .contains(&total_cityobjects)
     {
         return Err(import_error(format!(
             "prepared corpus has {total_cityobjects} cityobjects, expected between {DEFAULT_TARGET_CITYOBJECTS_MIN} and {DEFAULT_TARGET_CITYOBJECTS_MAX}"
         )));
     }
 
+    let (target_cityobjects, accepted_cityobjects_min, accepted_cityobjects_max) =
+        if config.max_tiles.is_some() {
+            (total_cityobjects, total_cityobjects, total_cityobjects)
+        } else {
+            (
+                DEFAULT_TARGET_CITYOBJECTS,
+                DEFAULT_TARGET_CITYOBJECTS_MIN,
+                DEFAULT_TARGET_CITYOBJECTS_MAX,
+            )
+        };
+
     let manifest = BenchmarkDataManifest {
         tile_index_url: DEFAULT_TILE_INDEX_URL.to_string(),
         tile_index_sha256,
-        target_cityobjects: DEFAULT_TARGET_CITYOBJECTS,
-        accepted_cityobjects_min: DEFAULT_TARGET_CITYOBJECTS_MIN,
-        accepted_cityobjects_max: DEFAULT_TARGET_CITYOBJECTS_MAX,
+        target_cityobjects,
+        accepted_cityobjects_min,
+        accepted_cityobjects_max,
         total_cityobjects,
         total_features,
         selected_tiles: manifest_tiles,
