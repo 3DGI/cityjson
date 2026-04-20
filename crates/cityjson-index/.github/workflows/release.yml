@@ -35,8 +35,6 @@ jobs:
           git clone --depth=1 --branch master https://github.com/3DGI/cityjson-rs.git ../cityjson-rs
           git clone --depth=1 --branch master https://github.com/3DGI/cityjson-json.git ../cityjson-json
           git clone --depth=1 --branch v0.6.0 https://github.com/3DGI/cityjson-lib.git ../cityjson-lib
-          git clone --depth=1 --branch v0.6.1 https://github.com/3DGI/cityjson-arrow.git ../cityjson-arrow
-          git clone --depth=1 --branch v0.5.3 https://github.com/3DGI/cityjson-parquet.git ../cityjson-parquet
 
       - name: Verify tag is on master
         run: |
