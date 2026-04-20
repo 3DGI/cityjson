@@ -1,6 +1,6 @@
 [package]
 name = "cityjson-lib"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2024"
 rust-version = "1.93"
 description = "High-level CityJSON 2.0 read/write facade integrating JSON I/O"

@@ -36,7 +36,7 @@ from cityjson_lib._ffi import (
     WriteOptionsPayload,
 )
 
-__version__ = "0.5.2"
+__version__ = "0.5.3"
 
 _ffi = FfiLibrary.load()
 
