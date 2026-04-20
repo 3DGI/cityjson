@@ -61,6 +61,8 @@ jobs:
       - name: Install just
         uses: extractions/setup-just@v4
 
+      - name: Prepare test corpus
+        run: just prep-test-data
       - name: Run release-quality validation
         run: just ci
 
