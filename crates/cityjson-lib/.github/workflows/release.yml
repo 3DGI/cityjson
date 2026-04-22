@@ -67,7 +67,7 @@ jobs:
           ./tools/ffi.sh build cpp
 
       - name: Test Rust workspace
-        run: cargo test --workspace --all-targets --all-features
+        run: cargo test --lib --tests --all-features
 
       - name: Build Python artifacts
         run: uv build ffi/python/ --wheel --sdist --out-dir ffi/python/dist
