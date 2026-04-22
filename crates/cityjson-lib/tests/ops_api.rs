@@ -2,14 +2,43 @@
 
 use std::collections::BTreeSet;
 
+use cityjson_lib::cityjson::v2_0::CityObject;
+use cityjson_lib::cityjson::{prelude::CityObjectHandle, resources::storage::OwnedStringStorage};
 use cityjson_lib::{json, ops};
 use serde_json::Value;
+
+type TestCityObject = CityObject<OwnedStringStorage>;
 
 fn cityobject_ids(model: &cityjson_lib::CityModel) -> BTreeSet<String> {
     model
         .cityobjects()
         .iter()
         .map(|(_, cityobject)| cityobject.id().to_owned())
+        .collect()
+}
+
+fn related_cityobject_ids(
+    model: &cityjson_lib::CityModel,
+    id: &str,
+    relation: fn(&TestCityObject) -> Option<&[CityObjectHandle]>,
+) -> BTreeSet<String> {
+    let cityobject = model
+        .cityobjects()
+        .iter()
+        .find_map(|(_, cityobject)| (cityobject.id() == id).then_some(cityobject))
+        .expect("CityObject should exist");
+
+    relation(cityobject)
+        .into_iter()
+        .flatten()
+        .map(|handle| {
+            model
+                .cityobjects()
+                .get(*handle)
+                .expect("related CityObject should exist")
+                .id()
+                .to_owned()
+        })
         .collect()
 }
 
@@ -65,6 +94,131 @@ fn ops_subset_can_exclude_the_selected_closure() {
     assert_eq!(
         cityobject_ids(&subset),
         BTreeSet::from([String::from("my-group"), String::from("other-building")])
+    );
+}
+
+#[test]
+fn ops_filter_exact_id_keeps_only_match_and_strips_removed_references() {
+    let model = fixture_subset_model().expect("filter fixture should parse");
+
+    let filtered = ops::filter(&model, |ctx| ctx.id() == "building-part-1")
+        .expect("ops::filter should accept an id predicate");
+
+    assert_eq!(
+        cityobject_ids(&filtered),
+        BTreeSet::from([String::from("building-part-1")])
+    );
+
+    let (_, cityobject) = filtered
+        .cityobjects()
+        .iter()
+        .next()
+        .expect("filtered model should contain the selected CityObject");
+    assert!(cityobject.parents().is_none_or(<[_]>::is_empty));
+    assert!(cityobject.children().is_none_or(<[_]>::is_empty));
+}
+
+#[test]
+fn ops_filter_with_relatives_from_middle_object_pulls_parent_child_closure() {
+    let model = fixture_subset_model().expect("filter fixture should parse");
+
+    let filtered = ops::filter_with_options(
+        &model,
+        ops::FilterOptions {
+            include_relatives: true,
+        },
+        |ctx| ctx.id() == "building-part-1",
+    )
+    .expect("ops::filter_with_options should include relatives");
+
+    assert_eq!(
+        cityobject_ids(&filtered),
+        BTreeSet::from([
+            String::from("building-part-1"),
+            String::from("building-part-2"),
+            String::from("my-group"),
+            String::from("root-building"),
+        ])
+    );
+    assert_eq!(
+        related_cityobject_ids(&filtered, "building-part-1", CityObject::parents),
+        BTreeSet::from([String::from("my-group"), String::from("root-building")])
+    );
+    assert_eq!(
+        related_cityobject_ids(&filtered, "building-part-1", CityObject::children),
+        BTreeSet::from([String::from("building-part-2")])
+    );
+}
+
+#[test]
+fn ops_filter_with_relatives_from_group_includes_member_closure_and_connected_parents() {
+    let model = fixture_subset_model().expect("filter fixture should parse");
+
+    let filtered = ops::filter_with_options(
+        &model,
+        ops::FilterOptions {
+            include_relatives: true,
+        },
+        |ctx| ctx.id() == "my-group",
+    )
+    .expect("ops::filter_with_options should include group relatives");
+
+    assert_eq!(
+        cityobject_ids(&filtered),
+        BTreeSet::from([
+            String::from("building-part-1"),
+            String::from("building-part-2"),
+            String::from("my-group"),
+            String::from("root-building"),
+        ])
+    );
+    assert_eq!(
+        related_cityobject_ids(&filtered, "my-group", CityObject::children),
+        BTreeSet::from([String::from("building-part-1")])
+    );
+    assert_eq!(
+        related_cityobject_ids(&filtered, "building-part-1", CityObject::parents),
+        BTreeSet::from([String::from("my-group"), String::from("root-building")])
+    );
+}
+
+#[test]
+fn ops_filter_empty_predicate_result_returns_empty_model() {
+    let model = fixture_subset_model().expect("filter fixture should parse");
+
+    let filtered =
+        ops::filter(&model, |_| false).expect("ops::filter should allow an empty predicate result");
+
+    assert!(filtered.cityobjects().is_empty());
+}
+
+#[test]
+fn ops_filter_context_exposes_model_handle_cityobject_and_id() {
+    let model = fixture_subset_model().expect("filter fixture should parse");
+    let mut saw_middle_object = false;
+
+    let filtered = ops::filter(&model, |ctx| {
+        assert!(std::ptr::eq(ctx.model(), &raw const model));
+        assert_eq!(ctx.cityobject().id(), ctx.id());
+        assert_eq!(
+            ctx.model()
+                .cityobjects()
+                .get(ctx.handle())
+                .expect("context handle should resolve")
+                .id(),
+            ctx.id()
+        );
+
+        let matches = ctx.id() == "building-part-1";
+        saw_middle_object |= matches;
+        matches
+    })
+    .expect("ops::filter should pass context into the predicate");
+
+    assert!(saw_middle_object);
+    assert_eq!(
+        cityobject_ids(&filtered),
+        BTreeSet::from([String::from("building-part-1")])
     );
 }
 

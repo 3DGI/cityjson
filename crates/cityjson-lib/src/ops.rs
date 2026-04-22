@@ -3,7 +3,7 @@
 //! The `subset` and `merge` semantics are ported from `cjio`, and the Rust
 //! implementation here is the crate-owned native rewrite of those workflows.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::cityjson::resources::storage::OwnedStringStorage;
 use crate::cityjson::v2_0::attributes::Attributes;
@@ -28,6 +28,35 @@ type OwnedMetadata = Metadata<OwnedStringStorage>;
 type OwnedExtensions = Extensions<OwnedStringStorage>;
 type OwnedCityObject = CityObject<OwnedStringStorage>;
 type OwnedGeometry = Geometry<u32, OwnedStringStorage>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct FilterOptions {
+    pub include_relatives: bool,
+}
+
+pub struct FilterContext<'a> {
+    model: &'a CityModel,
+    handle: CityObjectHandle,
+    cityobject: &'a CityObject<OwnedStringStorage>,
+}
+
+impl<'a> FilterContext<'a> {
+    pub fn model(&self) -> &'a CityModel {
+        self.model
+    }
+
+    pub fn handle(&self) -> CityObjectHandle {
+        self.handle
+    }
+
+    pub fn cityobject(&self) -> &'a CityObject<OwnedStringStorage> {
+        self.cityobject
+    }
+
+    pub fn id(&self) -> &'a str {
+        self.cityobject.id()
+    }
+}
 
 fn import_error(message: impl Into<String>) -> Error {
     Error::Import(message.into())
@@ -702,6 +731,109 @@ pub fn cleanup(model: &CityModel) -> Result<CityModel> {
     cityjson_json::cleanup(model).map_err(Error::from)
 }
 
+fn collect_reachable_cityobjects<I>(
+    model: &CityModel,
+    roots: I,
+    include_parents: bool,
+    include_children: bool,
+) -> Result<HashSet<CityObjectHandle>>
+where
+    I: IntoIterator<Item = CityObjectHandle>,
+{
+    let mut selected = HashSet::new();
+    let mut stack = roots.into_iter().collect::<Vec<_>>();
+
+    while let Some(handle) = stack.pop() {
+        let cityobject = model.cityobjects().get(handle).ok_or_else(|| {
+            import_error(format!(
+                "missing CityObject handle in traversal: {handle:?}"
+            ))
+        })?;
+        if !selected.insert(handle) {
+            continue;
+        }
+
+        if include_children && let Some(children) = cityobject.children() {
+            stack.extend(children.iter().copied());
+        }
+
+        if include_parents && let Some(parents) = cityobject.parents() {
+            stack.extend(parents.iter().copied());
+        }
+    }
+
+    Ok(selected)
+}
+
+fn rebuild_model_with_cityobjects(
+    model: &CityModel,
+    selected: &HashSet<CityObjectHandle>,
+) -> Result<CityModel> {
+    let mut result = model.clone();
+    result.clear_cityobjects();
+
+    let mut old_to_new = HashMap::with_capacity(selected.len());
+    for (handle, cityobject) in model.cityobjects().iter() {
+        if !selected.contains(&handle) {
+            continue;
+        }
+
+        let mut cloned = cityobject.clone();
+        cloned.clear_children();
+        cloned.clear_parents();
+        let new_handle = result.cityobjects_mut().add(cloned)?;
+        old_to_new.insert(handle, new_handle);
+    }
+
+    for (handle, cityobject) in model.cityobjects().iter() {
+        if !selected.contains(&handle) {
+            continue;
+        }
+
+        let target_handle = *old_to_new.get(&handle).ok_or_else(|| {
+            import_error(format!("missing remap for CityObject {}", cityobject.id()))
+        })?;
+        let target = result
+            .cityobjects_mut()
+            .get_mut(target_handle)
+            .ok_or_else(|| {
+                import_error(format!("missing target CityObject {}", cityobject.id()))
+            })?;
+
+        if let Some(children) = cityobject.children() {
+            for child in children {
+                model.cityobjects().get(*child).ok_or_else(|| {
+                    import_error(format!("missing child CityObject handle {child:?}"))
+                })?;
+                if let Some(mapped) = old_to_new.get(child).copied() {
+                    target.add_child(mapped);
+                }
+            }
+        }
+
+        if let Some(parents) = cityobject.parents() {
+            for parent in parents {
+                model.cityobjects().get(*parent).ok_or_else(|| {
+                    import_error(format!("missing parent CityObject handle {parent:?}"))
+                })?;
+                if let Some(mapped) = old_to_new.get(parent).copied() {
+                    target.add_parent(mapped);
+                }
+            }
+        }
+    }
+
+    if let Some(root) = model.id() {
+        model
+            .cityobjects()
+            .get(root)
+            .ok_or_else(|| import_error("feature root references a missing CityObject"))?;
+        result.set_id(old_to_new.get(&root).copied());
+    }
+
+    Ok(result)
+}
+
 pub fn subset<'a, I>(model: &CityModel, cityobject_ids: I, exclude: bool) -> Result<CityModel>
 where
     I: IntoIterator<Item = &'a str>,
@@ -722,31 +854,13 @@ where
         .map(|(handle, cityobject)| (cityobject.id().to_owned(), handle))
         .collect::<HashMap<_, _>>();
 
-    let mut selected = BTreeSet::new();
-    let mut stack = Vec::new();
+    let mut roots = Vec::new();
     let mut matched_any = false;
 
     for id in &ids {
         if let Some(handle) = id_to_handle.get(id).copied() {
             matched_any = true;
-            stack.push(handle);
-        }
-    }
-
-    while let Some(handle) = stack.pop() {
-        let cityobject = model.cityobjects().get(handle).ok_or_else(|| {
-            import_error(format!(
-                "missing CityObject handle in subset traversal: {handle:?}"
-            ))
-        })?;
-        if !selected.insert(cityobject.id().to_owned()) {
-            continue;
-        }
-
-        if let Some(children) = cityobject.children() {
-            for child in children {
-                stack.push(*child);
-            }
+            roots.push(handle);
         }
     }
 
@@ -754,91 +868,54 @@ where
         return Err(import_error("subset selection matched no CityObjects"));
     }
 
+    let mut selected = collect_reachable_cityobjects(model, roots, false, true)?;
+
     if exclude {
         let excluded = selected;
         selected = model
             .cityobjects()
             .iter()
-            .map(|(_, cityobject)| cityobject.id().to_owned())
-            .filter(|id| !excluded.contains(id))
+            .map(|(handle, _)| handle)
+            .filter(|handle| !excluded.contains(handle))
             .collect();
     }
 
-    let mut result = model.clone();
-    result.clear_cityobjects();
+    rebuild_model_with_cityobjects(model, &selected)
+}
 
-    let mut id_to_new_handle = HashMap::with_capacity(selected.len());
-    for (_, cityobject) in model.cityobjects().iter() {
-        if !selected.contains(cityobject.id()) {
-            continue;
-        }
+pub fn filter<F>(model: &CityModel, predicate: F) -> Result<CityModel>
+where
+    F: FnMut(FilterContext<'_>) -> bool,
+{
+    filter_with_options(model, FilterOptions::default(), predicate)
+}
 
-        let mut cloned = cityobject.clone();
-        cloned.clear_children();
-        cloned.clear_parents();
-        let handle = result.cityobjects_mut().add(cloned)?;
-        id_to_new_handle.insert(cityobject.id().to_owned(), handle);
+pub fn filter_with_options<F>(
+    model: &CityModel,
+    options: FilterOptions,
+    mut predicate: F,
+) -> Result<CityModel>
+where
+    F: FnMut(FilterContext<'_>) -> bool,
+{
+    let mut selected = model
+        .cityobjects()
+        .iter()
+        .filter_map(|(handle, cityobject)| {
+            predicate(FilterContext {
+                model,
+                handle,
+                cityobject,
+            })
+            .then_some(handle)
+        })
+        .collect::<HashSet<_>>();
+
+    if options.include_relatives {
+        selected = collect_reachable_cityobjects(model, selected, true, true)?;
     }
 
-    for (_, cityobject) in model.cityobjects().iter() {
-        if !selected.contains(cityobject.id()) {
-            continue;
-        }
-
-        let target_handle = *id_to_new_handle.get(cityobject.id()).ok_or_else(|| {
-            import_error(format!("missing remap for CityObject {}", cityobject.id()))
-        })?;
-        let target = result
-            .cityobjects_mut()
-            .get_mut(target_handle)
-            .ok_or_else(|| {
-                import_error(format!("missing target CityObject {}", cityobject.id()))
-            })?;
-
-        if let Some(children) = cityobject.children() {
-            for child in children {
-                let child_id = model
-                    .cityobjects()
-                    .get(*child)
-                    .ok_or_else(|| {
-                        import_error(format!("missing child CityObject handle {child:?}"))
-                    })?
-                    .id()
-                    .to_owned();
-                if let Some(mapped) = id_to_new_handle.get(&child_id).copied() {
-                    target.add_child(mapped);
-                }
-            }
-        }
-
-        if let Some(parents) = cityobject.parents() {
-            for parent in parents {
-                let parent_id = model
-                    .cityobjects()
-                    .get(*parent)
-                    .ok_or_else(|| {
-                        import_error(format!("missing parent CityObject handle {parent:?}"))
-                    })?
-                    .id()
-                    .to_owned();
-                if let Some(mapped) = id_to_new_handle.get(&parent_id).copied() {
-                    target.add_parent(mapped);
-                }
-            }
-        }
-    }
-
-    if let Some(root) = model.id() {
-        let root_id = model
-            .cityobjects()
-            .get(root)
-            .ok_or_else(|| import_error("feature root references a missing CityObject"))?
-            .id()
-            .to_owned();
-        result.set_id(id_to_new_handle.get(&root_id).copied());
-    }
-
-    Ok(result)
+    rebuild_model_with_cityobjects(model, &selected)
 }
 
 pub fn append(target: &mut CityModel, source: &CityModel) -> Result<()> {
