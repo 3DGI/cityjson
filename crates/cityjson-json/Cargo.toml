@@ -1,6 +1,6 @@
 [package]
 name = "cityjson-json"
-version = "0.7.2"
+version = "0.7.3"
 authors = ["Balázs Dukai <balazs.dukai@3dgi.nl>"]
 categories = ["data-structures", "encoding"]
 keywords = ["cityjson", "serde", "json", "geospatial", "3d"]
@@ -19,7 +19,7 @@ name = "cityjson_json"
 path = "src/lib.rs"
 
 [dependencies]
-cityjson = { path = "../cityjson-rs", version = "0.7.1" }
+cityjson = { path = "../cityjson-rs", version = "0.7.2" }
 derive_more = { version = "2.1", features = ["display", "add_assign", "deref", "deref_mut", "from", "into_iterator"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
