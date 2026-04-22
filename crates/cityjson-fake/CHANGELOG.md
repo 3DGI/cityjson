@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-04-22
+
+### Changed
+
+- Bumped the package version to `0.5.2`.
+- Aligned the direct `cityjson` dependency with `0.7.2` and `cityjson-json` with `0.7.3` for the lockstep release train.
+
 ## [0.5.0] - 2026-04-18
 
 ### Changed
