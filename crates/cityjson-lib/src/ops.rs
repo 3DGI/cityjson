@@ -1,3 +1,8 @@
+//! Native workflow helpers for CityJSON models.
+//!
+//! The `subset` and `merge` semantics are ported from `cjio`, and the Rust
+//! implementation here is the crate-owned native rewrite of those workflows.
+
 use std::collections::{BTreeSet, HashMap};
 
 use crate::cityjson::resources::storage::OwnedStringStorage;

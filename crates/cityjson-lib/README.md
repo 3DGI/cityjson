@@ -12,26 +12,16 @@ The current published surface is intentionally small:
 
 Arrow, Parquet, and wasm are not part of the current release-facing surface.
 
-## Use of AI in this project
-
-This crate was written with AI assistance and human guidance.
-Development used an iterative process of testing, benchmarking, and optimization controlled and verified by me.
-
-## License
-
-This repository is dual-licensed under MIT or Apache-2.0.
-See [LICENSE](LICENSE) and [LICENSE-APACHE](LICENSE-APACHE).
-
 ## Quick Start
 
 ```rust
 use cityjson_lib::{json, query};
 
-let model = json::from_file("amsterdam.city.json")?;
-let summary = query::summary(&model);
+let model = json::from_file("amsterdam.city.json") ?;
+let summary = query::summary( & model);
 println!("{} cityobjects", summary.cityobject_count);
 
-let bytes = json::to_vec(&model)?;
+let bytes = json::to_vec( & model) ?;
 # let _ = bytes;
 # Ok::<(), cityjson_lib::Error>(())
 ```
@@ -46,3 +36,17 @@ Start with:
 - [`docs/public-api.md`](docs/public-api.md)
 - [`docs/ffi/api.md`](docs/ffi/api.md)
 - [`docs/ffi/performance.md`](docs/ffi/performance.md)
+
+## Use of AI in this project
+
+This crate was written with AI assistance and human guidance.
+Development used an iterative process of testing, benchmarking, and optimization controlled and verified by me.
+
+## Acknowledgements
+
+`cityjson-lib`'s native `subset` and `merge` workflows were ported from [`cjio`](https://github.com/cityjson/cjio), the CityJSON/io project, which is licensed under MIT.
+
+## License
+
+This repository is dual-licensed under MIT or Apache-2.0.
+See [LICENSE](LICENSE) and [LICENSE-APACHE](LICENSE-APACHE).

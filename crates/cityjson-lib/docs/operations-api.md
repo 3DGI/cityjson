@@ -3,6 +3,9 @@
 `cityjson_lib::ops` is the home for reusable workflows above the semantic
 model.
 
+The `subset` and `merge` behavior was ported from `cjio` and is now owned
+natively by `cityjson-lib`.
+
 The current release line ships four helpers:
 
 - `cleanup(&CityModel) -> Result<CityModel>`
