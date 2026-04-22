@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [0.7.2] - 2026-04-22
+
+### Added
+- `CityModel::calculate_geographical_extent()` for calculating the union extent of all city objects from directly attached geometry.
+- `CityModel::calculate_cityobject_geographical_extent(...)` for calculating a single city object's extent without reading or mutating stored `geographicalExtent` values.
+- `GeometryInstance` extent calculation through template geometry resolution, row-major affine transformation, and reference point offsets.
+
 ## [0.7.0] - 2026-04-16
 
 ### Added

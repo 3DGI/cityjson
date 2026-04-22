@@ -1,6 +1,6 @@
 [package]
 name = "cityjson"
-version = "0.7.1"
+version = "0.7.2"
 authors = ["Balázs Dukai <balazs.dukai@3dgi.nl>"]
 categories = ["data-structures"]
 keywords = ["cityjson", "geospatial", "3d", "gis"]
