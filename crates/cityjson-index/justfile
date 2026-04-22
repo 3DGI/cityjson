@@ -43,7 +43,7 @@ fmt-check:
 
 # Run the library and integration tests.
 test:
-    cargo test -p cityjson-index --lib --tests
+    cargo test -p cityjson-index --lib --bin cjindex --tests
 
 # Build the shared library and run the Python install smoke tests through tox and tox-uv.
 test-python:

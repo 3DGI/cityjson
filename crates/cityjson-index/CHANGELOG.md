@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Built the `cjindex` binary in the `just test` path so the CLI integration tests can resolve the executable during `just ci` and release validation.
+
 ## 0.4.0
 
 - Removed benchmark binaries, Criterion harnesses, and benchmark-only test corpus preparation from CI and the test harness.
