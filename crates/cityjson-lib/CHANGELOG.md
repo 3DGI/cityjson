@@ -9,6 +9,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Changed
 
 - Removed the local `cityjson-export` crate from the repository and dropped the benchmark helper path that depended on it.
+- Restored `just ci` to a Rust-only validation path and kept the C++/Python/native validation under `just ffi *`.
 
 ## [0.6.1] - 2026-04-22
 
