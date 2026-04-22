@@ -10,6 +10,13 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 - Facade helpers for `cityjson-lib` integration, exposed as a new `facade` module.
 - Serialization support for geometry-valued attributes.  
 
+## [0.7.3] - 2026-04-22
+
+### Changed
+
+- Bumped the package version to `0.7.3`.
+- Aligned the direct `cityjson` dependency with `0.7.2` for the lockstep release train.
+
 ## [0.7.0] - 2026-04-16
 
 ### Added
