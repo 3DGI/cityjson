@@ -62,7 +62,6 @@ use crate::resources::handles::{
 };
 use crate::resources::id::ResourceId32;
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
-use crate::v2_0::CityObjects;
 use crate::v2_0::appearance::material::Material;
 use crate::v2_0::appearance::texture::Texture;
 use crate::v2_0::attributes::AttributeValue;
@@ -71,13 +70,41 @@ use crate::v2_0::extension::Extensions;
 use crate::v2_0::geometry::GeometryView;
 use crate::v2_0::geometry::semantic::Semantic;
 use crate::v2_0::geometry::{Geometry, GeometryType};
-use crate::v2_0::metadata::Metadata;
+use crate::v2_0::metadata::{BBox, Metadata};
 use crate::v2_0::transform::Transform;
 use crate::v2_0::vertex::{VertexIndex, VertexRef};
 use crate::v2_0::vertices::Vertices;
+use crate::v2_0::{CityObject, CityObjects};
 use crate::{CityJSONVersion, format_option};
 use std::collections::HashSet;
 use std::fmt;
+
+fn invalid_reference(element_type: &'static str, index: usize, len: usize) -> Error {
+    Error::InvalidReference {
+        element_type: element_type.to_string(),
+        index,
+        max_index: len.saturating_sub(1),
+    }
+}
+
+fn union_bbox(lhs: BBox, rhs: BBox) -> BBox {
+    BBox::new(
+        lhs.min_x().min(rhs.min_x()),
+        lhs.min_y().min(rhs.min_y()),
+        lhs.min_z().min(rhs.min_z()),
+        lhs.max_x().max(rhs.max_x()),
+        lhs.max_y().max(rhs.max_y()),
+        lhs.max_z().max(rhs.max_z()),
+    )
+}
+
+fn include_point(extent: &mut Option<BBox>, x: f64, y: f64, z: f64) {
+    let point = BBox::new(x, y, z, x, y, z);
+    *extent = Some(match *extent {
+        Some(existing) => union_bbox(existing, point),
+        None => point,
+    });
+}
 
 /// `CityModel` with owned string storage and 32-bit vertex indices.
 pub type OwnedCityModel = CityModel<u32, OwnedStringStorage>;
@@ -396,6 +423,171 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         } else {
             Ok(GeometryView::from_geometry(geometry, None))
         }
+    }
+
+    /// Calculate the geographical extent from all city objects with directly attached geometry.
+    ///
+    /// Stored `geographicalExtent` values on metadata or city objects are ignored. The returned
+    /// extent is not stored back into the model.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::InvalidReference`] when an attached geometry, boundary
+    /// vertex, geometry template, or instance reference point is missing.
+    pub fn calculate_geographical_extent(&self) -> Result<Option<BBox>> {
+        let mut extent = None;
+
+        for (_, cityobject) in self.cityobjects().iter() {
+            if let Some(cityobject_extent) = self.calculate_cityobject_extent(cityobject)? {
+                extent = Some(match extent {
+                    Some(existing) => union_bbox(existing, cityobject_extent),
+                    None => cityobject_extent,
+                });
+            }
+        }
+
+        Ok(extent)
+    }
+
+    /// Calculate the geographical extent for one city object from its directly attached geometry.
+    ///
+    /// Stored `geographicalExtent` values on the city object are ignored. The returned extent is
+    /// not stored back into the city object.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::InvalidReference`] when `handle` is missing or when an
+    /// attached geometry, boundary vertex, geometry template, or instance reference point is
+    /// missing.
+    pub fn calculate_cityobject_geographical_extent(
+        &self,
+        handle: CityObjectHandle,
+    ) -> Result<Option<BBox>> {
+        let cityobject = self.cityobjects().get(handle).ok_or_else(|| {
+            let (index, _) = handle.raw_parts();
+            invalid_reference("city object", index as usize, self.cityobjects().len())
+        })?;
+
+        self.calculate_cityobject_extent(cityobject)
+    }
+
+    fn calculate_cityobject_extent(&self, cityobject: &CityObject<SS>) -> Result<Option<BBox>> {
+        let mut extent = None;
+
+        for handle in cityobject.geometry().unwrap_or(&[]) {
+            let geometry = self.get_geometry(*handle).ok_or_else(|| {
+                let (index, _) = handle.raw_parts();
+                invalid_reference("geometry", index as usize, self.geometry_count())
+            })?;
+
+            if let Some(geometry_extent) = self.calculate_geometry_extent(geometry)? {
+                extent = Some(match extent {
+                    Some(existing) => union_bbox(existing, geometry_extent),
+                    None => geometry_extent,
+                });
+            }
+        }
+
+        Ok(extent)
+    }
+
+    fn calculate_geometry_extent(&self, geometry: &Geometry<VR, SS>) -> Result<Option<BBox>> {
+        if let Some(instance) = geometry.instance() {
+            return self.calculate_geometry_instance_extent(instance);
+        }
+
+        Self::calculate_regular_geometry_extent(geometry, self.vertices(), "vertex")
+    }
+
+    fn calculate_geometry_instance_extent(
+        &self,
+        instance: crate::v2_0::geometry::GeometryInstanceView<'_, VR>,
+    ) -> Result<Option<BBox>> {
+        let template = self
+            .get_geometry_template(instance.template())
+            .ok_or_else(|| {
+                let (index, _) = instance.template().raw_parts();
+                invalid_reference(
+                    "template geometry",
+                    index as usize,
+                    self.geometry_template_count(),
+                )
+            })?;
+
+        let reference_point = self.get_vertex(instance.reference_point()).ok_or_else(|| {
+            invalid_reference(
+                "vertex",
+                instance
+                    .reference_point()
+                    .try_to_usize()
+                    .unwrap_or(usize::MAX),
+                self.vertices().len(),
+            )
+        })?;
+
+        let Some(boundary) = template.boundaries() else {
+            return Ok(None);
+        };
+
+        let matrix = instance.transformation();
+        let matrix = matrix.as_array();
+        let mut extent = None;
+
+        for vertex_index in boundary.vertices() {
+            let coordinate = self.template_vertices().get(*vertex_index).ok_or_else(|| {
+                invalid_reference(
+                    "template vertex",
+                    vertex_index.try_to_usize().unwrap_or(usize::MAX),
+                    self.template_vertices().len(),
+                )
+            })?;
+
+            let x = matrix[0] * coordinate.x()
+                + matrix[1] * coordinate.y()
+                + matrix[2] * coordinate.z()
+                + matrix[3]
+                + reference_point.x();
+            let y = matrix[4] * coordinate.x()
+                + matrix[5] * coordinate.y()
+                + matrix[6] * coordinate.z()
+                + matrix[7]
+                + reference_point.y();
+            let z = matrix[8] * coordinate.x()
+                + matrix[9] * coordinate.y()
+                + matrix[10] * coordinate.z()
+                + matrix[11]
+                + reference_point.z();
+
+            include_point(&mut extent, x, y, z);
+        }
+
+        Ok(extent)
+    }
+
+    fn calculate_regular_geometry_extent(
+        geometry: &Geometry<VR, SS>,
+        vertices: &Vertices<VR, RealWorldCoordinate>,
+        vertex_element_type: &'static str,
+    ) -> Result<Option<BBox>> {
+        let Some(boundary) = geometry.boundaries() else {
+            return Ok(None);
+        };
+
+        let mut extent = None;
+
+        for vertex_index in boundary.vertices() {
+            let coordinate = vertices.get(*vertex_index).ok_or_else(|| {
+                invalid_reference(
+                    vertex_element_type,
+                    vertex_index.try_to_usize().unwrap_or(usize::MAX),
+                    vertices.len(),
+                )
+            })?;
+
+            include_point(&mut extent, coordinate.x(), coordinate.y(), coordinate.z());
+        }
+
+        Ok(extent)
     }
 
     /// Add a geometry and return its handle.
@@ -955,9 +1147,12 @@ mod tests {
     use crate::v2_0::appearance::material::Material;
     use crate::v2_0::appearance::texture::Texture;
     use crate::v2_0::boundary::nested::BoundaryNestedMultiPoint32;
-    use crate::v2_0::geometry::{AffineTransform3D, LoD, StoredGeometryParts};
+    use crate::v2_0::geometry::{
+        AffineTransform3D, LoD, StoredGeometryInstance, StoredGeometryParts,
+    };
     use crate::v2_0::{
-        CityObject, CityObjectIdentifier, CityObjectType, GeometryDraft, RingDraft, SurfaceDraft,
+        CityObject, CityObjectIdentifier, CityObjectType, GeometryDraft, PointDraft, RingDraft,
+        SurfaceDraft,
     };
 
     fn multi_point_geometry(
@@ -986,6 +1181,317 @@ mod tests {
             textures: None,
             instance: None,
         })
+    }
+
+    fn building(id: &str) -> CityObject<OwnedStringStorage> {
+        CityObject::new(
+            CityObjectIdentifier::new(id.to_string()),
+            CityObjectType::Building,
+        )
+    }
+
+    fn add_stored_multi_point_geometry(
+        model: &mut OwnedCityModel,
+        coordinates: &[[f64; 3]],
+    ) -> GeometryHandle {
+        let mut boundary_vertices = Vec::with_capacity(coordinates.len());
+        for [x, y, z] in coordinates {
+            let index = model
+                .add_vertex(RealWorldCoordinate::new(*x, *y, *z))
+                .unwrap();
+            boundary_vertices.push(index.value());
+        }
+
+        model
+            .add_geometry(stored_multi_point_geometry(boundary_vertices))
+            .unwrap()
+    }
+
+    fn add_cityobject_with_geometries(
+        model: &mut OwnedCityModel,
+        id: &str,
+        geometries: &[GeometryHandle],
+    ) -> CityObjectHandle {
+        let mut cityobject = building(id);
+        for geometry in geometries {
+            cityobject.add_geometry(*geometry);
+        }
+        model.cityobjects_mut().add(cityobject).unwrap()
+    }
+
+    fn assert_invalid_reference(err: &Error, expected_element_type: &str) {
+        assert!(
+            matches!(
+                err,
+                Error::InvalidReference { element_type, .. } if element_type == expected_element_type
+            ),
+            "expected InvalidReference for {expected_element_type}, got {err}"
+        );
+    }
+
+    #[test]
+    fn calculate_cityobject_geographical_extent_from_multipoint_geometry() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        let geometry = add_stored_multi_point_geometry(
+            &mut model,
+            &[[1.0, 2.0, 3.0], [-4.0, 5.0, 6.0], [7.0, -8.0, -9.0]],
+        );
+        let handle = add_cityobject_with_geometries(&mut model, "building-1", &[geometry]);
+
+        let extent = model
+            .calculate_cityobject_geographical_extent(handle)
+            .unwrap();
+
+        assert_eq!(extent, Some(BBox::new(-4.0, -8.0, -9.0, 7.0, 5.0, 6.0)));
+    }
+
+    #[test]
+    fn calculate_cityobject_geographical_extent_unions_multiple_geometries() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        let first =
+            add_stored_multi_point_geometry(&mut model, &[[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let second = add_stored_multi_point_geometry(
+            &mut model,
+            &[[-10.0, -20.0, -30.0], [-4.0, -5.0, -6.0]],
+        );
+        let handle = add_cityobject_with_geometries(&mut model, "building-1", &[first, second]);
+
+        let extent = model
+            .calculate_cityobject_geographical_extent(handle)
+            .unwrap();
+
+        assert_eq!(extent, Some(BBox::new(-10.0, -20.0, -30.0, 3.0, 4.0, 5.0)));
+    }
+
+    #[test]
+    fn calculate_geographical_extent_unions_all_cityobjects() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        let first =
+            add_stored_multi_point_geometry(&mut model, &[[0.0, 0.0, 0.0], [1.0, 2.0, 3.0]]);
+        let second =
+            add_stored_multi_point_geometry(&mut model, &[[-5.0, 10.0, -2.0], [6.0, 11.0, 4.0]]);
+        add_cityobject_with_geometries(&mut model, "building-1", &[first]);
+        add_cityobject_with_geometries(&mut model, "building-2", &[second]);
+
+        let extent = model.calculate_geographical_extent().unwrap();
+
+        assert_eq!(extent, Some(BBox::new(-5.0, 0.0, -2.0, 6.0, 11.0, 4.0)));
+    }
+
+    #[test]
+    fn calculate_geographical_extent_ignores_orphan_vertices_and_geometries() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        let attached =
+            add_stored_multi_point_geometry(&mut model, &[[0.0, 0.0, 0.0], [1.0, 2.0, 3.0]]);
+        add_cityobject_with_geometries(&mut model, "building-1", &[attached]);
+
+        model
+            .add_vertex(RealWorldCoordinate::new(-1000.0, -1000.0, -1000.0))
+            .unwrap();
+        model
+            .add_vertex(RealWorldCoordinate::new(1000.0, 1000.0, 1000.0))
+            .unwrap();
+        add_stored_multi_point_geometry(
+            &mut model,
+            &[[-500.0, -500.0, -500.0], [500.0, 500.0, 500.0]],
+        );
+
+        let extent = model.calculate_geographical_extent().unwrap();
+
+        assert_eq!(extent, Some(BBox::new(0.0, 0.0, 0.0, 1.0, 2.0, 3.0)));
+    }
+
+    #[test]
+    fn calculate_cityobject_geographical_extent_returns_none_without_geometry() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        let handle = model.cityobjects_mut().add(building("building-1")).unwrap();
+
+        let extent = model
+            .calculate_cityobject_geographical_extent(handle)
+            .unwrap();
+
+        assert_eq!(extent, None);
+    }
+
+    #[test]
+    fn calculate_geographical_extent_returns_none_without_cityobject_geometry() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+
+        assert_eq!(model.calculate_geographical_extent().unwrap(), None);
+
+        model.cityobjects_mut().add(building("building-1")).unwrap();
+
+        assert_eq!(model.calculate_geographical_extent().unwrap(), None);
+    }
+
+    #[test]
+    fn calculate_cityobject_geographical_extent_resolves_geometry_instance_identity() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        let template = GeometryDraft::multi_point(
+            None,
+            [
+                PointDraft::new(RealWorldCoordinate::new(-1.0, 2.0, 3.0)),
+                PointDraft::new(RealWorldCoordinate::new(4.0, -5.0, 6.0)),
+            ],
+        )
+        .insert_template_into(&mut model)
+        .unwrap();
+        let instance = GeometryDraft::instance(
+            template,
+            RealWorldCoordinate::new(10.0, 20.0, 30.0),
+            AffineTransform3D::identity(),
+        )
+        .insert_into(&mut model)
+        .unwrap();
+        let handle = add_cityobject_with_geometries(&mut model, "building-1", &[instance]);
+
+        let extent = model
+            .calculate_cityobject_geographical_extent(handle)
+            .unwrap();
+
+        assert_eq!(extent, Some(BBox::new(9.0, 15.0, 33.0, 14.0, 22.0, 36.0)));
+    }
+
+    #[test]
+    fn calculate_cityobject_geographical_extent_resolves_geometry_instance_scaling() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        let template = GeometryDraft::multi_point(
+            None,
+            [
+                PointDraft::new(RealWorldCoordinate::new(-1.0, 2.0, -3.0)),
+                PointDraft::new(RealWorldCoordinate::new(4.0, -5.0, 6.0)),
+            ],
+        )
+        .insert_template_into(&mut model)
+        .unwrap();
+        let instance = GeometryDraft::instance(
+            template,
+            RealWorldCoordinate::new(10.0, 20.0, 30.0),
+            AffineTransform3D::new([
+                2.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+            ]),
+        )
+        .insert_into(&mut model)
+        .unwrap();
+        let handle = add_cityobject_with_geometries(&mut model, "building-1", &[instance]);
+
+        let extent = model
+            .calculate_cityobject_geographical_extent(handle)
+            .unwrap();
+
+        assert_eq!(extent, Some(BBox::new(8.0, 5.0, 18.0, 18.0, 26.0, 54.0)));
+    }
+
+    #[test]
+    fn calculate_cityobject_geographical_extent_errors_for_missing_cityobject_handle() {
+        let model = OwnedCityModel::new(CityModelType::CityJSON);
+        let handle = unsafe { CityObjectHandle::from_raw_parts_unchecked(42, 0) };
+
+        let err = model
+            .calculate_cityobject_geographical_extent(handle)
+            .unwrap_err();
+
+        assert_invalid_reference(&err, "city object");
+    }
+
+    #[test]
+    fn calculate_cityobject_geographical_extent_errors_for_missing_geometry_handle() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        let geometry = unsafe { GeometryHandle::from_raw_parts_unchecked(42, 0) };
+        let handle = add_cityobject_with_geometries(&mut model, "building-1", &[geometry]);
+
+        let err = model
+            .calculate_cityobject_geographical_extent(handle)
+            .unwrap_err();
+
+        assert_invalid_reference(&err, "geometry");
+    }
+
+    #[test]
+    fn calculate_cityobject_geographical_extent_errors_for_missing_vertex_reference() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        let geometry = model
+            .add_geometry_unchecked(stored_multi_point_geometry(vec![0u32]))
+            .unwrap();
+        let handle = add_cityobject_with_geometries(&mut model, "building-1", &[geometry]);
+
+        let err = model
+            .calculate_cityobject_geographical_extent(handle)
+            .unwrap_err();
+
+        assert_invalid_reference(&err, "vertex");
+    }
+
+    #[test]
+    fn calculate_cityobject_geographical_extent_errors_for_missing_template_reference() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        let reference_point = model
+            .add_vertex(RealWorldCoordinate::new(0.0, 0.0, 0.0))
+            .unwrap();
+        let missing_template = unsafe { GeometryTemplateHandle::from_raw_parts_unchecked(42, 0) };
+        let geometry = Geometry::from_stored_parts(StoredGeometryParts {
+            type_geometry: GeometryType::GeometryInstance,
+            lod: None,
+            boundaries: None,
+            semantics: None,
+            materials: None,
+            textures: None,
+            instance: Some(StoredGeometryInstance {
+                template: missing_template,
+                reference_point,
+                transformation: AffineTransform3D::identity(),
+            }),
+        });
+        let geometry = model.add_geometry_unchecked(geometry).unwrap();
+        let handle = add_cityobject_with_geometries(&mut model, "building-1", &[geometry]);
+
+        let err = model
+            .calculate_cityobject_geographical_extent(handle)
+            .unwrap_err();
+
+        assert_invalid_reference(&err, "template geometry");
+    }
+
+    #[test]
+    fn calculate_methods_do_not_use_or_mutate_stored_geographical_extent() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        let geometry =
+            add_stored_multi_point_geometry(&mut model, &[[0.0, 0.0, 0.0], [1.0, 2.0, 3.0]]);
+        let handle = add_cityobject_with_geometries(&mut model, "building-1", &[geometry]);
+        let stored_cityobject_extent = BBox::new(-100.0, -100.0, -100.0, -90.0, -90.0, -90.0);
+        let stored_metadata_extent = BBox::new(90.0, 90.0, 90.0, 100.0, 100.0, 100.0);
+        model
+            .cityobjects_mut()
+            .get_mut(handle)
+            .unwrap()
+            .set_geographical_extent(Some(stored_cityobject_extent));
+        model
+            .metadata_mut()
+            .set_geographical_extent(stored_metadata_extent);
+
+        let cityobject_extent = model
+            .calculate_cityobject_geographical_extent(handle)
+            .unwrap();
+        let model_extent = model.calculate_geographical_extent().unwrap();
+
+        assert_eq!(
+            cityobject_extent,
+            Some(BBox::new(0.0, 0.0, 0.0, 1.0, 2.0, 3.0))
+        );
+        assert_eq!(model_extent, Some(BBox::new(0.0, 0.0, 0.0, 1.0, 2.0, 3.0)));
+        assert_eq!(
+            model
+                .cityobjects()
+                .get(handle)
+                .unwrap()
+                .geographical_extent()
+                .copied(),
+            Some(stored_cityobject_extent)
+        );
+        assert_eq!(
+            model.metadata().unwrap().geographical_extent().copied(),
+            Some(stored_metadata_extent)
+        );
     }
 
     #[test]
