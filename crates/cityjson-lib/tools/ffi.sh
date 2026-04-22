@@ -47,8 +47,7 @@ verify_header_clean() {
 build_cpp() {
   require_header
   cargo build --manifest-path "${repo_dir}/Cargo.toml" \
-    -p cityjson-lib-ffi-core \
-    -p cityjson-lib-wasm \
+    --workspace \
     --all-targets \
     --all-features
   cmake -S "${repo_dir}/ffi/cpp" -B "${cpp_build_dir}" \
@@ -62,8 +61,7 @@ build_python() {
 
 build_wasm() {
   cargo build --manifest-path "${repo_dir}/Cargo.toml" \
-    -p cityjson-lib-ffi-core \
-    -p cityjson-lib-wasm \
+    --workspace \
     --all-targets \
     --all-features \
     "$@"
@@ -71,8 +69,7 @@ build_wasm() {
 
 check() {
   cargo check --manifest-path "${repo_dir}/Cargo.toml" \
-    -p cityjson-lib-ffi-core \
-    -p cityjson-lib-wasm \
+    --workspace \
     --all-targets \
     --all-features
   python3 -m compileall -q ffi/python/src
@@ -86,8 +83,7 @@ fmt() {
 
 doc() {
   cargo doc --manifest-path "${repo_dir}/Cargo.toml" \
-    -p cityjson-lib-ffi-core \
-    -p cityjson-lib-wasm \
+    --workspace \
     --no-deps \
     --all-features
 }
@@ -97,8 +93,7 @@ test() {
   verify_header_clean
   build_cpp
   cargo test --manifest-path "${repo_dir}/Cargo.toml" \
-    -p cityjson-lib-ffi-core \
-    -p cityjson-lib-wasm \
+    --workspace \
     --all-features
   PYTHONPATH=ffi/python/src python3 -m unittest ffi/python/tests/test_api.py
   ctest --test-dir "${cpp_build_dir}" --output-on-failure
