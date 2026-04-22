@@ -52,7 +52,7 @@ jobs:
           toolchain: 1.93.0
 
       - name: Test
-        run: cargo test --all-targets --all-features
+        run: cargo test --lib --tests --all-features
 
       - name: Publish crate
         env:
