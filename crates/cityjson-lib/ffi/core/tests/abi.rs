@@ -22,6 +22,18 @@ fn feature_payload() -> &'static [u8] {
     br#"{"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#
 }
 
+fn subset_fixture() -> &'static [u8] {
+    include_bytes!("../../../tests/data/v2_0/ops/subset_source.city.json")
+}
+
+fn merge_left_fixture() -> &'static [u8] {
+    include_bytes!("../../../tests/data/v2_0/ops/merge_left.city.json")
+}
+
+fn merge_right_fixture() -> &'static [u8] {
+    include_bytes!("../../../tests/data/v2_0/ops/merge_right.city.json")
+}
+
 fn bytes_to_string(bytes: cj_bytes_t) -> String {
     if bytes.len == 0 {
         let _ = cj_bytes_free(bytes);
@@ -882,45 +894,74 @@ fn targeted_cleanup_work() {
 }
 
 #[test]
-fn append_extract_and_feature_stream_exports_work() {
-    let mut first = ptr::null_mut();
-    let feature_one = br#"{"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#;
+fn subset_merge_and_feature_stream_exports_work() {
+    let mut subset_input = ptr::null_mut();
     assert_eq!(
-        cj_model_parse_feature_bytes(feature_one.as_ptr(), feature_one.len(), &raw mut first),
+        cj_model_parse_document_bytes(
+            subset_fixture().as_ptr(),
+            subset_fixture().len(),
+            &raw mut subset_input,
+        ),
         cj_status_t::CJ_STATUS_SUCCESS
     );
 
-    let mut second = ptr::null_mut();
-    let feature_two = br#"{"type":"CityJSONFeature","id":"feature-2","CityObjects":{"feature-2":{"type":"BuildingPart"}},"vertices":[]}"#;
+    let ids = [string_view("my-group")];
+    let mut subset = ptr::null_mut();
     assert_eq!(
-        cj_model_parse_feature_bytes(feature_two.as_ptr(), feature_two.len(), &raw mut second),
+        cj_model_subset_cityobjects(
+            subset_input,
+            ids.as_ptr(),
+            ids.len(),
+            false,
+            &raw mut subset,
+        ),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    let mut subset_summary = cj_model_summary_t::default();
+    assert_eq!(
+        cj_model_get_summary(subset, &raw mut subset_summary),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(subset_summary.cityobject_count, 3);
+
+    let mut left = ptr::null_mut();
+    assert_eq!(
+        cj_model_parse_document_bytes(
+            merge_left_fixture().as_ptr(),
+            merge_left_fixture().len(),
+            &raw mut left,
+        ),
         cj_status_t::CJ_STATUS_SUCCESS
     );
 
+    let mut right = ptr::null_mut();
     assert_eq!(
-        cj_model_append_model(first, second),
+        cj_model_parse_document_bytes(
+            merge_right_fixture().as_ptr(),
+            merge_right_fixture().len(),
+            &raw mut right,
+        ),
         cj_status_t::CJ_STATUS_SUCCESS
     );
 
-    let mut summary = cj_model_summary_t::default();
+    let models = [left.cast_const(), right.cast_const()];
+    let mut merged = ptr::null_mut();
     assert_eq!(
-        cj_model_get_summary(first, &raw mut summary),
+        cj_model_merge_models(models.as_ptr(), models.len(), &raw mut merged),
         cj_status_t::CJ_STATUS_SUCCESS
     );
-    assert_eq!(summary.cityobject_count, 2);
-
-    let ids = [string_view("feature-1")];
-    let mut extracted = ptr::null_mut();
+    let mut merged_summary = cj_model_summary_t::default();
     assert_eq!(
-        cj_model_extract_cityobjects(first, ids.as_ptr(), ids.len(), &raw mut extracted),
+        cj_model_get_summary(merged, &raw mut merged_summary),
         cj_status_t::CJ_STATUS_SUCCESS
     );
-    let mut extracted_summary = cj_model_summary_t::default();
-    assert_eq!(
-        cj_model_get_summary(extracted, &raw mut extracted_summary),
-        cj_status_t::CJ_STATUS_SUCCESS
-    );
-    assert_eq!(extracted_summary.cityobject_count, 1);
+    assert_eq!(merged_summary.cityobject_count, 3);
+    assert_eq!(merged_summary.geometry_count, 8);
+    assert_eq!(merged_summary.geometry_template_count, 2);
+    assert_eq!(merged_summary.template_vertex_count, 36);
+    assert_eq!(merged_summary.material_count, 5);
+    assert_eq!(merged_summary.texture_count, 4);
+    assert_eq!(merged_summary.vertex_count, 8);
 
     let mut base = ptr::null_mut();
     assert_eq!(
@@ -952,32 +993,34 @@ fn append_extract_and_feature_stream_exports_work() {
     assert!(stream_text.contains("\"type\":\"CityJSON\""));
     assert!(stream_text.contains("\"type\":\"CityJSONFeature\""));
 
-    let mut merged = ptr::null_mut();
+    let mut merged_stream = ptr::null_mut();
     assert_eq!(
         cj_model_parse_feature_stream_merge_bytes(
             stream_text.as_ptr(),
             stream_text.len(),
-            &raw mut merged,
+            &raw mut merged_stream,
         ),
         cj_status_t::CJ_STATUS_SUCCESS
     );
-    let mut merged_summary = cj_model_summary_t::default();
+    let mut merged_stream_summary = cj_model_summary_t::default();
     assert_eq!(
-        cj_model_get_summary(merged, &raw mut merged_summary),
+        cj_model_get_summary(merged_stream, &raw mut merged_stream_summary),
         cj_status_t::CJ_STATUS_SUCCESS
     );
     assert_eq!(
-        merged_summary.model_type,
+        merged_stream_summary.model_type,
         cj_model_type_t::CJ_MODEL_TYPE_CITY_JSON
     );
-    assert!(merged_summary.cityobject_count >= 3);
+    assert!(merged_stream_summary.cityobject_count >= 3);
 
-    assert_eq!(cj_model_free(merged), cj_status_t::CJ_STATUS_SUCCESS);
+    assert_eq!(cj_model_free(merged_stream), cj_status_t::CJ_STATUS_SUCCESS);
     assert_eq!(cj_model_free(feature), cj_status_t::CJ_STATUS_SUCCESS);
     assert_eq!(cj_model_free(base), cj_status_t::CJ_STATUS_SUCCESS);
-    assert_eq!(cj_model_free(extracted), cj_status_t::CJ_STATUS_SUCCESS);
-    assert_eq!(cj_model_free(second), cj_status_t::CJ_STATUS_SUCCESS);
-    assert_eq!(cj_model_free(first), cj_status_t::CJ_STATUS_SUCCESS);
+    assert_eq!(cj_model_free(merged), cj_status_t::CJ_STATUS_SUCCESS);
+    assert_eq!(cj_model_free(right), cj_status_t::CJ_STATUS_SUCCESS);
+    assert_eq!(cj_model_free(left), cj_status_t::CJ_STATUS_SUCCESS);
+    assert_eq!(cj_model_free(subset), cj_status_t::CJ_STATUS_SUCCESS);
+    assert_eq!(cj_model_free(subset_input), cj_status_t::CJ_STATUS_SUCCESS);
 }
 
 #[test]
