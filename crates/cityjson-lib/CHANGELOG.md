@@ -16,6 +16,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 - Bumped the direct `cityjson-rs` dependency to `0.7.2` and aligned the optional format crate pins to the lockstep release train.
 - Bumped the package version to `0.6.1`.
+- Aligned the Python package metadata with `0.6.1` so the PyPI release workflow publishes the same version as the Rust crate.
 - Shared CityObject result rebuilding between `ops::subset` and predicate filtering so retained parent/child references are remapped and references to removed CityObjects are stripped.
 
 ### Added
