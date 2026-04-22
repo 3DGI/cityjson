@@ -31,11 +31,23 @@ jobs:
           git clone --depth=1 --branch master https://github.com/3DGI/cityjson-rs.git ../cityjson-rs
           git clone --depth=1 --branch master https://github.com/3DGI/cityjson-json.git ../cityjson-json
           git clone --depth=1 --branch master https://github.com/3DGI/cityjson-fake.git ../cityjson-fake
-          git clone --depth=1 --branch master https://github.com/3DGI/cityjson-corpus.git ../cityjson-corpus
+
+      - name: Checkout shared corpus
+        uses: actions/checkout@v4
+        with:
+          repository: 3DGI/cityjson-corpus
+          path: cityjson-corpus
+          sparse-checkout: |
+            artifacts
+            catalog
+            cases
+            schemas
+            scripts
+          sparse-checkout-cone-mode: true
 
       - name: Render shared corpus index
         run: python scripts/render_correctness_index.py
-        working-directory: ../cityjson-corpus
+        working-directory: cityjson-corpus
 
       - name: Verify tag is on master
         run: |
