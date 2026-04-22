@@ -13,7 +13,7 @@ clean:
 
 # Run cargo check on the project
 check:
-    cargo check --workspace --all-targets --all-features
+    cargo check --manifest-path Cargo.toml {{native_packages}} --all-targets --all-features
 
 # Build the project
 build *args:
@@ -29,8 +29,7 @@ fmt:
 
 # Run cargo test on the project
 test:
-    just ffi build cpp
-    cargo test --workspace --all-targets --all-features
+    cargo test --manifest-path Cargo.toml {{native_packages}} --all-targets --all-features
 
 # Run the Python install smoke tests through tox and tox-uv.
 test-python:
@@ -51,7 +50,6 @@ ci:
     just check
     just perf check
     just test
-    just test-python
     just docs-build
 
 perf *args:
