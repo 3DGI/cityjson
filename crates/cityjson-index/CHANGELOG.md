@@ -9,6 +9,11 @@
 - Fixed the Python binding validation path to build a temporary JSON-only `cityjson-lib` wheel for tests.
 - Replaced the GitHub Actions Rust toolchain action with direct `rustup` installation to avoid action archive download failures.
 
+## 0.4.1
+
+- Bumped the package version to `0.4.1`.
+- Aligned `cityjson-lib` with `0.6.1` for the release train.
+
 ## 0.3.1
 
 - Maintenance release for the initial public package metadata and release workflow.
