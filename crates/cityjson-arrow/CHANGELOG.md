@@ -13,3 +13,10 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Changed
 - Export and stream writing now consume `cityjson::relational::ModelRelationalView`.
 - Reduced the public API to the vNext codec contract instead of compatibility-oriented builder surfaces.
+
+## [0.6.2] - 2026-04-22
+
+### Changed
+
+- Bumped the package version to `0.6.2`.
+- Aligned the direct `cityjson` dependency with `0.7.2` for the lockstep release train.
