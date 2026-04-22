@@ -1,6 +1,6 @@
 [package]
 name = "cityjson-arrow"
-version = "0.6.1"
+version = "0.6.2"
 edition = "2024"
 rust-version = "1.93"
 description = "Arrow IPC and Parquet transport for CityJSON 2.0 city models"
@@ -34,7 +34,7 @@ arrow = { version = "58.1.0", features = ["ipc", "csv", "json"] }
 arrow-buffer = "58.1.0"
 arrow-json = "58.1.0"
 arrow-select = "58.1.0"
-cityjson = { path = "../cityjson-rs", version = "0.7.1" }
+cityjson = { path = "../cityjson-rs", version = "0.7.2" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 lazy_static = "1.5.0"
