@@ -792,8 +792,10 @@ class CityModel(_OwnedHandle):
     def append_model(self, other: Self) -> None:
         _ffi.append_model(self._require_handle(), other._require_handle())
 
-    def extract_cityobjects(self, cityobject_ids: list[str]) -> Self:
-        return type(self)(_ffi.extract_cityobjects(self._require_handle(), cityobject_ids))
+    def subset_cityobjects(self, cityobject_ids: list[str], exclude: bool = False) -> Self:
+        return type(self)(
+            _ffi.subset_cityobjects(self._require_handle(), cityobject_ids, exclude)
+        )
 
     def cleanup(self) -> None:
         _ffi.cleanup(self._require_handle())

@@ -77,7 +77,7 @@ class PythonBindingSmokeTest(unittest.TestCase):
         self.assertEqual(actual.has_templates, expected.has_templates)
         self.assertEqual(actual.has_appearance, expected.has_appearance)
 
-    def test_parse_edit_extract_and_serialize_document(self) -> None:
+    def test_parse_edit_subset_and_serialize_document(self) -> None:
         payload = FIXTURE_PATH.read_bytes()
 
         probe = probe_bytes(payload)
@@ -149,11 +149,14 @@ class PythonBindingSmokeTest(unittest.TestCase):
         model.set_metadata_identifier("fixture-1-updated")
         model.set_transform(Transform(scale=(0.5, 0.5, 1.0), translate=(10.0, 20.0, 0.0)))
         model.clear_transform()
-        extracted = model.extract_cityobjects(["building-1"])
+        extracted = model.subset_cityobjects(["building-1"])
         self.addCleanup(extracted.close)
 
-        self.assertEqual(extracted.cityobject_ids(), ["building-1"])
-        self.assertEqual(extracted.geometry_types(), [GeometryType.MULTI_SURFACE])
+        self.assertEqual(extracted.cityobject_ids(), ["building-1", "building-part-1"])
+        self.assertEqual(
+            extracted.geometry_types(),
+            [GeometryType.MULTI_SURFACE, GeometryType.MULTI_POINT],
+        )
         self.assertIn("Updated Facade Fixture", extracted.serialize_document(WriteOptions()))
 
         pretty_document = extracted.serialize_document(WriteOptions(pretty=True))

@@ -615,7 +615,7 @@ Removed or superseded concepts:
 
 Retained concepts:
 
-- parse, inspect, cleanup, append, extract, and serialize workflows
+- parse, inspect, cleanup, subset, append, and serialize workflows
 - RAII `Model` ownership in C++
 - explicit write options and feature-stream helpers
 

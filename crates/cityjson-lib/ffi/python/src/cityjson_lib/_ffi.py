@@ -533,13 +533,14 @@ class FfiLibrary:
         self._lib.cj_model_cleanup.restype = c_int
         self._lib.cj_model_append_model.argtypes = [c_void_p, c_void_p]
         self._lib.cj_model_append_model.restype = c_int
-        self._lib.cj_model_extract_cityobjects.argtypes = [
+        self._lib.cj_model_subset_cityobjects.argtypes = [
             c_void_p,
             POINTER(StringViewStruct),
             c_size_t,
+            c_bool,
             POINTER(c_void_p),
         ]
-        self._lib.cj_model_extract_cityobjects.restype = c_int
+        self._lib.cj_model_subset_cityobjects.restype = c_int
 
         self._lib.cj_model_parse_feature_stream_merge_bytes.argtypes = [
             POINTER(c_ubyte),
@@ -1243,15 +1244,15 @@ class FfiLibrary:
             self._lib.cj_model_append_model(c_void_p(target_handle), c_void_p(source_handle))
         )
 
-    def extract_cityobjects(self, handle: int, cityobject_ids: list[str]) -> int:
+    def subset_cityobjects(self, handle: int, cityobject_ids: list[str], exclude: bool = False) -> int:
         if not cityobject_ids:
             raise ValueError("cityobject_ids must not be empty")
 
         array, _buffers = self._string_handles(cityobject_ids)
         extracted = c_void_p()
         self._raise_if_error(
-            self._lib.cj_model_extract_cityobjects(
-                c_void_p(handle), array, len(cityobject_ids), pointer(extracted)
+            self._lib.cj_model_subset_cityobjects(
+                c_void_p(handle), array, len(cityobject_ids), exclude, pointer(extracted)
             )
         )
         return int(extracted.value)

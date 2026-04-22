@@ -273,10 +273,10 @@ int main() {
     assert(error.status() == CJ_STATUS_INVALID_ARGUMENT);
   }
 
-  const auto extracted = left.extract_cityobjects(std::array{std::string_view{"right"}});
-  const auto extracted_summary = extracted.summary();
-  assert(extracted_summary.cityobject_count == 1U);
-  assert(extracted.cityobject_ids()[0] == "right");
+  const auto subset = left.subset_cityobjects(std::array{std::string_view{"right"}});
+  const auto subset_summary = subset.summary();
+  assert(subset_summary.cityobject_count == 1U);
+  assert(subset.cityobject_ids()[0] == "right");
 
   const auto feature_fixture_bytes =
       read_file_bytes(fixture_path.parent_path() / "minimal.city.jsonl");

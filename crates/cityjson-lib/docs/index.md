@@ -20,7 +20,7 @@ It only covers the currently shipped Rust, Python, and C++ APIs.
 The current release-facing surface is:
 
 - Rust JSON and CityJSONSeq IO
-- Rust `ops` helpers: `cleanup`, `extract`, `append`, `merge`
+- Rust `ops` helpers: `cleanup`, `subset`, `append`, `merge`
 - Rust `query::summary`
 - the shared FFI core in `ffi/core`
 - Python bindings

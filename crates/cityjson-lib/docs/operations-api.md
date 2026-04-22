@@ -6,7 +6,7 @@ model.
 The current release line ships four helpers:
 
 - `cleanup(&CityModel) -> Result<CityModel>`
-- `extract(&CityModel, ids) -> Result<CityModel>`
+- `subset(&CityModel, ids, exclude) -> Result<CityModel>`
 - `append(&mut CityModel, &CityModel) -> Result<()>`
 - `merge(models) -> Result<CityModel>`
 
@@ -19,7 +19,7 @@ let first = json::from_feature_file("tests/data/v2_0/feature-1.city.json")?;
 let second = json::from_feature_file("tests/data/v2_0/feature-2.city.json")?;
 
 let mut merged = ops::merge([first, second])?;
-let subset = ops::extract(&merged, ["building-1"])?;
+let subset = ops::subset(&merged, ["building-1"], false)?;
 ops::append(&mut merged, &subset)?;
 let cleaned = ops::cleanup(&merged)?;
 # let _ = cleaned;
@@ -33,5 +33,6 @@ method bag.
 
 ## Implementation Rule
 
-These helpers are part of the stable `cityjson-lib` facade, but the current
-JSON-aware implementation is delegated to `cityjson-json`.
+These helpers are part of the stable `cityjson-lib` facade, with semantic
+workflows owned by `cityjson-lib` and JSON-aware implementation details
+delegated to `cityjson-json`.

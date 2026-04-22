@@ -7,7 +7,7 @@ The wrappers are aligned around the same core ideas:
 - parse explicit document or feature payloads
 - inspect summary and metadata
 - author typed values, resources, and geometry drafts
-- run explicit cleanup, append, and extract workflows
+- run explicit cleanup, subset, append, and merge workflows
 - serialize back to document, feature, or feature-stream bytes
 
 The shared C ABI itself is owned by `ffi/core`; this page documents the
@@ -53,30 +53,30 @@ The wasm adapter is still work in progress and is not covered here.
     }
     ```
 
-## Cleanup And Extract
+## Cleanup And Subset
 
 === "Rust"
     ```rust
     use cityjson_lib::{json, ops};
 
-    let model = json::from_file("amsterdam.city.json")?;
-    let cleaned = ops::cleanup(&model)?;
-    let subset = ops::extract(&cleaned, ["building-1"])?;
-    # let _ = subset;
-    # Ok::<(), cityjson_lib::Error>(())
+let model = json::from_file("amsterdam.city.json")?;
+let cleaned = ops::cleanup(&model)?;
+let subset = ops::subset(&cleaned, ["building-1"], false)?;
+# let _ = subset;
+# Ok::<(), cityjson_lib::Error>(())
     ```
 
 === "Python"
     ```python
-    model.cleanup()
-    subset = model.extract_cityobjects(["building-1"])
+model.cleanup()
+subset = model.subset_cityobjects(["building-1"])
     ```
 
 === "C++"
     ```cpp
-    model.cleanup();
-    const std::array<std::string_view, 1> ids{"building-1"};
-    const auto subset = model.extract_cityobjects(ids);
+model.cleanup();
+const std::array<std::string_view, 1> ids{"building-1"};
+const auto subset = model.subset_cityobjects(ids);
     ```
 
 ## Typed Authoring

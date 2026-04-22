@@ -48,7 +48,7 @@ let encoded = json::to_vec(&model)?;
 `ops` is where reusable workflows live today:
 
 - `cleanup`
-- `extract`
+- `subset`
 - `append`
 - `merge`
 
@@ -59,14 +59,14 @@ let first = json::from_feature_file("tests/data/v2_0/feature-1.city.json")?;
 let second = json::from_feature_file("tests/data/v2_0/feature-2.city.json")?;
 
 let merged = ops::merge([first, second])?;
-let subset = ops::extract(&merged, ["building-1"])?;
+let subset = ops::subset(&merged, ["building-1"], false)?;
 let cleaned = ops::cleanup(&subset)?;
 # let _ = cleaned;
 # Ok::<(), cityjson_lib::Error>(())
 ```
 
-These helpers are part of the stable facade, but their JSON-aware
-implementation lives in `cityjson-json`.
+These helpers are part of the stable facade, with semantic workflows owned by
+`cityjson-lib` and JSON-aware implementation details living in `cityjson-json`.
 
 ## Handle Errors By Category
 

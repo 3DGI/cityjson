@@ -23,7 +23,7 @@ It is the same type whether the payload represents:
 
 - a full document
 - a feature-sized self-contained model
-- a merged or extracted subset
+- a merged or subset model
 
 ```rust
 use cityjson_lib::{json, CityModel};
@@ -106,12 +106,12 @@ let roundtrip = parquet::from_file(&path)?;
 `ops` exposes the workflow helpers currently shipped on the release line:
 
 - `cleanup`
-- `extract`
+- `subset`
 - `append`
 - `merge`
 
-Those helpers are part of the stable facade, but their JSON-aware implementation
-is delegated to `cityjson-json`.
+Those helpers are part of the stable facade, with semantic workflows owned by
+`cityjson-lib` and JSON-aware implementation details delegated to `cityjson-json`.
 
 ## `query`
 

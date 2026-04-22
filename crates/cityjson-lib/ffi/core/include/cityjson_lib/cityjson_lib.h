@@ -661,10 +661,15 @@ enum cj_status_t cj_model_cleanup(struct cj_model_t *model);
 enum cj_status_t cj_model_append_model(struct cj_model_t *target_model,
                                        const struct cj_model_t *source_model);
 
-enum cj_status_t cj_model_extract_cityobjects(const struct cj_model_t *model,
-                                              const struct cj_string_view_t *cityobject_ids,
-                                              uintptr_t cityobject_count,
-                                              struct cj_model_t **out_model);
+enum cj_status_t cj_model_subset_cityobjects(const struct cj_model_t *model,
+                                             const struct cj_string_view_t *cityobject_ids,
+                                             uintptr_t cityobject_count,
+                                             bool exclude,
+                                             struct cj_model_t **out_model);
+
+enum cj_status_t cj_model_merge_models(const struct cj_model_t *const *models,
+                                       uintptr_t model_count,
+                                       struct cj_model_t **out_model);
 
 enum cj_status_t cj_model_serialize_document_with_options(const struct cj_model_t *model,
                                                           struct cj_json_write_options_t options,

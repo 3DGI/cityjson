@@ -1119,7 +1119,9 @@ class Model final {
     return Model(handle);
   }
 
-  [[nodiscard]] Model extract_cityobjects(std::span<const std::string_view> ids) const {
+  [[nodiscard]] Model subset_cityobjects(
+      std::span<const std::string_view> ids,
+      bool exclude = false) const {
     std::vector<cj_string_view_t> views;
     views.reserve(ids.size());
     for (const std::string_view id : ids) {
@@ -1127,8 +1129,8 @@ class Model final {
     }
 
     cj_model_t* handle = nullptr;
-    check_status(cj_model_extract_cityobjects(
-        handle_, views.empty() ? nullptr : views.data(), views.size(), &handle));
+    check_status(cj_model_subset_cityobjects(
+        handle_, views.empty() ? nullptr : views.data(), views.size(), exclude, &handle));
     return Model(handle);
   }
 

@@ -1889,10 +1889,11 @@ pub extern "C" fn cj_model_append_model(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn cj_model_extract_cityobjects(
+pub extern "C" fn cj_model_subset_cityobjects(
     model: *const cj_model_t,
     cityobject_ids: *const cj_string_view_t,
     cityobject_count: usize,
+    exclude: bool,
     out_model: *mut *mut cj_model_t,
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
@@ -1902,8 +1903,33 @@ pub extern "C" fn cj_model_extract_cityobjects(
             .map(|view| view_utf8(*view, "cityobject_ids[]"))
             .collect::<Result<Vec<_>, _>>()?;
         let borrowed = ids.iter().map(String::as_str).collect::<Vec<_>>();
-        let extracted = cityjson_lib::ops::extract(required_model_ref(model)?, borrowed)?;
-        write_model_handle(out_model, extracted)
+        let subset = cityjson_lib::ops::subset(required_model_ref(model)?, borrowed, exclude)?;
+        write_model_handle(out_model, subset)
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_merge_models(
+    models: *const *const cj_model_t,
+    model_count: usize,
+    out_model: *mut *mut cj_model_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        if model_count == 0 {
+            return Err(invalid_argument("models must contain at least one handle"));
+        }
+
+        let models_ptr = NonNull::new(models.cast_mut()).ok_or_else(|| {
+            invalid_argument("models must not be null when model_count is non-zero")
+        })?;
+        let models =
+            unsafe { slice::from_raw_parts(models_ptr.as_ptr().cast_const(), model_count) };
+        let owned = models
+            .iter()
+            .map(|handle| required_model_ref(*handle).cloned())
+            .collect::<Result<Vec<_>, _>>()?;
+        let merged = cityjson_lib::ops::merge(owned)?;
+        write_model_handle(out_model, merged)
     }))
 }
 
