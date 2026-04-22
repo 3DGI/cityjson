@@ -6,13 +6,21 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ## [Unreleased]
 
+### Changed
+
+- Removed the local `cityjson-export` crate from the repository and dropped the benchmark helper path that depended on it.
+
 ### Added
 
 - Rust-only `cityjson_lib::ops::subset`, `append`, and `merge` operations for native CityModel subsetting and model combination workflows.
 - Rust-only `cityjson_lib::ops::filter` and `filter_with_options` APIs for predicate-based CityObject filtering, with optional recursive parent/child relative inclusion.
 
+## [0.6.1] - 2026-04-22
+
 ### Changed
 
+- Bumped the direct `cityjson-rs` dependency to `0.7.2` and aligned the optional format crate pins to the lockstep release train.
+- Bumped the package version to `0.6.1`.
 - Shared CityObject result rebuilding between `ops::subset` and predicate filtering so retained parent/child references are remapped and references to removed CityObjects are stripped.
 
 ## [0.6.0] - 2026-04-20

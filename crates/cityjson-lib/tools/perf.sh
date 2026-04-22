@@ -27,7 +27,6 @@ usage() {
   cat >&2 <<'EOF'
 Usage:
   ./tools/perf.sh <description> [full|fast]
-  ./tools/perf.sh prepare
   ./tools/perf.sh arrow [criterion-args...]
   ./tools/perf.sh profile <time|dhat|cachegrind|massif> <workload> <case> [iterations]
   ./tools/perf.sh check
@@ -48,18 +47,6 @@ require_shared_benchmark_index() {
     echo "Benchmark index not found at ${index}" >&2
     exit 1
   fi
-}
-
-prepare_benchmark_data() {
-  require_shared_benchmark_index
-
-  jq -r '(.generated_cases + .other_cases)[] | . as $case | ([$case.artifacts[] | select(.representation == "cityjson-arrow") | .path] | .[0]) as $arrow | select($arrow != null) | [($case.artifacts[] | select(.representation == "cityjson") | .path), $arrow] | @tsv' \
-    "${CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT}/artifacts/benchmark-index.json" \
-    | while IFS=$'\t' read -r input arrow; do \
-        cargo run --quiet -p cityjson-export --bin cjexport -- \
-          --input "${input}" \
-          --arrow-file "${arrow}"; \
-      done
 }
 
 workload_bench_id() {
@@ -102,8 +89,6 @@ run_full_campaign() {
   if [[ -z "${description}" ]]; then
     usage
   fi
-
-  prepare_benchmark_data
 
   export CARGO_TARGET_DIR="${repo_dir}/target/bench"
   rm -rf "${criterion_dir}"
@@ -204,11 +189,6 @@ run_plot() {
 }
 
 case "${1:-}" in
-  prepare)
-    shift
-    [[ $# -eq 0 ]] || usage
-    prepare_benchmark_data
-    ;;
   arrow)
     shift
     run_arrow_diagnostic "$@"
