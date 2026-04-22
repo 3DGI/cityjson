@@ -74,7 +74,7 @@ jobs:
       - name: Publish crate
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --locked --package cityjson-json
+        run: cargo publish --locked --allow-dirty --package cityjson-json
 
       - name: Create GitHub release
         env:
