@@ -21,6 +21,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   datasets as nullable Parquet lists with reader-side fixed-length validation
   for PyArrow, DuckDB, and Polars interoperability
 
+## [0.5.4] - 2026-04-22
+
+### Changed
+
+- Bumped the package version to `0.5.4`.
+- Aligned `cityjson-arrow` to `0.6.2` and the direct `cityjson` dependency to `0.7.2` for the lockstep release train.
+
 ## [0.5.2] - 2026-04-17
 
 ### Changed
