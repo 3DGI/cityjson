@@ -1,5 +1,9 @@
 //! Public API contract for the `cityjson_lib::CityModel` boundary.
 
+use cityjson_lib::cityjson::v2_0::{
+    BBox, CityObject, CityObjectIdentifier, CityObjectType, GeometryDraft, PointDraft,
+    RealWorldCoordinate,
+};
 use cityjson_lib::json;
 use cityjson_lib::{CityJSONVersion, CityModel};
 
@@ -49,4 +53,37 @@ fn cityjson_version_stays_in_the_public_boundary() {
         CityJSONVersion::try_from("2.0.1").unwrap(),
         CityJSONVersion::V2_0
     );
+}
+
+#[test]
+fn cityjson_lib_citymodel_exposes_geographical_extent_calculation_api() -> cityjson_lib::Result<()>
+{
+    let mut model: CityModel = cityjson_lib::cityjson::v2_0::OwnedCityModel::new(
+        cityjson_lib::cityjson::CityModelType::CityJSON,
+    );
+    let geometry = GeometryDraft::multi_point(
+        None,
+        [
+            PointDraft::new(RealWorldCoordinate::new(1.0, 2.0, 3.0)),
+            PointDraft::new(RealWorldCoordinate::new(4.0, 5.0, 6.0)),
+        ],
+    )
+    .insert_into(&mut model)?;
+    let mut cityobject = CityObject::new(
+        CityObjectIdentifier::new("building-1".to_string()),
+        CityObjectType::Building,
+    );
+    cityobject.add_geometry(geometry);
+    let handle = model.cityobjects_mut().add(cityobject)?;
+
+    assert_eq!(
+        model.calculate_cityobject_geographical_extent(handle)?,
+        Some(BBox::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
+    );
+    assert_eq!(
+        model.calculate_geographical_extent()?,
+        Some(BBox::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
+    );
+
+    Ok(())
 }
