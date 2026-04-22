@@ -5,6 +5,7 @@
 ### Fixed
 
 - Built the `cjindex` binary in the `just test` path so the CLI integration tests can resolve the executable during `just ci` and release validation.
+- Added a filesystem fallback for the `cjindex` test helper so release validation can find the binary even when `CARGO_BIN_EXE_cjindex` is not exported.
 
 ## 0.4.0
 
