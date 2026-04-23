@@ -68,8 +68,10 @@ let model = read_model(json_bytes, &ReadOptions::default())?;
 ### Write A Document
 
 ```rust
-use cityjson_json::v2_0::{WriteOptions, to_vec};
+use cityjson_json::v2_0::{ReadOptions, WriteOptions, read_model, to_vec};
 
+# let json_bytes: &[u8] = br#"{"type":"CityJSON","version":"2.0","transform":{"scale":[0.001,0.001,0.001],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
+# let model = read_model(json_bytes, &ReadOptions::default())?;
 let bytes = to_vec(&model, &WriteOptions::default())?;
 # Ok::<(), cityjson_json::Error>(())
 ```
