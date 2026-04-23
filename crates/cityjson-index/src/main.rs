@@ -334,7 +334,7 @@ fn run_get(args: FeatureCommand) -> Result<()> {
             })?;
             let feature_ref = recorder
                 .measure("bbox lookup or id lookup", || index.lookup_feature_ref(&id))?
-                .ok_or_else(|| Error::Import(format!("feature {} was not found", id)))?;
+                .ok_or_else(|| Error::Import(format!("feature {id} was not found")))?;
             let metadata = recorder.measure("metadata lookup/cache", || {
                 index.metadata_for_source(feature_ref.source_id)
             })?;

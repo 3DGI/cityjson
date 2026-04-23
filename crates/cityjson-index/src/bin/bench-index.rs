@@ -4,6 +4,6 @@ use clap::Parser;
 fn main() -> cityjson_lib::Result<()> {
     let cli = BenchmarkCli::parse();
     let json = cli.json;
-    let report = run(cli)?;
+    let report = run(&cli)?;
     print_report(&report, json)
 }

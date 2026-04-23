@@ -70,6 +70,24 @@ pub struct BenchmarkReport {
     pub runs: Vec<BenchmarkOperationRecord>,
 }
 
+#[derive(Debug, Clone)]
+struct BenchmarkRecordInput {
+    dataset_label: String,
+    source_artifact: PathBuf,
+    prepared_dataset: PathBuf,
+    subset_size: Option<usize>,
+    byte_size: u64,
+    worker_count: usize,
+    operation: String,
+    variant: Option<String>,
+    elapsed_ns: u64,
+    memory: profile::MemorySnapshot,
+    feature_count: usize,
+    source_count: usize,
+    cityobject_count: usize,
+    query_hit_count: Option<usize>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct BenchmarkOperationRecord {
     pub dataset_label: String,
@@ -115,7 +133,13 @@ struct PreparedDataset {
     manifest: BenchmarkManifest,
 }
 
-pub fn run(cli: BenchmarkCli) -> Result<BenchmarkReport> {
+/// Executes the benchmark suite and returns the collected records.
+///
+/// # Errors
+///
+/// Returns an error if the pinned artifact is missing, dataset preparation
+/// fails, or any benchmarked operation fails.
+pub fn run(cli: &BenchmarkCli) -> Result<BenchmarkReport> {
     let artifact = cli
         .artifact
         .clone()
@@ -139,7 +163,7 @@ pub fn run(cli: BenchmarkCli) -> Result<BenchmarkReport> {
 
     let mut runs = Vec::new();
     for case in cases {
-        for dataset in prepare_case(&cli, case, &artifact)? {
+        for dataset in prepare_case(cli, case, &artifact)? {
             for worker_count in &worker_counts {
                 runs.extend(run_dataset(&dataset, *worker_count)?);
             }
@@ -149,6 +173,11 @@ pub fn run(cli: BenchmarkCli) -> Result<BenchmarkReport> {
     Ok(BenchmarkReport { runs })
 }
 
+/// Writes the benchmark report to stdout in either JSON or compact text form.
+///
+/// # Errors
+///
+/// Returns an error if writing to stdout fails or JSON serialization fails.
 pub fn print_report(report: &BenchmarkReport, json: bool) -> Result<()> {
     if json {
         let stdout = std::io::stdout();
@@ -174,8 +203,7 @@ pub fn print_report(report: &BenchmarkReport, json: bool) -> Result<()> {
             run.current_rss_bytes,
             run.peak_rss_bytes,
             run.query_hit_count
-                .map(|count| count.to_string())
-                .unwrap_or_else(|| "-".to_owned())
+                .map_or_else(|| "-".to_owned(), |count| count.to_string())
         )?;
     }
     handle.flush()?;
@@ -273,7 +301,7 @@ fn prepare_multi_tile_dataset(cli: &BenchmarkCli) -> Result<Vec<PreparedDataset>
         .hidden(false)
         .follow_links(true)
         .build()
-        .filter_map(|entry| entry.ok())
+        .filter_map(std::result::Result::ok)
     {
         if !entry.file_type().is_some_and(|ft| ft.is_file()) {
             continue;
@@ -329,30 +357,38 @@ fn run_dataset(
     let cityobject_count = index.cityobject_count()?;
 
     let mut runs = vec![
-        build_record(
-            manifest,
+        build_record(BenchmarkRecordInput {
+            dataset_label: manifest.dataset_label.clone(),
+            source_artifact: manifest.source_artifact.clone(),
+            prepared_dataset: manifest.prepared_dataset.clone(),
+            subset_size: manifest.subset_size,
+            byte_size: manifest.byte_size,
             worker_count,
-            "dataset_open",
-            None,
-            open_elapsed,
-            open_ended,
+            operation: "dataset_open".to_owned(),
+            variant: None,
+            elapsed_ns: open_elapsed,
+            memory: open_ended,
             feature_count,
             source_count,
             cityobject_count,
-            None,
-        ),
-        build_record(
-            manifest,
+            query_hit_count: None,
+        }),
+        build_record(BenchmarkRecordInput {
+            dataset_label: manifest.dataset_label.clone(),
+            source_artifact: manifest.source_artifact.clone(),
+            prepared_dataset: manifest.prepared_dataset.clone(),
+            subset_size: manifest.subset_size,
+            byte_size: manifest.byte_size,
             worker_count,
-            "index_reindex",
-            None,
-            index_elapsed,
-            index_ended,
+            operation: "index_reindex".to_owned(),
+            variant: None,
+            elapsed_ns: index_elapsed,
+            memory: index_ended,
             feature_count,
             source_count,
             cityobject_count,
-            None,
-        ),
+            query_hit_count: None,
+        }),
     ];
 
     let all_refs = index.feature_ref_page(0, feature_count.min(256))?;
@@ -411,18 +447,22 @@ fn run_full_scan(
     let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
         .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
     let memory = profile::current_memory_snapshot()?;
-    Ok(vec![build_record(
-        manifest,
+    Ok(vec![build_record(BenchmarkRecordInput {
+        dataset_label: manifest.dataset_label.clone(),
+        source_artifact: manifest.source_artifact.clone(),
+        prepared_dataset: manifest.prepared_dataset.clone(),
+        subset_size: manifest.subset_size,
+        byte_size: manifest.byte_size,
         worker_count,
-        "full_scan_reference_iteration",
-        None,
+        operation: "full_scan_reference_iteration".to_owned(),
+        variant: None,
         elapsed_ns,
         memory,
         feature_count,
         source_count,
         cityobject_count,
-        Some(count),
-    )])
+        query_hit_count: Some(count),
+    })])
 }
 
 fn run_gets(
@@ -440,18 +480,22 @@ fn run_gets(
         let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
             .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
         let memory = profile::current_memory_snapshot()?;
-        runs.push(build_record(
-            manifest,
+        runs.push(build_record(BenchmarkRecordInput {
+            dataset_label: manifest.dataset_label.clone(),
+            source_artifact: manifest.source_artifact.clone(),
+            prepared_dataset: manifest.prepared_dataset.clone(),
+            subset_size: manifest.subset_size,
+            byte_size: manifest.byte_size,
             worker_count,
-            "get",
-            Some(feature_id),
+            operation: "get".to_owned(),
+            variant: Some(feature_id),
             elapsed_ns,
             memory,
             feature_count,
             source_count,
             cityobject_count,
-            Some(usize::from(hit.is_some())),
-        ));
+            query_hit_count: Some(usize::from(hit.is_some())),
+        }));
     }
     Ok(runs)
 }
@@ -471,18 +515,22 @@ fn run_queries(
         let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
             .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
         let memory = profile::current_memory_snapshot()?;
-        runs.push(build_record(
-            manifest,
+        runs.push(build_record(BenchmarkRecordInput {
+            dataset_label: manifest.dataset_label.clone(),
+            source_artifact: manifest.source_artifact.clone(),
+            prepared_dataset: manifest.prepared_dataset.clone(),
+            subset_size: manifest.subset_size,
+            byte_size: manifest.byte_size,
             worker_count,
-            "bbox_query",
-            Some(window.label.clone()),
+            operation: "bbox_query".to_owned(),
+            variant: Some(window.label.clone()),
             elapsed_ns,
             memory,
             feature_count,
             source_count,
             cityobject_count,
-            Some(hits.len()),
-        ));
+            query_hit_count: Some(hits.len()),
+        }));
     }
     Ok(runs)
 }
@@ -505,48 +553,41 @@ fn run_read_feature(
     let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
         .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
     let memory = profile::current_memory_snapshot()?;
-    Ok(build_record(
-        manifest,
-        worker_count,
-        "read_feature",
-        Some(format!("sample-{}", refs.len())),
-        elapsed_ns,
-        memory,
-        feature_count,
-        source_count,
-        cityobject_count,
-        Some(reconstructed),
-    ))
-}
-
-fn build_record(
-    manifest: &BenchmarkManifest,
-    worker_count: usize,
-    operation: impl Into<String>,
-    variant: Option<String>,
-    elapsed_ns: u64,
-    memory: profile::MemorySnapshot,
-    feature_count: usize,
-    source_count: usize,
-    cityobject_count: usize,
-    query_hit_count: Option<usize>,
-) -> BenchmarkOperationRecord {
-    BenchmarkOperationRecord {
+    Ok(build_record(BenchmarkRecordInput {
         dataset_label: manifest.dataset_label.clone(),
         source_artifact: manifest.source_artifact.clone(),
         prepared_dataset: manifest.prepared_dataset.clone(),
         subset_size: manifest.subset_size,
         byte_size: manifest.byte_size,
         worker_count,
-        operation: operation.into(),
-        variant,
+        operation: "read_feature".to_owned(),
+        variant: Some(format!("sample-{}", refs.len())),
         elapsed_ns,
-        current_rss_bytes: memory.current_rss_bytes,
-        peak_rss_bytes: memory.peak_rss_bytes,
+        memory,
         feature_count,
         source_count,
         cityobject_count,
-        query_hit_count,
+        query_hit_count: Some(reconstructed),
+    }))
+}
+
+fn build_record(input: BenchmarkRecordInput) -> BenchmarkOperationRecord {
+    BenchmarkOperationRecord {
+        dataset_label: input.dataset_label,
+        source_artifact: input.source_artifact,
+        prepared_dataset: input.prepared_dataset,
+        subset_size: input.subset_size,
+        byte_size: input.byte_size,
+        worker_count: input.worker_count,
+        operation: input.operation,
+        variant: input.variant,
+        elapsed_ns: input.elapsed_ns,
+        current_rss_bytes: input.memory.current_rss_bytes,
+        peak_rss_bytes: input.memory.peak_rss_bytes,
+        feature_count: input.feature_count,
+        source_count: input.source_count,
+        cityobject_count: input.cityobject_count,
+        query_hit_count: input.query_hit_count,
     }
 }
 
@@ -563,9 +604,7 @@ fn worker_counts(mut requested: Vec<usize>) -> Vec<usize> {
     if requested.is_empty() {
         requested = vec![
             1,
-            std::thread::available_parallelism()
-                .map(|count| count.get())
-                .unwrap_or(1),
+            std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get),
             4,
         ];
     }

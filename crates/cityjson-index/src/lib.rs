@@ -891,7 +891,7 @@ impl CityIndex {
         self.index.source_count()
     }
 
-    /// Returns the total number of indexed CityObjects.
+    /// Returns the total number of indexed `CityObjects`.
     ///
     /// # Errors
     ///

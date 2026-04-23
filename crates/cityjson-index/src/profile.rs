@@ -51,6 +51,11 @@ pub struct ProfileRecorder {
 }
 
 impl ProfileRecorder {
+    /// Creates an enabled recorder.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the process cannot read its Linux memory snapshot.
     pub fn enabled(
         command: impl Into<String>,
         dataset_path: Option<PathBuf>,
@@ -101,6 +106,12 @@ impl ProfileRecorder {
         self.worker_count = worker_count;
     }
 
+    /// Measures a stage and records its duration and RSS snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the wrapped operation fails or if RSS sampling
+    /// fails before or after the operation.
     pub fn measure<T>(
         &mut self,
         name: impl Into<String>,
@@ -127,14 +138,21 @@ impl ProfileRecorder {
         result
     }
 
+    /// Finalizes the recorder and returns the complete profile payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if final RSS sampling or timestamp capture fails.
     pub fn finish(self, success: bool, error: Option<String>) -> Result<Option<CommandProfile>> {
         if !self.enabled {
             return Ok(None);
         }
 
-        let memory_start = self
-            .memory_start
-            .expect("enabled profile recorder should capture start memory");
+        let Some(memory_start) = self.memory_start else {
+            return Err(Error::Import(
+                "enabled profile recorder did not capture start memory".to_owned(),
+            ));
+        };
         let memory_end = current_memory_snapshot()?;
         let ended_at_ns = unix_time_ns()?;
         let total_elapsed_ns =
@@ -156,9 +174,7 @@ impl ProfileRecorder {
             index_path: self.index_path,
             worker_count: self.worker_count,
             platform: std::env::consts::OS.to_owned(),
-            cpu_count: std::thread::available_parallelism()
-                .map(|count| count.get())
-                .unwrap_or(1),
+            cpu_count: std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get),
             started_at_ns: self.started_at_ns,
             ended_at_ns,
             success,
@@ -170,6 +186,12 @@ impl ProfileRecorder {
     }
 }
 
+/// Runs a command body with optional profile capture and writes the result.
+///
+/// # Errors
+///
+/// Returns an error if the command body fails, profile capture fails, or the
+/// profile cannot be written to disk.
 pub fn run_with_profile<F>(
     profile_path: Option<PathBuf>,
     command: impl Into<String>,
@@ -193,16 +215,21 @@ where
             result.is_ok(),
             result.as_ref().err().map(ToString::to_string),
         )?;
-        write_profile_json(
-            &path,
-            profile
-                .as_ref()
-                .expect("enabled recorder should emit profile"),
-        )?;
+        let Some(profile) = profile.as_ref() else {
+            return Err(Error::Import(
+                "enabled profile recorder did not emit a profile".to_owned(),
+            ));
+        };
+        write_profile_json(&path, profile)?;
     }
     result
 }
 
+/// Returns the current and peak RSS for the running process.
+///
+/// # Errors
+///
+/// Returns an error if the Linux memory status file cannot be read or parsed.
 pub fn current_memory_snapshot() -> Result<MemorySnapshot> {
     #[cfg(target_os = "linux")]
     {
@@ -217,6 +244,11 @@ pub fn current_memory_snapshot() -> Result<MemorySnapshot> {
     }
 }
 
+/// Serializes a profile payload to the requested file path.
+///
+/// # Errors
+///
+/// Returns an error if the destination cannot be created or written.
 pub fn write_profile_json(path: &Path, profile: &CommandProfile) -> Result<()> {
     if let Some(parent) = path
         .parent()
