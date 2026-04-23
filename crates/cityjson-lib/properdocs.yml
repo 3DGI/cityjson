@@ -1,0 +1,57 @@
+site_name: cityjson-lib
+site_description: Minimal release-facing docs for cityjson_lib
+repo_url: https://github.com/3DGI/cityjson-lib
+repo_name: 3DGI/cityjson-lib
+docs_dir: docs
+strict: true
+nav:
+  - Overview:
+      - Home: index.md
+      - Guide: guide.md
+      - Reading Data: guide-reading.md
+      - Writing Data: guide-writing.md
+      - Release Checklist: release-checklist.md
+  - Rust API:
+      - Public API: public-api.md
+      - JSON Boundary: json-api.md
+      - Operations: operations-api.md
+  - FFI & Bindings:
+      - Overview: ffi/index.md
+      - Binding API: ffi/api.md
+      - Performance Visibility: ffi/performance.md
+      - Authoring API Proposal: ffi/authoring-api-proposal.md
+theme:
+  name: materialx
+  topbar_style: primary
+  palette:
+    primary: orange
+  font:
+    text: Roboto
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - toc.follow
+    - content.code.copy
+    - content.code.annotate
+    - search.suggest
+    - search.highlight
+plugins:
+  - search
+markdown_extensions:
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - attr_list
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - footnotes

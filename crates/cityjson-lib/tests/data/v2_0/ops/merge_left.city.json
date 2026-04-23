@@ -1,0 +1,362 @@
+{
+  "type": "CityJSON",
+  "version": "2.0",
+  "transform": {
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "translate": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "metadata": {
+    "geographicalExtent": [
+      0.8597829221784297,
+      0.8064671502733299,
+      0.9642038901700708,
+      0.6032176447380868,
+      0.2623701285444745,
+      0.7131852906722244
+    ],
+    "identifier": "f385afb2-d7e9-12cf-b38d-876744a1c58d",
+    "pointOfContact": {
+      "contactName": "Jaime Wehner",
+      "emailAddress": "paolo@example.org",
+      "role": "resourceProvider",
+      "contactType": "individual",
+      "organization": "Erdman Inc"
+    },
+    "referenceDate": "2481-01-29",
+    "referenceSystem": "http://www.opengis.net/def/crs/OGC/1.3/CRS27",
+    "title": "",
+    "aut": [
+      23.668376063049635,
+      "consequatur",
+      "aut veritatis"
+    ],
+    "dolores": "quia consequuntur",
+    "necessitatibus": "qui alias",
+    "molestiae": "eos reprehenderit",
+    "aliquid": -867,
+    "accusamus": 73.89622324945506,
+    "eos": "modi voluptatem",
+    "ex": 358
+  },
+  "vertices": [
+    [
+      -523,
+      209,
+      -440
+    ],
+    [
+      -384,
+      -596,
+      92
+    ],
+    [
+      489,
+      -814,
+      15
+    ],
+    [
+      477,
+      478,
+      -190
+    ]
+  ],
+  "appearance": {
+    "materials": [
+      {
+        "name": "aut",
+        "ambientIntensity": 0.515514,
+        "diffuseColor": [
+          0.335465,
+          0.433783,
+          0.213923
+        ],
+        "emissiveColor": [
+          0.708614,
+          0.169878,
+          0.0185
+        ]
+      },
+      {
+        "name": "ducimus",
+        "emissiveColor": [
+          0.564109,
+          0.441915,
+          0.527346
+        ],
+        "specularColor": [
+          0.147301,
+          0.962146,
+          0.936773
+        ],
+        "shininess": 0.78342
+      }
+    ],
+    "textures": [
+      {
+        "type": "PNG",
+        "image": "/bin/great.csv"
+      },
+      {
+        "type": "JPG",
+        "image": "/usr/number/great/time.mp3"
+      }
+    ]
+  },
+  "geometry-templates": {
+    "templates": [
+      {
+        "type": "MultiSurface",
+        "lod": "3",
+        "boundaries": [
+          [
+            [
+              0,
+              1,
+              2,
+              3
+            ]
+          ],
+          [
+            [
+              4,
+              5,
+              6,
+              7
+            ]
+          ],
+          [
+            [
+              8,
+              9,
+              10,
+              11
+            ]
+          ]
+        ]
+      }
+    ],
+    "vertices-templates": [
+      [
+        -9.463670640330747,
+        2.6503569591782394,
+        0.47369394919773455
+      ],
+      [
+        -5.1191439928672855,
+        -2.596604127098594,
+        -8.612082415813598
+      ],
+      [
+        2.916540523517014,
+        -7.300997533819382,
+        2.3853211653835604
+      ],
+      [
+        -4.352073891985451,
+        9.579455757583712,
+        8.120851609480741
+      ],
+      [
+        -7.909674324799729,
+        0.03642145497275351,
+        -8.17307323378579
+      ],
+      [
+        -4.679978091434256,
+        4.299763868117076,
+        9.582949252018246
+      ],
+      [
+        7.904545560047531,
+        -8.294067653669362,
+        -5.553428034884442
+      ],
+      [
+        -9.28630758403267,
+        -1.8774481531043818,
+        -0.41928417173653365
+      ],
+      [
+        -9.718658640440069,
+        -5.987081115228898,
+        -5.109960115418395
+      ],
+      [
+        -5.6313850807633825,
+        -8.118478699013068,
+        8.661299514465508
+      ],
+      [
+        6.896008622240121,
+        9.217478937077395,
+        5.6311684063515735
+      ],
+      [
+        -1.6715144495859278,
+        -0.6384165489059335,
+        4.913758095051325
+      ]
+    ]
+  },
+  "CityObjects": {
+    "shared-furniture": {
+      "type": "CityFurniture",
+      "geographicalExtent": [
+        -522.9189375348726,
+        -596.1186486014878,
+        -439.6274125514665,
+        -384.48658826789335,
+        209.48389716520137,
+        92.21936481218404
+      ],
+      "attributes": {
+        "ducimus": true,
+        "nemo": "dolores",
+        "ut": "non",
+        "illo": [
+          [
+            "maiores mollitia"
+          ],
+          false
+        ],
+        "autem": [
+          930,
+          -252
+        ]
+      },
+      "geometry": [
+        {
+          "type": "GeometryInstance",
+          "template": 0,
+          "boundaries": [
+            0
+          ],
+          "transformationMatrix": [
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "type": "GeometryInstance",
+          "template": 0,
+          "boundaries": [
+            1
+          ],
+          "transformationMatrix": [
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        }
+      ]
+    },
+    "left-only": {
+      "type": "CityFurniture",
+      "geographicalExtent": [
+        477.4849011371018,
+        -814.1164570358037,
+        -190.18756604225382,
+        488.8931124824146,
+        477.67192473323917,
+        15.020395106124965
+      ],
+      "attributes": {
+        "est": "et suscipit",
+        "inventore": 65.2219592414267,
+        "commodi": "eos consequatur",
+        "totam": "deserunt",
+        "perferendis": 581,
+        "vero": 84.2958477548242,
+        "sit": "voluptatem nemo",
+        "enim": true
+      },
+      "geometry": [
+        {
+          "type": "GeometryInstance",
+          "template": 0,
+          "boundaries": [
+            2
+          ],
+          "transformationMatrix": [
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "type": "GeometryInstance",
+          "template": 0,
+          "boundaries": [
+            3
+          ],
+          "transformationMatrix": [
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        }
+      ]
+    }
+  }
+}

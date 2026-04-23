@@ -1,0 +1,19 @@
+@PACKAGE_INIT@
+
+if(NOT TARGET cityjson_lib_ffi_core)
+  add_library(cityjson_lib_ffi_core SHARED IMPORTED)
+  set_target_properties(cityjson_lib_ffi_core PROPERTIES
+    IMPORTED_LOCATION "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@/@CITYJSON_LIB_FFI_CORE_SHARED_LIB_NAME@"
+    INTERFACE_INCLUDE_DIRECTORIES "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_INCLUDEDIR@"
+    INTERFACE_COMPILE_FEATURES "cxx_std_20"
+  )
+endif()
+
+if(NOT TARGET cityjson_lib_cpp)
+  add_library(cityjson_lib_cpp INTERFACE IMPORTED)
+  set_target_properties(cityjson_lib_cpp PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_INCLUDEDIR@"
+    INTERFACE_LINK_LIBRARIES cityjson_lib_ffi_core
+    INTERFACE_COMPILE_FEATURES "cxx_std_20"
+  )
+endif()

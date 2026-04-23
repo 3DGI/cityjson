@@ -1,0 +1,43 @@
+[package]
+name = "cityjson-lib-ffi-core"
+version = "0.6.1"
+edition = "2024"
+rust-version = "1.93"
+description = "Shared C-compatible FFI core for the cityjson-lib Python and C++ bindings"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/3DGI/cityjson-lib"
+keywords = ["cityjson", "ffi", "c-abi", "geospatial"]
+categories = ["api-bindings", "science::geo"]
+include = [
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE",
+    "/LICENSE-APACHE",
+    "/cbindgen.toml",
+    "/include",
+    "/src",
+    "/tests",
+]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = ["native-formats"]
+native-formats = ["cityjson_lib/arrow", "cityjson_lib/parquet"]
+
+[lib]
+name = "cityjson_lib_ffi_core"
+path = "src/lib.rs"
+crate-type = ["rlib", "cdylib", "staticlib"]
+
+[dependencies]
+cityjson_lib = { package = "cityjson-lib", path = "../..", version = "0.6.1", default-features = false, features = ["json"] }
+# Note: path = "../.." is an intra-workspace path dep, intentional — ffi/core is a
+# workspace member of cityjson-lib and resolves within that workspace.
+serde_json = { version = "1.0", features = ["raw_value"] }
+
+[dev-dependencies]
+tempfile = "3.23"

@@ -1,0 +1,35 @@
+# IDE  config
+.run/
+.idea/
+
+# Build directories
+/target/
+Cargo.lock
+/experiments/.ipynb_checkpoints/
+/experiments/*/target/
+site
+**/*.egg-info
+ffi/python/build
+
+# Profiling
+/experiments/profiling/massif*
+/experiments/profiling/xtmemory*
+**/*.zst
+dhat-heap.json
+
+# Virtual environment
+/venv/
+__pycache__/
+*.pyc
+
+# Notes
+experiments/notes.md
+notes.md
+
+# Data
+/tests/output/*.json
+/tests/output/*.jsonl
+/tests/output/*.*arrow
+/tests/output/*.*parquet
+experiments/data/*
+experiments/geometry-enum/benches/data/*

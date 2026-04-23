@@ -1,0 +1,32 @@
+{
+  "type": "CityJSON",
+  "version": "2.0",
+  "transform": {
+    "scale": [1, 1, 1],
+    "translate": [0, 0, 0]
+  },
+  "CityObjects": {
+    "root-building": {
+      "type": "Building",
+      "children": ["building-part-1"]
+    },
+    "building-part-1": {
+      "type": "BuildingPart",
+      "parents": ["root-building", "my-group"],
+      "children": ["building-part-2"]
+    },
+    "building-part-2": {
+      "type": "BuildingPart",
+      "parents": ["building-part-1"]
+    },
+    "my-group": {
+      "type": "CityObjectGroup",
+      "children": ["building-part-1"],
+      "children_roles": ["member"]
+    },
+    "other-building": {
+      "type": "Building"
+    }
+  },
+  "vertices": []
+}

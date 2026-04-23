@@ -1,0 +1,59 @@
+#!/usr/bin/env just --justfile
+
+set dotenv-load := true
+
+native_packages := "-p cityjson-lib"
+
+_default:
+    just --list
+
+# Clean up the build artifacts
+clean:
+    cargo clean
+
+# Run cargo check on the project
+check:
+    cargo check --manifest-path Cargo.toml {{native_packages}} --all-targets --all-features
+
+# Build the project
+build *args:
+    cargo build --manifest-path Cargo.toml {{native_packages}} --all-targets --all-features {{args}}
+
+# Run cargo clippy on the project
+lint:
+    cargo clippy --manifest-path Cargo.toml {{native_packages}} --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic -Aclippy::float_cmp
+
+# Run cargo fmt on the project
+fmt:
+    cargo fmt --manifest-path Cargo.toml {{native_packages}}
+
+# Run cargo test on the project
+test:
+    cargo test --manifest-path Cargo.toml {{native_packages}} --all-targets --all-features
+
+# Run the Python install smoke tests through tox and tox-uv.
+test-python:
+    cd ffi/python && uv run tox run
+
+# Build the docs
+docs-build:
+    uv run properdocs build
+
+# Serve the docs locally
+docs-serve *args:
+    uv run properdocs serve -o {{args}}
+
+# Run fmt, lint, check, test, perf-check, and doc
+ci:
+    just fmt
+    just lint
+    just check
+    just perf check
+    just test
+    just docs-build
+
+perf *args:
+    ./tools/perf.sh {{args}}
+
+ffi *args:
+    ./tools/ffi.sh {{args}}
