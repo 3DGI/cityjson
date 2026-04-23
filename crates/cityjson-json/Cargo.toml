@@ -1,0 +1,38 @@
+[package]
+name = "cityjson-json"
+version = "0.7.3"
+authors = ["Balázs Dukai <balazs.dukai@3dgi.nl>"]
+categories = ["data-structures", "encoding"]
+keywords = ["cityjson", "serde", "json", "geospatial", "3d"]
+edition = "2024"
+description = "Serde adapter for CityJSON 2.0, providing (de)serialization on top of the `cityjson` crate."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/balazsdukai/cityjson-json"
+exclude = ["benches/", "tests/", "docs/", ".github/", "tools/", "resources/", "justfile"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs", "--no-deps"]
+
+[lib]
+name = "cityjson_json"
+path = "src/lib.rs"
+
+[dependencies]
+cityjson = { path = "../cityjson-rs", version = "0.7.2" }
+derive_more = { version = "2.1", features = ["display", "add_assign", "deref", "deref_mut", "from", "into_iterator"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["raw_value"] }
+ahash = { version = "0.8.12", features = ["serde"] }
+
+[dev-dependencies]
+criterion = { version = "0.8.2", features = ["html_reports"]}
+pretty_assertions = "1.4.1"
+
+[[bench]]
+name = "read"
+harness = false
+
+[[bench]]
+name = "write"
+harness = false

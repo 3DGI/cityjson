@@ -1,0 +1,55 @@
+{
+  "suite": "read",
+  "cases": [
+    {
+      "id": "stress_attribute_heavy_heterogenous",
+      "description": "",
+      "input_bytes": 1419278
+    },
+    {
+      "id": "stress_attribute_heavy_homogenous",
+      "description": "",
+      "input_bytes": 1075752
+    },
+    {
+      "id": "stress_boundary_heavy",
+      "description": "",
+      "input_bytes": 1442615
+    },
+    {
+      "id": "stress_geometry_heavy",
+      "description": "",
+      "input_bytes": 1089272
+    },
+    {
+      "id": "stress_hierarchy_heavy",
+      "description": "",
+      "input_bytes": 1312563
+    },
+    {
+      "id": "stress_resource_heavy",
+      "description": "",
+      "input_bytes": 983676
+    },
+    {
+      "id": "stress_vertex_heavy",
+      "description": "",
+      "input_bytes": 4343276
+    },
+    {
+      "id": "io_3dbag_cityjson",
+      "description": "",
+      "input_bytes": 6008573
+    },
+    {
+      "id": "io_3dbag_cityjson_cluster_4x",
+      "description": "",
+      "input_bytes": 21040983
+    },
+    {
+      "id": "io_basisvoorziening_3d_cityjson",
+      "description": "",
+      "input_bytes": 177949687
+    }
+  ]
+}

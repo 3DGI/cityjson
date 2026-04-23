@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+env:
+  CITYJSON_JSON_SHARED_CORPUS_ROOT: ${{ github.workspace }}/cityjson-corpus
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: .
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout sibling repository
+        run: git clone --depth=1 --branch master https://github.com/3DGI/cityjson-rs.git ../cityjson-rs
+
+      - name: Checkout shared corpus
+        uses: actions/checkout@v4
+        with:
+          repository: 3DGI/cityjson-corpus
+          path: cityjson-corpus
+          sparse-checkout: |
+            artifacts
+            catalog
+            cases
+            schemas
+            scripts
+          sparse-checkout-cone-mode: true
+
+      - name: Checkout fake generator
+        uses: actions/checkout@v4
+        with:
+          repository: 3DGI/cityjson-fake
+          path: cityjson-fake
+
+      - name: Render correctness index
+        run: python scripts/render_correctness_index.py
+        working-directory: cityjson-corpus
+
+      - name: Verify tag is on master
+        run: |
+          git fetch origin master --depth=1
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/master; then
+            echo "::error::Tag ${GITHUB_REF_NAME} is not reachable from master."
+            exit 1
+          fi
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.93.0
+
+      - name: Test
+        run: cargo test --lib --tests --all-features
+
+      - name: Publish crate
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --locked --allow-dirty --package cityjson-json
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --target "$GITHUB_SHA" --title "$GITHUB_REF_NAME" --generate-notes

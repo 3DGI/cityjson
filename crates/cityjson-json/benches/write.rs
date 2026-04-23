@@ -1,0 +1,71 @@
+mod common;
+
+use std::hint::black_box;
+use std::time::Duration;
+
+use cityjson_json::v2_0::{WriteOptions, to_vec};
+use criterion::{Criterion, SamplingMode, Throughput, criterion_group, criterion_main};
+
+use common::{
+    WRITE_BENCH_CITYJSON_JSON_TO_VEC, WRITE_BENCH_CITYJSON_JSON_TO_VEC_VALIDATED,
+    WRITE_BENCH_SERDE_JSON_TO_STRING, write_cases, write_write_suite_metadata,
+};
+
+fn configure_group(group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>) {
+    group.sample_size(10);
+    group.warm_up_time(Duration::from_secs(3));
+    group.measurement_time(Duration::from_secs(10));
+    group.sampling_mode(SamplingMode::Flat);
+}
+
+fn bench_write(c: &mut Criterion) {
+    let prepared_cases: Vec<_> = write_cases()
+        .into_iter()
+        .map(|case| case.prepare_write())
+        .collect();
+    write_write_suite_metadata(&prepared_cases);
+
+    for prepared in &prepared_cases {
+        let mut group = c.benchmark_group(prepared.name.as_str());
+        configure_group(&mut group);
+
+        group.throughput(Throughput::Bytes(
+            prepared.benchmark_bytes(WRITE_BENCH_CITYJSON_JSON_TO_VEC),
+        ));
+        group.bench_function(WRITE_BENCH_CITYJSON_JSON_TO_VEC, |b| {
+            b.iter_with_large_drop(|| {
+                to_vec(black_box(&prepared.model), &WriteOptions::default()).unwrap()
+            });
+        });
+
+        group.throughput(Throughput::Bytes(
+            prepared.benchmark_bytes(WRITE_BENCH_CITYJSON_JSON_TO_VEC_VALIDATED),
+        ));
+        group.bench_function(WRITE_BENCH_CITYJSON_JSON_TO_VEC_VALIDATED, |b| {
+            b.iter_with_large_drop(|| {
+                to_vec(
+                    black_box(&prepared.model),
+                    &WriteOptions {
+                        validate_default_themes: true,
+                        ..WriteOptions::default()
+                    },
+                )
+                .unwrap()
+            });
+        });
+
+        group.throughput(Throughput::Bytes(
+            prepared.benchmark_bytes(WRITE_BENCH_SERDE_JSON_TO_STRING),
+        ));
+        group.bench_function(WRITE_BENCH_SERDE_JSON_TO_STRING, |b| {
+            b.iter_with_large_drop(|| {
+                serde_json::to_string(black_box(&prepared.canonical_value)).unwrap()
+            });
+        });
+
+        group.finish();
+    }
+}
+
+criterion_group!(benches, bench_write);
+criterion_main!(benches);

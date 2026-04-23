@@ -1,0 +1,98 @@
+set dotenv-load := true
+
+# Show the available recipes.
+_default:
+    just --list
+
+# Verify the shared benchmark corpus is available for the benchmark suites.
+_check-shared-benchmark-index:
+    bash -lc ' \
+        if [ -n "${CITYJSON_JSON_BENCHMARK_INDEX:-}" ]; then \
+            benchmark_index="$CITYJSON_JSON_BENCHMARK_INDEX"; \
+            if [ ! -f "$benchmark_index" ] && [ -n "${CITYJSON_JSON_SHARED_CORPUS_ROOT:-}" ]; then \
+                benchmark_index="$CITYJSON_JSON_SHARED_CORPUS_ROOT/$CITYJSON_JSON_BENCHMARK_INDEX"; \
+            fi; \
+        elif [ -n "${CITYJSON_JSON_SHARED_CORPUS_ROOT:-}" ]; then \
+            benchmark_index="$CITYJSON_JSON_SHARED_CORPUS_ROOT/artifacts/benchmark-index.json"; \
+        else \
+            echo "Set CITYJSON_JSON_SHARED_CORPUS_ROOT or CITYJSON_JSON_BENCHMARK_INDEX before running benchmarks." >&2; \
+            exit 1; \
+        fi; \
+        test -f "$benchmark_index" \
+    '
+
+# Run cargo clean and delete benchmark outputs and legacy local bootstrap data.
+clean:
+    cargo clean
+
+# Build benchmarks without running them
+bench-check:
+    cargo bench --benches --no-run
+
+# Run all benchmarks and generate the comparison report.
+bench: bench-read bench-write bench-report-readme
+
+# Run the read benchmark suite.
+bench-read: _check-shared-benchmark-index
+    cargo bench --bench read --
+
+# Run the write benchmark suite.
+bench-write: _check-shared-benchmark-index
+    cargo bench --bench write --
+
+# Generate the benchmark comparison plots and markdown summary.
+bench-report:
+    uv run resources/compare_benchmarks/compare_benchmarks.py --markdown
+
+# Generate the benchmark comparison plots, markdown summary, and README snippet.
+bench-report-readme:
+    uv run resources/compare_benchmarks/compare_benchmarks.py --markdown --readme
+
+# Run all benchmarks against a local CityJSON file or directory without touching the README.
+bench-local input:
+    uv run resources/prepare_local_benchmark_index.py {{quote(input)}} --output "$PWD/target/bench-local/benchmark-index.json"
+    CITYJSON_JSON_BENCHMARK_INDEX="$PWD/target/bench-local/benchmark-index.json" cargo bench --bench read --
+    CITYJSON_JSON_BENCHMARK_INDEX="$PWD/target/bench-local/benchmark-index.json" cargo bench --bench write --
+    uv run resources/compare_benchmarks/compare_benchmarks.py --markdown
+
+# Run the read benchmark suite against a local CityJSON file or directory.
+bench-local-read input:
+    uv run resources/prepare_local_benchmark_index.py {{quote(input)}} --output "$PWD/target/bench-local/benchmark-index.json"
+    CITYJSON_JSON_BENCHMARK_INDEX="$PWD/target/bench-local/benchmark-index.json" cargo bench --bench read --
+
+# Run the write benchmark suite against a local CityJSON file or directory.
+bench-local-write input:
+    uv run resources/prepare_local_benchmark_index.py {{quote(input)}} --output "$PWD/target/bench-local/benchmark-index.json"
+    CITYJSON_JSON_BENCHMARK_INDEX="$PWD/target/bench-local/benchmark-index.json" cargo bench --bench write --
+
+# Run cargo check across the workspace.
+check:
+    cargo check --all-targets --all-features
+
+# Build the workspace.
+build *args:
+    cargo build --all-targets --all-features {{args}}
+
+# Run clippy across the workspace.
+lint:
+    cargo clippy --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic
+
+# Format the workspace.
+fmt:
+    cargo fmt --all
+
+# Run the test suite.
+test:
+    cargo test --lib --tests --all-features
+
+# Generate test coverage report using tarpaulin
+coverage:
+    cargo tarpaulin --all-features --out Html --output-dir target/tarpaulin
+    cargo tarpaulin --all-features --out Stdout 2>&1 | grep -E "^(\|\||[0-9])"
+
+# Build the documentation.
+doc:
+    RUSTDOCFLAGS="--cfg docsrs -Dwarnings" cargo +nightly doc --all-features --no-deps
+
+# Run fmt, check, lint, test, bench-check, and doc.
+ci: fmt check lint test bench-check doc
