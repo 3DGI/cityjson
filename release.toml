@@ -9,9 +9,7 @@ tag-name = "v{{version}}"
 tag-message = "Release {{tag_name}}"
 pre-release-commit-message = "chore: release {{version}}"
 
-pre-release-replacements = [
-    { file = "CHANGELOG.md",
-      search = "## \\[Unreleased\\]",
-      replace = "## [Unreleased]\n\n## [{{version}}] - {{date}}",
-      exactly = 1 },
-]
+# CHANGELOG promotion is handled manually — cargo-release 1.1 doesn't support
+# pointing `pre-release-replacements` at a single workspace-root file. When you
+# run `cargo release <level> --execute`, remember to promote `## [Unreleased]`
+# to `## [x.y.z] - <date>` in CHANGELOG.md as part of the release commit.
