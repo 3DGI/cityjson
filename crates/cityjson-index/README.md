@@ -112,6 +112,19 @@ Regular CityJSON files share a vertices array and a `CityObjects` dictionary. Th
 
 Each feature lives in its own file. Metadata is discovered through ancestor `.json` files and cached in the SQLite index.
 
+## Benchmarks
+
+The `bench-index` harness prepares Basisvoorziening 3D benchmark inputs under `target/benchmarks/basisvoorziening-3d` by default:
+
+```bash
+just bench-index
+just bench-index-json
+```
+
+Default cases include the original single-tile full/subset datasets and a generated multi-source dataset derived from the pinned artifact. NDJSON and regular CityJSON indexing parallelism currently depends on multiple source files, so the generated multi-source case is the default signal for worker-count comparisons. Feature-file indexing parallelizes across individual feature files while keeping one source row per metadata file.
+
+Each worker-count measurement uses a fresh SQLite index path. Treat one pass as a smoke measurement and use repeated runs for timing comparisons. Memory fields report process RSS snapshots: `current_rss_bytes` is current RSS, `process_peak_rss_bytes` is process-lifetime peak RSS, and `peak_rss_bytes` is a deprecated compatibility alias for the same process-lifetime peak.
+
 ## Development
 
 The repository ships the `cjindex` CLI, the Rust library, and release-facing FFI/Python packaging under `ffi/`.

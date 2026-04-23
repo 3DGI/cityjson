@@ -177,6 +177,89 @@ fn feature_files_reindex_is_stable_across_worker_counts() {
     );
 }
 
+#[test]
+fn feature_files_single_metadata_parallelizes_by_feature_file() {
+    let root = materialize_single_metadata_feature_files_dataset("feature-files-one-source", 16);
+    let single_index_path = temp_index_path("feature-files-one-source-single");
+    let multi_index_path = temp_index_path("feature-files-one-source-multi");
+
+    let single = with_worker_count_env(1, || build_feature_files_index(&root, &single_index_path))
+        .expect("single-worker reindex should succeed");
+    let multi = with_worker_count_env(4, || build_feature_files_index(&root, &multi_index_path))
+        .expect("multi-worker reindex should succeed");
+
+    assert_eq!(
+        single.source_count().expect("single source count"),
+        1,
+        "one metadata file should produce one source row"
+    );
+    assert_eq!(
+        multi.source_count().expect("multi source count"),
+        1,
+        "feature-file sharding must not duplicate metadata sources"
+    );
+    assert_eq!(
+        single.feature_ref_count().expect("single feature count"),
+        16,
+        "all feature files should be indexed"
+    );
+    assert_eq!(
+        single.feature_ref_count().expect("single feature count"),
+        multi.feature_ref_count().expect("multi feature count"),
+        "feature counts should be stable across worker counts"
+    );
+    assert_eq!(
+        single.cityobject_count().expect("single CityObject count"),
+        multi.cityobject_count().expect("multi CityObject count"),
+        "CityObject counts should be stable across worker counts"
+    );
+
+    let single_ids = collect_feature_ids(&single).expect("single feature ids");
+    let multi_ids = collect_feature_ids(&multi).expect("multi feature ids");
+    assert_eq!(
+        single_ids, multi_ids,
+        "feature identifiers should be stable across worker counts"
+    );
+
+    let sample_id = single_ids
+        .iter()
+        .nth(5)
+        .cloned()
+        .expect("dataset should contain a representative feature");
+    let single_model = single
+        .get(&sample_id)
+        .expect("single get should succeed")
+        .expect("sample feature should be indexed");
+    let multi_model = multi
+        .get(&sample_id)
+        .expect("multi get should succeed")
+        .expect("sample feature should be indexed");
+    assert_eq!(
+        model_value(&single_model),
+        model_value(&multi_model),
+        "representative reconstruction should be stable across worker counts"
+    );
+    assert!(
+        model_contains_id(&multi_model, &sample_id),
+        "sample feature should be present in the reconstructed model"
+    );
+
+    let bbox = bbox_for_model(&single_model).expect("sample model bbox should be computable");
+    let single_hits = single.query(&bbox).expect("single query should succeed");
+    let multi_hits = multi.query(&bbox).expect("multi query should succeed");
+    assert_eq!(
+        single_hits.len(),
+        multi_hits.len(),
+        "bbox hit counts should be stable across worker counts"
+    );
+    assert!(
+        multi_hits
+            .iter()
+            .any(|candidate| model_contains_id(candidate, &sample_id)),
+        "bbox results should include the representative feature"
+    );
+}
+
 fn build_feature_files_index(root: &Path, index_path: &Path) -> cityjson_lib::Result<CityIndex> {
     let mut index = CityIndex::open(
         StorageLayout::FeatureFiles {
@@ -228,6 +311,32 @@ fn materialize_parallel_feature_files_dataset(label: &str, source_count: usize) 
             )
             .expect("feature file should write");
         }
+    }
+
+    root
+}
+
+fn materialize_single_metadata_feature_files_dataset(label: &str, feature_count: usize) -> PathBuf {
+    let source_root = feature_files_root();
+    let metadata = source_root.join("metadata.json");
+    let feature_files = [
+        source_root.join("features/a/fixture-a.city.jsonl"),
+        source_root.join("features/a/fixture-b.city.jsonl"),
+    ];
+    let root = temp_parallel_fixture_root(label);
+    let features_dir = root.join("features/a");
+    fs::create_dir_all(&features_dir).expect("feature directory should be creatable");
+    fs::copy(&metadata, root.join("metadata.json")).expect("metadata file should copy");
+
+    for feature_index in 0..feature_count {
+        let feature_path = &feature_files[feature_index % feature_files.len()];
+        let bytes = fs::read(feature_path).expect("fixture feature file should be readable");
+        let rewritten = rewrite_feature_file(&bytes, feature_index);
+        fs::write(
+            features_dir.join(format!("feature-{feature_index:03}.city.jsonl")),
+            rewritten,
+        )
+        .expect("feature file should write");
     }
 
     root
@@ -289,29 +398,29 @@ fn temp_parallel_fixture_root(label: &str) -> PathBuf {
     path
 }
 
+struct EnvGuard {
+    previous: Option<std::ffi::OsString>,
+}
+
+impl Drop for EnvGuard {
+    fn drop(&mut self) {
+        // SAFETY: the test serializes environment mutation with a mutex and
+        // restores the previous value before releasing it.
+        unsafe {
+            match self.previous.take() {
+                Some(previous) => std::env::set_var(cityjson_index::WORKER_COUNT_ENV, previous),
+                None => std::env::remove_var(cityjson_index::WORKER_COUNT_ENV),
+            }
+        }
+    }
+}
+
 fn with_worker_count_env<T>(worker_count: usize, f: impl FnOnce() -> T) -> T {
     static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     let _lock = ENV_LOCK
         .get_or_init(|| Mutex::new(()))
         .lock()
         .expect("env lock");
-
-    struct EnvGuard {
-        previous: Option<std::ffi::OsString>,
-    }
-
-    impl Drop for EnvGuard {
-        fn drop(&mut self) {
-            // SAFETY: the test serializes environment mutation with a mutex and
-            // restores the previous value before releasing it.
-            unsafe {
-                match self.previous.take() {
-                    Some(previous) => std::env::set_var(cityjson_index::WORKER_COUNT_ENV, previous),
-                    None => std::env::remove_var(cityjson_index::WORKER_COUNT_ENV),
-                }
-            }
-        }
-    }
 
     let previous = std::env::var_os(cityjson_index::WORKER_COUNT_ENV);
     let _guard = EnvGuard { previous };

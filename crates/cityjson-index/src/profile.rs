@@ -9,6 +9,9 @@ use serde::Serialize;
 #[derive(Debug, Clone, Serialize)]
 pub struct MemorySnapshot {
     pub current_rss_bytes: u64,
+    pub process_peak_rss_bytes: u64,
+    /// Deprecated compatibility field. This is the Linux `VmHWM` value for the
+    /// process lifetime, not a per-operation peak.
     pub peak_rss_bytes: u64,
 }
 
@@ -225,7 +228,7 @@ where
     result
 }
 
-/// Returns the current and peak RSS for the running process.
+/// Returns current RSS and process-lifetime peak RSS for the running process.
 ///
 /// # Errors
 ///
@@ -289,13 +292,15 @@ fn parse_linux_memory_status() -> Result<MemorySnapshot> {
         }
     }
 
+    let current_rss_bytes = current_rss_bytes
+        .ok_or_else(|| Error::Import("VmRSS was not present in /proc/self/status".to_owned()))?;
+    let process_peak_rss_bytes = peak_rss_bytes
+        .ok_or_else(|| Error::Import("VmHWM was not present in /proc/self/status".to_owned()))?;
+
     Ok(MemorySnapshot {
-        current_rss_bytes: current_rss_bytes.ok_or_else(|| {
-            Error::Import("VmRSS was not present in /proc/self/status".to_owned())
-        })?,
-        peak_rss_bytes: peak_rss_bytes.ok_or_else(|| {
-            Error::Import("VmHWM was not present in /proc/self/status".to_owned())
-        })?,
+        current_rss_bytes,
+        process_peak_rss_bytes,
+        peak_rss_bytes: process_peak_rss_bytes,
     })
 }
 

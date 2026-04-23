@@ -218,6 +218,8 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 [[package]]
 name = "cityjson"
 version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b0c00b7277c1fb62a17298376f0c5ea8196d516b75d3e009a3daaaa2b2243dc"
 dependencies = [
  "num",
 ]
@@ -256,6 +258,8 @@ dependencies = [
 [[package]]
 name = "cityjson-json"
 version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a73e71602f999b37740ae5b67604cc8bf1aae6c76778f35d5c174c4da1ef3ac7"
 dependencies = [
  "ahash",
  "cityjson",
@@ -267,6 +271,8 @@ dependencies = [
 [[package]]
 name = "cityjson-lib"
 version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8dc3527db715ac970cf867b44a5918472afaea872a76fc6253ac6ebfbb38e58"
 dependencies = [
  "cityjson",
  "cityjson-json",
@@ -275,6 +281,8 @@ dependencies = [
 [[package]]
 name = "cityjson-lib-ffi-core"
 version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02331e1a46b9f841413f28acf3f566c76876b51ed2a73fdff2991b6554660bf8"
 dependencies = [
  "cityjson-lib",
  "serde_json",

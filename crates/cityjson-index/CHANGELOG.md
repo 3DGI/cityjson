@@ -7,16 +7,20 @@
 - Added a JSON-emitting benchmark harness for Basisvoorziening 3D datasets, including full-tile, deterministic subset, and optional multi-tile preparation flows.
 - Added Linux-only `--profile` support for `cjindex` commands with stage timings, RSS snapshots, and machine-readable JSON output.
 - Added process-local worker-count control for indexing via `CITYJSON_INDEX_WORKERS`, with parallel backend scanning during `reindex()` and benchmark runs that exercise the configured worker count.
+- Added benchmark preparation for a deterministic multi-source Basisvoorziening 3D case so the default benchmark run now includes a real parallelism signal.
 
 ### Changed
 
 - Consolidated benchmark and profiling documentation under repo-local plans for parallel indexing, benchmarking, and test cleanup.
+- Feature-file indexing now shards work by feature file after metadata discovery while preserving one SQLite source row per metadata file.
+- Benchmark runs now allocate a fresh SQLite sidecar per worker count, and RSS fields distinguish current process RSS from process-lifetime peak RSS.
 
 ### Fixed
 
 - Built the `cjindex` binary in the `just test` path so the CLI integration tests can resolve the executable during `just ci` and release validation.
 - Added a filesystem fallback for the `cjindex` test helper so release validation can find the binary even when `CARGO_BIN_EXE_cjindex` is not exported.
 - Kept fast correctness tests on tracked fixtures while moving corpus-backed coverage behind `CITYJSON_CORPUS`.
+- Removed misleading fake profiling stages from `cjindex reindex` and report the real scan-and-rebuild operation instead.
 
 ## 0.4.0
 

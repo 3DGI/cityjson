@@ -18,6 +18,8 @@ const DEFAULT_BASISVOORZIENING_ARTIFACT: &str =
     "artifacts/acquired/basisvoorziening-3d/2022/3d_volledig_84000_450000.city.json";
 const DEFAULT_WORK_ROOT: &str = "target/benchmarks/basisvoorziening-3d";
 const DEFAULT_SUBSET_SIZES: &[usize] = &[1_000, 5_000, 10_000, 25_000];
+const DEFAULT_MULTI_SOURCE_SHARDS: usize = 4;
+const DEFAULT_MULTI_SOURCE_FEATURES_PER_SHARD: usize = 1_000;
 
 #[derive(Debug, Clone, Parser)]
 #[command(
@@ -25,7 +27,9 @@ const DEFAULT_SUBSET_SIZES: &[usize] = &[1_000, 5_000, 10_000, 25_000];
     about = "Run JSON-emitting CityJSON indexing benchmarks",
     long_about = r#"Run JSON-emitting CityJSON indexing benchmarks.
 
-The benchmark runner prepares Basisvoorziening 3D inputs from the pinned corpus artifact, reuses the prepared datasets across the requested worker counts, and records one JSON object per measured operation.
+The benchmark runner prepares Basisvoorziening 3D inputs from the pinned corpus artifact and records one JSON object per measured operation. Default cases include single-source full/subset datasets plus a deterministic multi-source dataset derived from the same pinned artifact. NDJSON and regular CityJSON parallel indexing currently scales across source files; the generated multi-source case is the default parallelism signal. Feature-file datasets scale across feature files under each metadata source.
+
+Each worker-count measurement uses a fresh SQLite index path. Prefer repeated benchmark invocations over a single pass when comparing timings. RSS fields report Linux /proc/self/status snapshots: current_rss_bytes is VmRSS, process_peak_rss_bytes is process-lifetime VmHWM, and peak_rss_bytes is a deprecated compatibility alias for that same process-lifetime peak.
 "#
 )]
 pub struct BenchmarkCli {
@@ -62,6 +66,7 @@ pub struct BenchmarkCli {
 pub enum BenchmarkCaseKind {
     SingleTileFull,
     SingleTileSubsets,
+    MultiSource,
     MultiTile,
 }
 
@@ -100,6 +105,9 @@ pub struct BenchmarkOperationRecord {
     pub variant: Option<String>,
     pub elapsed_ns: u64,
     pub current_rss_bytes: u64,
+    pub process_peak_rss_bytes: u64,
+    /// Deprecated compatibility field. This is a process-lifetime peak RSS
+    /// alias, not an operation-local peak.
     pub peak_rss_bytes: u64,
     pub feature_count: usize,
     pub source_count: usize,
@@ -155,6 +163,7 @@ pub fn run(cli: &BenchmarkCli) -> Result<BenchmarkReport> {
         vec![
             BenchmarkCaseKind::SingleTileFull,
             BenchmarkCaseKind::SingleTileSubsets,
+            BenchmarkCaseKind::MultiSource,
         ]
     } else {
         cli.case.clone()
@@ -196,14 +205,14 @@ pub fn print_report(report: &BenchmarkReport, json: bool) -> Result<()> {
     for run in &report.runs {
         writeln!(
             handle,
-            "{} worker={} op={} variant={} elapsed_ns={} rss_bytes={}/{} hits={}",
+            "{} worker={} op={} variant={} elapsed_ns={} current_rss_bytes={} process_peak_rss_bytes={} hits={}",
             run.dataset_label,
             run.worker_count,
             run.operation,
             run.variant.as_deref().unwrap_or("-"),
             run.elapsed_ns,
             run.current_rss_bytes,
-            run.peak_rss_bytes,
+            run.process_peak_rss_bytes,
             run.query_hit_count
                 .map_or_else(|| "-".to_owned(), |count| count.to_string())
         )?;
@@ -235,6 +244,7 @@ fn prepare_case(
                 )
             })
             .collect(),
+        BenchmarkCaseKind::MultiSource => Ok(vec![prepare_multi_source_dataset(cli, artifact)?]),
         BenchmarkCaseKind::MultiTile => prepare_multi_tile_dataset(cli),
     }
 }
@@ -276,6 +286,45 @@ fn prepare_single_tile_dataset(
     };
 
     fs::write(&prepared_dataset, &bytes)?;
+    write_manifest(&prepared_root.join("benchmark-manifest.json"), &manifest)?;
+    Ok(PreparedDataset { manifest })
+}
+
+fn prepare_multi_source_dataset(cli: &BenchmarkCli, artifact: &Path) -> Result<PreparedDataset> {
+    let prepared_root = cli.work_root.join("multi-source");
+    reset_dir(&prepared_root)?;
+    fs::create_dir_all(&prepared_root)?;
+
+    let bytes = fs::read(artifact)?;
+    let document: Value =
+        serde_json::from_slice(&bytes).map_err(|error| Error::Import(error.to_string()))?;
+    let root_ids = extract_root_ids(&document)?;
+    if root_ids.len() < 2 {
+        return Err(Error::Import(
+            "multi-source benchmark preparation requires at least two root CityObjects".to_owned(),
+        ));
+    }
+
+    let shard_count = DEFAULT_MULTI_SOURCE_SHARDS.min(root_ids.len());
+    let total_feature_count =
+        (DEFAULT_MULTI_SOURCE_FEATURES_PER_SHARD * shard_count).min(root_ids.len());
+    let selected_root_ids = root_ids
+        .into_iter()
+        .take(total_feature_count)
+        .collect::<Vec<_>>();
+    let mut copied = Vec::with_capacity(shard_count);
+    for shard_index in 0..shard_count {
+        let start = shard_index * total_feature_count / shard_count;
+        let end = (shard_index + 1) * total_feature_count / shard_count;
+        let subset = subset_cityjson_document_by_roots(&document, &selected_root_ids[start..end])?;
+        let path = prepared_root.join(format!("source-{shard_index:02}.city.json"));
+        let bytes =
+            serde_json::to_vec_pretty(&subset).map_err(|error| Error::Import(error.to_string()))?;
+        fs::write(&path, bytes)?;
+        copied.push(path);
+    }
+
+    let manifest = multi_tile_manifest("multi-source", &prepared_root, artifact, &copied)?;
     write_manifest(&prepared_root.join("benchmark-manifest.json"), &manifest)?;
     Ok(PreparedDataset { manifest })
 }
@@ -336,8 +385,9 @@ fn prepare_multi_tile_dataset(cli: &BenchmarkCli) -> Result<Vec<PreparedDataset>
 
 fn run_dataset(dataset: &PreparedDataset) -> Result<Vec<BenchmarkOperationRecord>> {
     let manifest = &dataset.manifest;
-    let resolved = resolve_dataset(&manifest.prepared_dataset, None)?;
     let worker_count = crate::configured_worker_count()?;
+    let index_path = fresh_benchmark_index_path(manifest, worker_count)?;
+    let resolved = resolve_dataset(&manifest.prepared_dataset, Some(index_path))?;
 
     let open_started = Instant::now();
     let index = CityIndex::open(resolved.storage_layout(), &resolved.index_path)?;
@@ -429,6 +479,27 @@ fn run_dataset(dataset: &PreparedDataset) -> Result<Vec<BenchmarkOperationRecord
     )?);
 
     Ok(runs)
+}
+
+fn fresh_benchmark_index_path(
+    manifest: &BenchmarkManifest,
+    worker_count: usize,
+) -> Result<PathBuf> {
+    let index_path = manifest
+        .prepared_dataset
+        .join(format!(".cityjson-index.worker-{worker_count}.sqlite"));
+    remove_file_if_exists(&index_path)?;
+    remove_file_if_exists(&index_path.with_extension("sqlite-wal"))?;
+    remove_file_if_exists(&index_path.with_extension("sqlite-shm"))?;
+    Ok(index_path)
+}
+
+fn remove_file_if_exists(path: &Path) -> Result<()> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
+    }
 }
 
 fn run_full_scan(
@@ -583,6 +654,7 @@ fn build_record(input: BenchmarkRecordInput) -> BenchmarkOperationRecord {
         variant: input.variant,
         elapsed_ns: input.elapsed_ns,
         current_rss_bytes: input.memory.current_rss_bytes,
+        process_peak_rss_bytes: input.memory.process_peak_rss_bytes,
         peak_rss_bytes: input.memory.peak_rss_bytes,
         feature_count: input.feature_count,
         source_count: input.source_count,
@@ -904,6 +976,12 @@ fn parse_transform_component(
 }
 
 fn subset_cityjson_document(document: &mut Value, limit: usize) -> Result<Value> {
+    let root_ids = extract_root_ids(document)?;
+    let selected_roots = root_ids.into_iter().take(limit).collect::<Vec<_>>();
+    subset_cityjson_document_by_roots(document, &selected_roots)
+}
+
+fn subset_cityjson_document_by_roots(document: &Value, selected_roots: &[String]) -> Result<Value> {
     let cityobjects = document
         .get("CityObjects")
         .and_then(Value::as_object)
@@ -914,10 +992,8 @@ fn subset_cityjson_document(document: &mut Value, limit: usize) -> Result<Value>
         .and_then(Value::as_array)
         .ok_or_else(|| Error::Import("CityJSON document is missing vertices".to_owned()))?
         .clone();
-    let root_ids = extract_root_ids(document)?;
-    let selected_roots = root_ids.into_iter().take(limit).collect::<Vec<_>>();
     let mut selected_ids = BTreeSet::new();
-    for root_id in &selected_roots {
+    for root_id in selected_roots {
         collect_cityobject_closure(root_id, &cityobjects, &mut selected_ids)?;
     }
 
@@ -933,7 +1009,7 @@ fn subset_cityjson_document(document: &mut Value, limit: usize) -> Result<Value>
 
     let mut referenced_vertices = BTreeSet::new();
     let mut visited = BTreeSet::new();
-    for id in &selected_roots {
+    for id in selected_roots {
         collect_object_vertex_indices(
             &selected_cityobjects,
             id,
@@ -1125,5 +1201,115 @@ impl BBox {
             min_y: self.min_y.min(other.min_y),
             max_y: self.max_y.max(other.max_y),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn multi_source_preparation_creates_parallel_source_shards() -> Result<()> {
+        let root = temp_dir("benchmark-multi-source");
+        let artifact = root.join("basisvoorziening.city.json");
+        fs::write(
+            &artifact,
+            serde_json::to_vec_pretty(&synthetic_cityjson_document(8))
+                .map_err(|error| Error::Import(error.to_string()))?,
+        )?;
+        let cli = BenchmarkCli {
+            json: false,
+            corpus_root: root.clone(),
+            work_root: root.join("work"),
+            artifact: Some(artifact.clone()),
+            case: Vec::new(),
+            workers: vec![4],
+            multi_tile_root: None,
+        };
+
+        let prepared = prepare_case(&cli, BenchmarkCaseKind::MultiSource, &artifact)?;
+        assert_eq!(prepared.len(), 1);
+        let manifest = &prepared[0].manifest;
+        assert!(
+            manifest.source_count > 1,
+            "multi-source preparation should create more than one source file"
+        );
+
+        let resolved = resolve_dataset(&manifest.prepared_dataset, None)?;
+        assert!(
+            resolved.source_paths().len() > 1,
+            "resolved prepared dataset should expose multiple source shards"
+        );
+        assert!(
+            resolved.source_paths().len().min(4) > 1,
+            "a worker count greater than one should be able to reach multiple shards"
+        );
+
+        with_worker_count_env(4, || {
+            let index_path = fresh_benchmark_index_path(manifest, 4)?;
+            let resolved = resolve_dataset(&manifest.prepared_dataset, Some(index_path))?;
+            let mut index = CityIndex::open(resolved.storage_layout(), &resolved.index_path)?;
+            index.reindex()?;
+            assert_eq!(
+                index.source_count()?,
+                manifest.source_count,
+                "indexed source count should match prepared shards"
+            );
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+
+    fn temp_dir(label: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after the unix epoch")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("cityjson-index-{label}-{unique}.dir"));
+        fs::create_dir_all(&path).expect("temp benchmark directory should be creatable");
+        path
+    }
+
+    fn synthetic_cityjson_document(feature_count: usize) -> Value {
+        let mut cityobjects = serde_json::Map::new();
+        let mut vertices = Vec::with_capacity(feature_count * 3);
+        for index in 0..feature_count {
+            let base = index * 3;
+            cityobjects.insert(
+                format!("feature-{index:02}"),
+                json!({
+                    "type": "Building",
+                    "geometry": [{
+                        "type": "MultiSurface",
+                        "lod": "1.0",
+                        "boundaries": [[[base, base + 1, base + 2]]]
+                    }]
+                }),
+            );
+            let x = i64::try_from(index).expect("feature index should fit in i64") * 100;
+            vertices.push(json!([x, 0, 0]));
+            vertices.push(json!([x + 10, 0, 0]));
+            vertices.push(json!([x, 10, 0]));
+        }
+
+        json!({
+            "type": "CityJSON",
+            "version": "2.0",
+            "transform": {
+                "scale": [1.0, 1.0, 1.0],
+                "translate": [0.0, 0.0, 0.0]
+            },
+            "metadata": {
+                "referenceSystem": "https://www.opengis.net/def/crs/EPSG/0/4979",
+                "title": "benchmark test fixture"
+            },
+            "CityObjects": cityobjects,
+            "vertices": vertices
+        })
     }
 }

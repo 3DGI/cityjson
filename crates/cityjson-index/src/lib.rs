@@ -1946,11 +1946,10 @@ struct NdjsonBackend {
 
 impl StorageBackend for NdjsonBackend {
     fn scan(&self, worker_count: usize) -> Result<Vec<SourceScan>> {
-        parallel_scan_items(
-            collect_layout_files(&self.paths, ".jsonl")?,
-            worker_count,
-            |path| scan_ndjson_source(path.as_path()),
-        )
+        let paths = collect_layout_files(&self.paths, ".jsonl")?;
+        parallel_scan_items(&paths, worker_count, |path| {
+            scan_ndjson_source(path.as_path())
+        })
     }
 
     fn read_one(&self, loc: &FeatureLocation, metadata_bytes: Arc<[u8]>) -> Result<CityModel> {
@@ -1997,11 +1996,10 @@ impl CityJsonBackend {
 impl StorageBackend for CityJsonBackend {
     fn scan(&self, worker_count: usize) -> Result<Vec<SourceScan>> {
         let _ = &self.vertices_cache;
-        parallel_scan_items(
-            collect_layout_files(&self.paths, ".city.json")?,
-            worker_count,
-            |path| scan_cityjson_source(path.as_path()),
-        )
+        let paths = collect_layout_files(&self.paths, ".city.json")?;
+        parallel_scan_items(&paths, worker_count, |path| {
+            scan_cityjson_source(path.as_path())
+        })
     }
 
     fn read_one(&self, loc: &FeatureLocation, metadata_bytes: Arc<[u8]>) -> Result<CityModel> {
@@ -2086,6 +2084,12 @@ struct FeatureFileSourcePlan {
     feature_paths: Vec<PathBuf>,
 }
 
+struct FeatureFileScanItem<'a> {
+    source_index: usize,
+    metadata: &'a Meta,
+    path: &'a Path,
+}
+
 impl FeatureFilesBackend {
     fn new(root: PathBuf, metadata_glob: &str, feature_glob: &str) -> Self {
         let metadata_glob = globset::Glob::new(metadata_glob)
@@ -2125,7 +2129,36 @@ fn scan_feature_files_root(
     worker_count: usize,
 ) -> Result<Vec<SourceScan>> {
     let plans = discover_feature_file_sources(root, metadata_glob, feature_glob)?;
-    parallel_scan_items(plans, worker_count, scan_feature_file_source)
+    let mut sources = plans
+        .iter()
+        .map(|plan| SourceScan {
+            path: plan.path.clone(),
+            metadata: plan.metadata.clone(),
+            vertices_offset: None,
+            vertices_length: None,
+            source_size: plan.source_size,
+            source_mtime_ns: plan.source_mtime_ns,
+            features: Vec::with_capacity(plan.feature_paths.len()),
+        })
+        .collect::<Vec<_>>();
+    let scan_items = plans
+        .iter()
+        .enumerate()
+        .flat_map(|(source_index, plan)| {
+            plan.feature_paths
+                .iter()
+                .map(move |path| FeatureFileScanItem {
+                    source_index,
+                    metadata: &plan.metadata,
+                    path: path.as_path(),
+                })
+        })
+        .collect::<Vec<_>>();
+    let features = parallel_scan_items(&scan_items, worker_count, scan_feature_file)?;
+    for (source_index, feature) in features {
+        sources[source_index].features.push(feature);
+    }
+    Ok(sources)
 }
 
 fn discover_feature_file_sources(
@@ -2208,24 +2241,15 @@ fn discover_feature_file_sources(
     Ok(sources.into_values().collect())
 }
 
-fn scan_feature_file_source(plan: &FeatureFileSourcePlan) -> Result<SourceScan> {
-    let mut source = SourceScan {
-        path: plan.path.clone(),
-        metadata: plan.metadata.clone(),
-        vertices_offset: None,
-        vertices_length: None,
-        source_size: plan.source_size,
-        source_mtime_ns: plan.source_mtime_ns,
-        features: Vec::with_capacity(plan.feature_paths.len()),
-    };
-
-    for feature_path in &plan.feature_paths {
-        let feature: Value = read_json(feature_path)?;
-        let (id, bounds, cityobject_count) = parse_feature_file_bounds(&feature, &source.metadata)?;
-        let (file_size, file_mtime_ns) = file_status(feature_path)?;
-        source.features.push(ScannedFeature {
+fn scan_feature_file(item: &FeatureFileScanItem<'_>) -> Result<(usize, ScannedFeature)> {
+    let feature: Value = read_json(item.path)?;
+    let (id, bounds, cityobject_count) = parse_feature_file_bounds(&feature, item.metadata)?;
+    let (file_size, file_mtime_ns) = file_status(item.path)?;
+    Ok((
+        item.source_index,
+        ScannedFeature {
             id,
-            path: feature_path.clone(),
+            path: item.path.to_path_buf(),
             file_size,
             file_mtime_ns,
             offset: 0,
@@ -2233,10 +2257,8 @@ fn scan_feature_file_source(plan: &FeatureFileSourcePlan) -> Result<SourceScan> 
             bounds,
             cityobject_count,
             member_ranges: None,
-        });
-    }
-
-    Ok(source)
+        },
+    ))
 }
 
 fn resolve_feature_metadata_path(
@@ -2504,6 +2526,11 @@ fn import_error(message: impl Into<String>) -> Error {
     Error::Import(message.into())
 }
 
+/// Returns the configured index worker count.
+///
+/// # Errors
+///
+/// Returns an error if `CJINDEX_WORKERS` is set to an invalid value.
 pub fn configured_worker_count() -> Result<usize> {
     match std::env::var(WORKER_COUNT_ENV) {
         Ok(value) => {
@@ -2528,7 +2555,7 @@ pub fn configured_worker_count() -> Result<usize> {
     }
 }
 
-fn parallel_scan_items<T, U, F>(items: Vec<T>, worker_count: usize, scan: F) -> Result<Vec<U>>
+fn parallel_scan_items<T, U, F>(items: &[T], worker_count: usize, scan: F) -> Result<Vec<U>>
 where
     T: Sync,
     U: Send,

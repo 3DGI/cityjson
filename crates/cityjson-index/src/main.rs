@@ -300,10 +300,7 @@ fn run_reindex(args: IndexCommand) -> Result<()> {
             let mut index = recorder.measure("sqlite open", || {
                 CityIndex::open(input.storage, &input.index_path)
             })?;
-            recorder.measure("source/file sharding", || Ok(()))?;
-            recorder.measure("scan/parse", || index.reindex())?;
-            recorder.measure("sqlite insert/write", || Ok(()))?;
-            recorder.measure("sidecar publish/replace", || Ok(()))?;
+            recorder.measure("scan and sqlite rebuild", || index.reindex())?;
             Ok(())
         },
     )

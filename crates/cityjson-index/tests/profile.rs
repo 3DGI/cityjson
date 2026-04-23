@@ -115,12 +115,7 @@ mod linux {
             ),
             "index profile should record the effective worker count"
         );
-        assert!(
-            profile["stages"]
-                .as_array()
-                .is_some_and(|stages| stages.iter().any(|stage| stage["name"] == "scan/parse")),
-            "profile should record scan/parse"
-        );
+        assert_indexing_stage_names(&profile);
 
         ProfileContext {
             root,
@@ -183,6 +178,9 @@ mod linux {
                     stage["memory_start"]["current_rss_bytes"]
                         .as_u64()
                         .is_some()
+                        && stage["memory_end"]["process_peak_rss_bytes"]
+                            .as_u64()
+                            .is_some()
                         && stage["memory_end"]["peak_rss_bytes"].as_u64().is_some()
                 })),
             "profile stages should include rss snapshots"
@@ -222,6 +220,29 @@ mod linux {
                     .any(|stage| stage["name"] == "output serialization/write")),
             "profile should include output serialization/write"
         );
+    }
+
+    fn assert_indexing_stage_names(profile: &Value) {
+        let stages = profile["stages"]
+            .as_array()
+            .expect("profile stages should be an array");
+        assert!(
+            stages
+                .iter()
+                .any(|stage| stage["name"] == "scan and sqlite rebuild"),
+            "profile should record the real indexing stage"
+        );
+        for absent in [
+            "source/file sharding",
+            "scan/parse",
+            "sqlite insert/write",
+            "sidecar publish/replace",
+        ] {
+            assert!(
+                stages.iter().all(|stage| stage["name"] != absent),
+                "profile should not contain fake stage {absent}"
+            );
+        }
     }
 }
 
