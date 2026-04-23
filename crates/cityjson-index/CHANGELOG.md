@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.2
+
 ### Added
 
 - Added a JSON-emitting benchmark harness for Basisvoorziening 3D datasets, including full-tile, deterministic subset, and optional multi-tile preparation flows.
