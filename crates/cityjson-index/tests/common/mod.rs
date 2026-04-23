@@ -2,6 +2,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use cityjson_index::BBox;
@@ -15,6 +16,16 @@ fn repo_root() -> PathBuf {
 
 pub fn data_root() -> PathBuf {
     repo_root().join("tests/data")
+}
+
+pub fn cityjson_corpus_root() -> Option<PathBuf> {
+    std::env::var_os("CITYJSON_CORPUS").map(PathBuf::from)
+}
+
+pub fn basisvoorziening_artifact() -> Option<PathBuf> {
+    cityjson_corpus_root().map(|root| {
+        root.join("artifacts/acquired/basisvoorziening-3d/2022/3d_volledig_84000_450000.city.json")
+    })
 }
 
 pub fn feature_files_root() -> PathBuf {
@@ -31,6 +42,16 @@ pub fn cityjson_root() -> PathBuf {
 
 pub fn temp_index_path(label: &str) -> PathBuf {
     unique_temp_path(label, "sqlite")
+}
+
+pub fn temp_output_path(label: &str) -> PathBuf {
+    std::env::temp_dir().join(format!(
+        "cityjson-index-{label}-{}.jsonl",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after the unix epoch")
+            .as_nanos()
+    ))
 }
 
 pub fn temp_fixture_root(label: &str) -> PathBuf {
@@ -52,6 +73,71 @@ pub fn materialize_subset(label: &str, source_root: &Path, files: &[PathBuf]) ->
         fs::copy(source, &dest).expect("subset file should copy");
     }
     dest_root
+}
+
+pub fn run_cli<I, S>(args: I) -> String
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<std::ffi::OsStr>,
+{
+    let output = run_cli_output(args);
+    assert!(
+        output.status.success(),
+        "cjindex command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).expect("cjindex stdout should be utf-8")
+}
+
+pub fn run_cli_output<I, S>(args: I) -> Output
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<std::ffi::OsStr>,
+{
+    let binary = std::env::var_os("CARGO_BIN_EXE_cjindex").map_or_else(
+        || {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("target")
+                .join("debug")
+                .join(format!("cjindex{}", std::env::consts::EXE_SUFFIX))
+        },
+        PathBuf::from,
+    );
+    Command::new(binary)
+        .args(args)
+        .output()
+        .expect("cjindex command should run")
+}
+
+pub fn parse_json_lines(output: &str) -> Vec<serde_json::Value> {
+    output
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("output line should be valid JSON"))
+        .collect()
+}
+
+pub fn first_two_feature_files(root: &Path) -> Vec<PathBuf> {
+    let mut features = Vec::new();
+    for entry in walkdir::WalkDir::new(root)
+        .into_iter()
+        .filter_map(|entry| entry.ok())
+    {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        if entry.path().extension().and_then(|ext| ext.to_str()) != Some("jsonl") {
+            continue;
+        }
+        if entry.metadata().map_or(true, |meta| meta.len() == 0) {
+            continue;
+        }
+        features.push(entry.path().to_path_buf());
+        if features.len() == 2 {
+            break;
+        }
+    }
+    assert_eq!(features.len(), 2, "expected at least two feature files");
+    features
 }
 
 fn unique_temp_path(label: &str, suffix: &str) -> PathBuf {

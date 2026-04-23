@@ -2,10 +2,20 @@
 
 ## Unreleased
 
+### Added
+
+- Added a JSON-emitting benchmark harness for Basisvoorziening 3D datasets, including full-tile, deterministic subset, and optional multi-tile preparation flows.
+- Added Linux-only `--profile` support for `cjindex` commands with stage timings, RSS snapshots, and machine-readable JSON output.
+
+### Changed
+
+- Consolidated benchmark and profiling documentation under repo-local plans for parallel indexing, benchmarking, and test cleanup.
+
 ### Fixed
 
 - Built the `cjindex` binary in the `just test` path so the CLI integration tests can resolve the executable during `just ci` and release validation.
 - Added a filesystem fallback for the `cjindex` test helper so release validation can find the binary even when `CARGO_BIN_EXE_cjindex` is not exported.
+- Kept fast correctness tests on tracked fixtures while moving corpus-backed coverage behind `CITYJSON_CORPUS`.
 
 ## 0.4.0
 

@@ -1,8 +1,8 @@
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
-use std::sync::Arc;
 
+use cityjson_index::profile;
 use cityjson_index::{
     BBox, CityIndex, DatasetInspection, StorageLayout, ValidationReport, resolve_dataset,
 };
@@ -126,6 +126,10 @@ struct IndexCommand {
     /// Dataset directory or explicit layout configuration.
     #[command(flatten)]
     input: DatasetInputArgs,
+
+    /// Write a JSON profile for the command.
+    #[arg(long)]
+    profile: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -141,6 +145,10 @@ struct FeatureCommand {
     /// Write the `CityJSON` stream to a file instead of stdout.
     #[arg(long)]
     output: Option<PathBuf>,
+
+    /// Write a JSON profile for the command.
+    #[arg(long)]
+    profile: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -168,6 +176,10 @@ struct QueryCommand {
     /// Write the `CityJSON` stream to a file instead of stdout.
     #[arg(long)]
     output: Option<PathBuf>,
+
+    /// Write a JSON profile for the command.
+    #[arg(long)]
+    profile: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -183,6 +195,10 @@ struct StatusCommand {
     /// Emit machine-readable JSON.
     #[arg(long)]
     json: bool,
+
+    /// Write a JSON profile for the command.
+    #[arg(long)]
+    profile: Option<PathBuf>,
 }
 
 #[derive(Debug, Args, Clone)]
@@ -265,84 +281,263 @@ fn main() -> Result<()> {
 }
 
 fn run_reindex(args: IndexCommand) -> Result<()> {
-    let (storage, index_path) = resolve_operational_input(args.input)?;
-    let mut index = CityIndex::open(storage, &index_path)?;
-    index.reindex()
+    let IndexCommand { input, profile } = args;
+    let initial_dataset = input.dataset_dir.clone();
+    let initial_index = input.index.clone();
+    profile::run_with_profile(
+        profile,
+        "index",
+        initial_dataset,
+        initial_index,
+        None,
+        move |recorder| {
+            let input = recorder.measure("argument/input resolution", || {
+                resolve_operational_input(input)
+            })?;
+            recorder.set_dataset_path(input.dataset_path.clone());
+            recorder.set_index_path(Some(input.index_path.clone()));
+            let mut index = recorder.measure("sqlite open", || {
+                CityIndex::open(input.storage, &input.index_path)
+            })?;
+            recorder.measure("source/file sharding", || Ok(()))?;
+            recorder.measure("scan/parse", || index.reindex())?;
+            recorder.measure("sqlite insert/write", || Ok(()))?;
+            recorder.measure("sidecar publish/replace", || Ok(()))?;
+            Ok(())
+        },
+    )
 }
 
 fn run_get(args: FeatureCommand) -> Result<()> {
-    let (storage, index_path) = resolve_operational_input(args.input)?;
-    let index = CityIndex::open(storage, &index_path)?;
-    let (metadata, model) = index
-        .get_with_metadata(&args.id)?
-        .ok_or_else(|| Error::Import(format!("feature {} was not found", args.id)))?;
-    let writer = open_writer(args.output)?;
-    let mut writer = BufWriter::new(writer);
-    write_model_stream(&mut writer, metadata.as_ref(), &model)?;
-    writer.flush()?;
-    Ok(())
+    let FeatureCommand {
+        input,
+        id,
+        output,
+        profile,
+    } = args;
+    let initial_dataset = input.dataset_dir.clone();
+    let initial_index = input.index.clone();
+    profile::run_with_profile(
+        profile,
+        "get",
+        initial_dataset,
+        initial_index,
+        None,
+        move |recorder| {
+            let input = recorder.measure("argument/input resolution", || {
+                resolve_operational_input(input)
+            })?;
+            recorder.set_dataset_path(input.dataset_path.clone());
+            recorder.set_index_path(Some(input.index_path.clone()));
+            let index = recorder.measure("sqlite open", || {
+                CityIndex::open(input.storage, &input.index_path)
+            })?;
+            let feature_ref = recorder
+                .measure("bbox lookup or id lookup", || index.lookup_feature_ref(&id))?
+                .ok_or_else(|| Error::Import(format!("feature {} was not found", id)))?;
+            let metadata = recorder.measure("metadata lookup/cache", || {
+                index.metadata_for_source(feature_ref.source_id)
+            })?;
+            let _bytes = recorder.measure("feature byte read", || {
+                index.read_feature_bytes(&feature_ref)
+            })?;
+            let model = recorder.measure("feature reconstruction", || {
+                index.read_feature(&feature_ref)
+            })?;
+            let writer = open_writer(output)?;
+            let mut writer = BufWriter::new(writer);
+            recorder.measure("output serialization/write", || {
+                write_model_stream(&mut writer, metadata.as_ref(), &model)
+            })?;
+            writer.flush()?;
+            Ok(())
+        },
+    )
 }
 
 fn run_query(args: QueryCommand) -> Result<()> {
-    let (storage, index_path) = resolve_operational_input(args.input)?;
-    let index = CityIndex::open(storage, &index_path)?;
-    let bbox = BBox {
-        min_x: args.min_x,
-        max_x: args.max_x,
-        min_y: args.min_y,
-        max_y: args.max_y,
-    };
-    let writer = open_writer(args.output)?;
-    let mut writer = BufWriter::new(writer);
-    let mut results = index.query_iter_with_metadata(&bbox)?;
-    write_query_stream(&mut writer, &mut results)?;
-    writer.flush()?;
-    Ok(())
+    let QueryCommand {
+        input,
+        min_x,
+        max_x,
+        min_y,
+        max_y,
+        output,
+        profile,
+    } = args;
+    let initial_dataset = input.dataset_dir.clone();
+    let initial_index = input.index.clone();
+    profile::run_with_profile(
+        profile,
+        "query",
+        initial_dataset,
+        initial_index,
+        None,
+        move |recorder| {
+            let input = recorder.measure("argument/input resolution", || {
+                resolve_operational_input(input)
+            })?;
+            recorder.set_dataset_path(input.dataset_path.clone());
+            recorder.set_index_path(Some(input.index_path.clone()));
+            let index = recorder.measure("sqlite open", || {
+                CityIndex::open(input.storage, &input.index_path)
+            })?;
+            let bbox = BBox {
+                min_x,
+                max_x,
+                min_y,
+                max_y,
+            };
+            let writer = open_writer(output)?;
+            let mut writer = BufWriter::new(writer);
+            let mut results = recorder.measure("bbox lookup or id lookup", || {
+                index.query_iter_with_metadata(&bbox)
+            })?;
+            let mut current_metadata: Option<Value> = None;
+            recorder.measure("metadata lookup/cache", || {
+                if let Some(first_result) = results.next() {
+                    let (metadata, model) = first_result?;
+                    current_metadata = Some(metadata.as_ref().clone());
+                    write_model_stream_item(&mut writer, metadata.as_ref(), &model)?;
+                }
+                Ok(())
+            })?;
+            recorder.measure("feature reconstruction", || {
+                for result in results {
+                    let (metadata, model) = result?;
+                    if current_metadata
+                        .as_ref()
+                        .is_some_and(|current| current != metadata.as_ref())
+                    {
+                        return Err(Error::Import(
+                            "query results span incompatible metadata roots".to_string(),
+                        ));
+                    }
+                    write_feature_line(&mut writer, &model)?;
+                }
+                Ok(())
+            })?;
+            recorder.measure("output serialization/write", || {
+                writer.flush()?;
+                Ok(())
+            })?;
+            Ok(())
+        },
+    )
 }
 
 fn run_metadata(args: IndexCommand) -> Result<()> {
-    let (storage, index_path) = resolve_operational_input(args.input)?;
-    let index = CityIndex::open(storage, &index_path)?;
-    let metadata = index.metadata()?;
-    let borrowed_metadata = metadata
-        .iter()
-        .map(std::convert::AsRef::as_ref)
-        .collect::<Vec<_>>();
-    let mut writer = BufWriter::new(io::stdout());
-    serde_json::to_writer(&mut writer, &borrowed_metadata)
-        .map_err(|error| Error::Import(error.to_string()))?;
-    writer.write_all(b"\n")?;
-    writer.flush()?;
-    Ok(())
+    let IndexCommand { input, profile } = args;
+    let initial_dataset = input.dataset_dir.clone();
+    let initial_index = input.index.clone();
+    profile::run_with_profile(
+        profile,
+        "metadata",
+        initial_dataset,
+        initial_index,
+        None,
+        move |recorder| {
+            let input = recorder.measure("argument/input resolution", || {
+                resolve_operational_input(input)
+            })?;
+            recorder.set_dataset_path(input.dataset_path.clone());
+            recorder.set_index_path(Some(input.index_path.clone()));
+            let index = recorder.measure("sqlite open", || {
+                CityIndex::open(input.storage, &input.index_path)
+            })?;
+            let metadata = recorder.measure("metadata lookup/cache", || index.metadata())?;
+            let borrowed_metadata = metadata
+                .iter()
+                .map(std::convert::AsRef::as_ref)
+                .collect::<Vec<_>>();
+            let mut writer = BufWriter::new(io::stdout());
+            recorder.measure("output serialization/write", || {
+                serde_json::to_writer(&mut writer, &borrowed_metadata)
+                    .map_err(|error| Error::Import(error.to_string()))?;
+                writer.write_all(b"\n")?;
+                Ok(())
+            })?;
+            writer.flush()?;
+            Ok(())
+        },
+    )
 }
 
 fn run_inspect(args: StatusCommand) -> Result<()> {
-    let resolved = resolve_dataset(&args.dataset_dir, args.index)?;
-    let inspection = resolved.inspect()?;
-    if args.json {
-        print_json(&inspection)?;
-    } else {
-        print_dataset_inspection(&inspection)?;
-    }
-    Ok(())
+    let StatusCommand {
+        dataset_dir,
+        index,
+        json,
+        profile,
+    } = args;
+    profile::run_with_profile(
+        profile,
+        "inspect",
+        Some(dataset_dir.clone()),
+        index.clone(),
+        None,
+        move |recorder| {
+            let resolved = recorder.measure("argument/input resolution", || {
+                resolve_dataset(&dataset_dir, index)
+            })?;
+            recorder.set_dataset_path(Some(resolved.dataset_root.clone()));
+            recorder.set_index_path(Some(resolved.index_path.clone()));
+            let inspection = recorder.measure("dataset discovery", || resolved.inspect())?;
+            if json {
+                recorder.measure("output serialization/write", || print_json(&inspection))?;
+            } else {
+                recorder.measure("output serialization/write", || {
+                    print_dataset_inspection(&inspection)
+                })?;
+            }
+            Ok(())
+        },
+    )
 }
 
 fn run_validate(args: StatusCommand) -> Result<()> {
-    let resolved = resolve_dataset(&args.dataset_dir, args.index)?;
-    let report = resolved.validate()?;
-    if args.json {
-        print_json(&report)?;
-    } else {
-        print_validation_report(&report)?;
-    }
-    if report.ok {
-        Ok(())
-    } else {
-        Err(Error::Import(report.inspection.index.issues.join("; ")))
-    }
+    let StatusCommand {
+        dataset_dir,
+        index,
+        json,
+        profile,
+    } = args;
+    profile::run_with_profile(
+        profile,
+        "validate",
+        Some(dataset_dir.clone()),
+        index.clone(),
+        None,
+        move |recorder| {
+            let resolved = recorder.measure("argument/input resolution", || {
+                resolve_dataset(&dataset_dir, index)
+            })?;
+            recorder.set_dataset_path(Some(resolved.dataset_root.clone()));
+            recorder.set_index_path(Some(resolved.index_path.clone()));
+            let report = recorder.measure("dataset discovery", || resolved.validate())?;
+            if json {
+                recorder.measure("output serialization/write", || print_json(&report))?;
+            } else {
+                recorder.measure("output serialization/write", || {
+                    print_validation_report(&report)
+                })?;
+            }
+            if report.ok {
+                Ok(())
+            } else {
+                Err(Error::Import(report.inspection.index.issues.join("; ")))
+            }
+        },
+    )
 }
 
-fn resolve_operational_input(args: DatasetInputArgs) -> Result<(StorageLayout, PathBuf)> {
+struct ResolvedOperationalInput {
+    storage: StorageLayout,
+    index_path: PathBuf,
+    dataset_path: Option<PathBuf>,
+}
+
+fn resolve_operational_input(args: DatasetInputArgs) -> Result<ResolvedOperationalInput> {
     if args.dataset_dir.is_some() && args.storage.layout.is_some() {
         return Err(Error::Import(
             "specify either DATASET_DIR or explicit layout flags, not both".to_owned(),
@@ -351,14 +546,22 @@ fn resolve_operational_input(args: DatasetInputArgs) -> Result<(StorageLayout, P
 
     if let Some(dataset_dir) = args.dataset_dir {
         let resolved = resolve_dataset(&dataset_dir, args.index)?;
-        return Ok((resolved.storage_layout(), resolved.index_path));
+        return Ok(ResolvedOperationalInput {
+            storage: resolved.storage_layout(),
+            index_path: resolved.index_path,
+            dataset_path: Some(resolved.dataset_root),
+        });
     }
 
     let storage = args.storage.into_layout()?;
     let index_path = args
         .index
         .ok_or_else(|| Error::Import("explicit layout mode requires --index".to_owned()))?;
-    Ok((storage, index_path))
+    Ok(ResolvedOperationalInput {
+        storage,
+        index_path,
+        dataset_path: None,
+    })
 }
 
 fn print_dataset_inspection(report: &DatasetInspection) -> Result<()> {
@@ -460,30 +663,6 @@ fn open_writer(output: Option<PathBuf>) -> Result<Box<dyn Write>> {
         Some(path) => Ok(Box::new(File::create(path)?)),
         None => Ok(Box::new(io::stdout())),
     }
-}
-
-fn write_query_stream<W, I>(writer: &mut W, results: &mut I) -> Result<()>
-where
-    W: Write,
-    I: Iterator<Item = Result<(Arc<Value>, CityModel)>>,
-{
-    let Some(first_result) = results.next() else {
-        return Ok(());
-    };
-    let (current_metadata, first_model) = first_result?;
-    write_model_stream_item(writer, current_metadata.as_ref(), &first_model)?;
-
-    for result in results {
-        let (metadata, model) = result?;
-        if current_metadata.as_ref() != metadata.as_ref() {
-            return Err(Error::Import(
-                "query results span incompatible metadata roots".to_string(),
-            ));
-        }
-        write_feature_line(writer, &model)?;
-    }
-
-    Ok(())
 }
 
 fn write_model_stream<W>(writer: &mut W, metadata: &Value, model: &CityModel) -> Result<()>

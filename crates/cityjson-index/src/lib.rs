@@ -1,3 +1,6 @@
+pub mod benchmark;
+pub mod profile;
+
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::io::{ErrorKind, Read, Seek, SeekFrom};
@@ -687,6 +690,26 @@ impl CityIndex {
         Ok(Some((metadata.value, model)))
     }
 
+    /// Returns a lightweight feature reference for a feature id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the lookup fails.
+    pub fn lookup_feature_ref(&self, id: &str) -> Result<Option<IndexedFeatureRef>> {
+        self.index.lookup_feature_ref(id)
+    }
+
+    /// Returns cached metadata for a source id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the metadata lookup fails.
+    pub fn metadata_for_source(&self, source_id: i64) -> Result<Arc<Meta>> {
+        self.index
+            .get_cached_metadata(source_id)
+            .map(|metadata| metadata.value)
+    }
+
     /// Returns every feature intersecting the given bounding box.
     ///
     /// # Errors
@@ -857,6 +880,24 @@ impl CityIndex {
     /// Returns an error if the count cannot be read from the index.
     pub fn feature_ref_count(&self) -> Result<usize> {
         self.index.feature_count()
+    }
+
+    /// Returns the total number of indexed sources.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the count cannot be read from the index.
+    pub fn source_count(&self) -> Result<usize> {
+        self.index.source_count()
+    }
+
+    /// Returns the total number of indexed CityObjects.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the count cannot be read from the index.
+    pub fn cityobject_count(&self) -> Result<usize> {
+        self.index.cityobject_count()
     }
 
     /// Returns a contiguous page of indexed feature references.
@@ -1278,6 +1319,40 @@ impl Index {
                     Self::feature_location_from_row,
                 )
                 .optional(),
+        )
+    }
+
+    fn lookup_feature_ref(&self, id: &str) -> Result<Option<IndexedFeatureRef>> {
+        sqlite_result(
+            self.conn
+                .query_row(
+                    r"
+                SELECT
+                    f.id,
+                    f.feature_id,
+                    s.id,
+                    f.path,
+                    f.offset,
+                    f.length,
+                    s.vertices_offset,
+                    s.vertices_length,
+                    f.member_ranges,
+                    fb.min_x,
+                    fb.max_x,
+                    fb.min_y,
+                    fb.max_y,
+                    f.min_z,
+                    f.max_z
+                FROM features AS f
+                JOIN sources AS s ON s.id = f.source_id
+                JOIN feature_bbox AS fb ON fb.feature_rowid = f.id
+                WHERE f.feature_id = ?1
+                ",
+                    params![id],
+                    Self::indexed_feature_ref_location_from_row,
+                )
+                .optional()
+                .map(|maybe| maybe.map(|record| record.feature)),
         )
     }
 

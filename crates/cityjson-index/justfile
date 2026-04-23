@@ -45,6 +45,14 @@ fmt-check:
 test:
     cargo test -p cityjson-index --lib --bin cjindex --tests
 
+# Run the benchmark harness with human-readable output.
+bench-index:
+    cargo run -p cityjson-index --bin bench-index --
+
+# Run the benchmark harness with JSON output.
+bench-index-json:
+    cargo run -p cityjson-index --bin bench-index -- --json
+
 # Build the shared library and run the Python install smoke tests through tox and tox-uv.
 test-python:
     cargo build --manifest-path ffi/core/Cargo.toml --release --lib
