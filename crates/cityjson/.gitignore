@@ -1,0 +1,38 @@
+/target
+Cargo.lock
+.idea
+.run
+tools/__pycache__
+
+# Data
+tests/data/v1_0/schemas/*.schema.json
+!tests/data/v1_0/schemas/noise.ext.json
+tests/data/v1_1/schemas/*.schema.json
+!tests/data/v1_1/schemas/noise.ext.json
+tests/data/v2_0/schemas/*.schema.json
+!tests/data/v2_0/schemas/noise.ext.json
+
+# Valgrind and memory analysis artifacts
+time.out
+massif.out
+massif-*.out
+massif-report.txt
+memcheck.log
+cachegrind.out
+cachegrind-report.txt
+memory-timeline.dat
+memory-timeline.csv
+time-output.txt
+massif-run.log
+analysis-summary.txt
+vgcore.*
+dhat-heap.json
+
+# Misc
+.claude
+!.claude/plans
+!.claude/attributes-plan.md
+/.devcontainer/postCreateCommand.log
+
+# Test coverage reports
+coverage/

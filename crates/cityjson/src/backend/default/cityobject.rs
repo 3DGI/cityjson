@@ -1,0 +1,205 @@
+//! Core `CityObject` structures shared across `CityJSON` versions
+
+use crate::cityjson::core::attributes::Attributes;
+use crate::cityjson::core::metadata::BBox;
+use crate::error::Result;
+use crate::resources::id::ResourceId;
+use crate::resources::pool::{DefaultResourcePool, ResourcePool};
+use crate::resources::storage::StringStorage;
+
+/// Core `CityObjects` container structure that contains the data for all `CityJSON` versions.
+/// Version-specific types wrap this core structure and implement methods via macros.
+#[derive(Debug, Clone)]
+pub(crate) struct CityObjectsCore<SS: StringStorage, RR: ResourceId, CO> {
+    pub(crate) inner: DefaultResourcePool<CO, RR>,
+    _phantom: std::marker::PhantomData<SS>,
+}
+
+impl<SS: StringStorage, RR: ResourceId, CO> Default for CityObjectsCore<SS, RR, CO> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<SS: StringStorage, RR: ResourceId, CO> CityObjectsCore<SS, RR, CO> {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            inner: DefaultResourcePool::new(),
+            _phantom: std::marker::PhantomData,
+        }
+    }
+
+    #[must_use]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            inner: DefaultResourcePool::with_capacity(capacity),
+            _phantom: std::marker::PhantomData,
+        }
+    }
+
+    /// Reserve capacity for additional city objects.
+    pub(crate) fn reserve(&mut self, additional: usize) -> Result<()> {
+        self.inner.reserve(additional)
+    }
+
+    /// Add a city object and return its resource reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the city-object pool cannot store
+    /// additional entries for the configured `RR` reference type.
+    pub fn add(&mut self, city_object: CO) -> Result<RR> {
+        self.inner.add(city_object)
+    }
+
+    pub fn get(&self, id: RR) -> Option<&CO> {
+        self.inner.get(id)
+    }
+
+    pub fn get_mut(&mut self, id: RR) -> Option<&mut CO> {
+        self.inner.get_mut(id)
+    }
+
+    pub fn remove(&mut self, id: RR) -> Option<CO> {
+        self.inner.remove(id)
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (RR, &CO)> {
+        self.inner.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (RR, &mut CO)> {
+        self.inner.iter_mut()
+    }
+
+    #[must_use]
+    pub fn first(&self) -> Option<(RR, &CO)> {
+        self.inner.first()
+    }
+
+    #[must_use]
+    pub fn last(&self) -> Option<(RR, &CO)> {
+        self.inner.last()
+    }
+
+    pub fn ids(&self) -> impl Iterator<Item = RR> + '_ {
+        self.inner.iter().map(|(id, _)| id)
+    }
+
+    /// Add multiple city objects and return their resource references.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when inserting one of the objects
+    /// would exceed the city-object pool capacity for `RR`.
+    pub fn add_many<I: IntoIterator<Item = CO>>(&mut self, objects: I) -> Result<Vec<RR>> {
+        objects.into_iter().map(|obj| self.add(obj)).collect()
+    }
+
+    pub fn clear(&mut self) {
+        self.inner.clear();
+    }
+
+    pub fn filter<F>(&self, predicate: F) -> impl Iterator<Item = (RR, &CO)>
+    where
+        F: Fn(&CO) -> bool,
+    {
+        self.inner.iter().filter(move |(_, obj)| predicate(obj))
+    }
+}
+
+/// Core `CityObject` structure that contains the data for all `CityJSON` versions.
+/// Version-specific types wrap this core structure and implement methods via macros.
+#[derive(Debug, Default, Clone)]
+pub(crate) struct CityObjectCore<SS: StringStorage, RR: ResourceId, CoType> {
+    id: SS::String,
+    type_cityobject: CoType,
+    geometry: Option<Vec<RR>>,
+    attributes: Option<Attributes<SS>>,
+    geographical_extent: Option<BBox>,
+    children: Option<Vec<RR>>,
+    parents: Option<Vec<RR>>,
+    extra: Option<Attributes<SS>>,
+}
+
+impl<SS: StringStorage, RR: ResourceId, CoType> CityObjectCore<SS, RR, CoType> {
+    pub fn new(id: SS::String, type_cityobject: CoType) -> Self {
+        Self {
+            id,
+            type_cityobject,
+            geometry: None,
+            attributes: None,
+            geographical_extent: None,
+            children: None,
+            parents: None,
+            extra: None,
+        }
+    }
+
+    pub fn id(&self) -> &SS::String {
+        &self.id
+    }
+
+    pub fn type_cityobject(&self) -> &CoType {
+        &self.type_cityobject
+    }
+
+    pub fn geometry(&self) -> Option<&Vec<RR>> {
+        self.geometry.as_ref()
+    }
+
+    pub fn geometry_mut(&mut self) -> &mut Vec<RR> {
+        self.geometry.get_or_insert_with(Vec::new)
+    }
+
+    pub fn attributes(&self) -> Option<&Attributes<SS>> {
+        self.attributes.as_ref()
+    }
+
+    pub fn attributes_mut(&mut self) -> &mut Attributes<SS> {
+        self.attributes.get_or_insert_with(Attributes::new)
+    }
+
+    pub fn geographical_extent(&self) -> Option<&BBox> {
+        self.geographical_extent.as_ref()
+    }
+
+    pub fn set_geographical_extent(&mut self, bbox: Option<BBox>) {
+        self.geographical_extent = bbox;
+    }
+
+    pub fn children(&self) -> Option<&Vec<RR>> {
+        self.children.as_ref()
+    }
+
+    pub fn children_mut(&mut self) -> &mut Vec<RR> {
+        self.children.get_or_insert_with(Vec::new)
+    }
+
+    pub fn parents(&self) -> Option<&Vec<RR>> {
+        self.parents.as_ref()
+    }
+
+    pub fn parents_mut(&mut self) -> &mut Vec<RR> {
+        self.parents.get_or_insert_with(Vec::new)
+    }
+
+    pub fn extra(&self) -> Option<&Attributes<SS>> {
+        self.extra.as_ref()
+    }
+
+    pub fn extra_mut(&mut self) -> &mut Attributes<SS> {
+        self.extra.get_or_insert_with(Attributes::new)
+    }
+}

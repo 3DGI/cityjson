@@ -1,0 +1,157 @@
+#!/usr/bin/env just --justfile
+
+_git_ref := shell('git -C . rev-parse --short HEAD')
+_profile_dir := "./profiling" / datetime("%Y-%m-%d") + "_" + _git_ref
+
+_default:
+    just --list
+
+# Run cargo clean
+clean:
+    cargo clean
+
+# Run cargo check on all targets and features
+check:
+    cargo check --all-targets --all-features
+
+# Run cargo build for all targets and features, with optional arguments
+build *args:
+    cargo build --all-targets --all-features {{args}}
+
+# Run cargo clippy on all targets and features, using a strict set of lints
+lint:
+    cargo clippy --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic
+
+# Run cargo fmt on all crates
+fmt:
+    cargo fmt --all
+
+# Run cargo test on all targets and features and examples
+test:
+    cargo test --all-features
+    cargo run --example attributes
+    cargo run --example quick_start
+
+# Generate test coverage report using tarpaulin
+coverage:
+    cargo tarpaulin --all-features --out Html --output-dir target/tarpaulin
+    cargo tarpaulin --all-features --out Stdout 2>&1 | grep -E "^(\|\||[0-9])"
+
+# Run Miri on tests that exercise unsafe code (boundary, vertex, handles, geometry, raw_access)
+miri:
+    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test boundary
+    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test vertex
+    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test vertices
+    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test handles
+    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test raw_access
+    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test geometry
+
+# Build the crate documentation
+doc:
+    RUSTDOCFLAGS="--cfg docsrs -Dwarnings" cargo +nightly doc --all-features --no-deps
+
+# Run all checks and tests
+ci: fmt lint check test coverage miri perf-check
+
+# ============================================================================
+# Benchmark & Profiling
+# ============================================================================
+
+# Run benchmarks and memory profiling (massif, memcheck, cachegrind). Requires a case description.
+perf description mode="full" seed="" size="":
+    ./tools/perf.sh "{{description}}" "{{mode}}" "{{seed}}" "{{size}}"
+
+# Analyze benchmark results. Modes:
+#   (default)          run-by-run history overview
+#   --list             list descriptions, benches, and metrics
+#   baseline="<desc>"  compare latest run against a named baseline description
+#   --compare a,b      compare two commits by hash prefix
+#   --series bench=<bench> metric=<metric>  time series for one bench/metric
+# Run `just perf-analyze --help` for the full reference.
+perf-analyze *args:
+    python3 tools/perf_analyze.py {{args}}
+
+# Build benchmarks without running them
+perf-check:
+    cargo bench --benches --no-run
+
+# ============================================================================
+# Profiling
+# ============================================================================
+
+_create_profile_dir:
+    -@mkdir "{{ _profile_dir }}" > /dev/null 2>&1 || true
+
+# Profile a single benchmark workload (default: PROFILE_BENCH=processor PROFILE_BENCH_ID=compute_full_feature_stats PROFILE_MODE=fast PROFILE_SEED= PROFILE_SIZE= PROFILE_TOOL=massif)
+profile-bench: _create_profile_dir
+    #!/usr/bin/env bash
+    set -euo pipefail
+    PROFILE_BENCH="${PROFILE_BENCH:-processor}"
+    PROFILE_BENCH_ID="${PROFILE_BENCH_ID:-compute_full_feature_stats}"
+    PROFILE_MODE="${PROFILE_MODE:-fast}"
+    PROFILE_SEED="${PROFILE_SEED:-}"
+    PROFILE_SIZE="${PROFILE_SIZE:-}"
+    PROFILE_TOOL="${PROFILE_TOOL:-massif}"
+
+    export BENCH_MODE="$PROFILE_MODE"
+    if [ -n "$PROFILE_SEED" ]; then export BENCH_SEED="$PROFILE_SEED"; else unset BENCH_SEED; fi
+    if [ -n "$PROFILE_SIZE" ]; then export BENCH_SIZE="$PROFILE_SIZE"; else unset BENCH_SIZE; fi
+    export CARGO_TARGET_DIR="target/bench"
+
+    bench_cmd=(cargo bench --bench "$PROFILE_BENCH")
+    bench_args=()
+    if [ "$PROFILE_MODE" = "fast" ]; then
+        bench_args+=(--quick)
+    fi
+    bench_args+=(--exact "$PROFILE_BENCH_ID")
+
+    case "$PROFILE_TOOL" in
+        massif)
+            out="{{ _profile_dir }}/massif.out"
+            report="{{ _profile_dir }}/massif-report.txt"
+            CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=massif --massif-out-file=$out --time-unit=B --detailed-freq=1 --max-snapshots=200 --threshold=0.1 --log-file=/dev/null" \
+                "${bench_cmd[@]}" -- "${bench_args[@]}"
+            ms_print "$out" > "$report"
+            echo "saved $out"
+            echo "saved $report"
+            ;;
+        memcheck)
+            log="{{ _profile_dir }}/memcheck.log"
+            CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file=$log" \
+                "${bench_cmd[@]}" -- "${bench_args[@]}"
+            leaked=$(grep "definitely lost" "$log" | grep -oP '\\d+(?= bytes)' | head -1 || true)
+            if [ -n "$leaked" ] && [ "$leaked" != "0" ]; then
+                echo "definitely lost bytes: $leaked"
+                exit 1
+            fi
+            echo "saved $log"
+            ;;
+        cachegrind)
+            out="{{ _profile_dir }}/cachegrind.out"
+            report="{{ _profile_dir }}/cachegrind-report.txt"
+            CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=cachegrind --cache-sim=yes --branch-sim=yes --cachegrind-out-file=$out" \
+                "${bench_cmd[@]}" -- "${bench_args[@]}"
+            cg_annotate "$out" > "$report"
+            echo "saved $out"
+            echo "saved $report"
+            ;;
+        *)
+            echo "unknown tool '$PROFILE_TOOL' (expected: massif|memcheck|cachegrind)" >&2
+            exit 1
+            ;;
+    esac
+
+_profile-bench-massif:
+    PROFILE_TOOL=massif just profile-bench
+
+_profile-bench-memcheck:
+    PROFILE_TOOL=memcheck just profile-bench
+
+_profile-bench-cachegrind:
+    PROFILE_TOOL=cachegrind just profile-bench
+
+# Run default profile-bench with massif, cachegrind and memcheck
+profile-bench-all:
+    just _profile-bench-massif
+    just _profile-bench-cachegrind
+    just _profile-bench-memcheck

@@ -1,0 +1,44 @@
+{
+  "type": "CityJSONExtension",
+  "name": "Noise",
+  "description": "Extension to model the noise",
+  "url": "https://someurl.org/noise.ext.json",
+  "version": "0.5",
+  "versionCityJSON": "1.1",
+  "extraRootProperties": {
+		"+census": {
+			"type": "object",
+			"properties": {
+				"percent_men": {
+					"type": "number",
+					"minimum": 0.0,
+					"maximum": 100.0
+				},
+				"percent_women": {
+					"type": "number",
+					"minimum": 0.0,
+					"maximum": 100.0
+				}
+			}
+		}
+	},
+  "extraAttributes": {},
+	"extraCityObjects": {
+		"+NoiseBuilding": {
+			"allOf": [
+				{ "$ref": "cityobjects.schema.json#/_AbstractBuilding" },
+				{
+					"properties": {
+						"type": { "enum": ["+NoiseBuilding"] },
+						"attributes": {
+							"properties": {
+								"buildingLDenMin": {"type": "number"}
+							}
+						}
+					},
+					"required": ["type"]
+				}
+			]
+		}
+	}
+}
