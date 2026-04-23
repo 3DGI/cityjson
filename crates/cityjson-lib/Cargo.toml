@@ -1,11 +1,12 @@
 [package]
 name = "cityjson-lib"
-version = "0.6.1"
-edition = "2024"
-rust-version = "1.93"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
 description = "High-level CityJSON 2.0 read/write facade integrating JSON I/O"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/3DGI/cityjson-lib"
 keywords = ["cityjson", "geospatial", "3d", "gis"]
 categories = ["encoding", "science::geo"]
 readme = "README.md"
@@ -32,25 +33,15 @@ json = ["dep:cityjson-json"]
 arrow = ["json", "dep:cityjson-arrow"]
 parquet = ["json", "dep:cityjson-arrow", "dep:cityjson-parquet"]
 
-[workspace]
-members = [
-    ".",
-    "ffi/core",
-    "ffi/wasm",
-]
-resolver = "2"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lib]
 name = "cityjson_lib"
 path = "src/lib.rs"
 
 [dependencies]
-cityjson = { path = "../cityjson-rs", version = "0.7.2" }
-cityjson-arrow = { path = "../cityjson-arrow", version = "0.6.2", optional = true }
-cityjson-json = { path = "../cityjson-json", version = "0.7.3", optional = true }
-cityjson-parquet = { path = "../cityjson-parquet", version = "0.5.4", optional = true }
+cityjson = { workspace = true }
+cityjson-arrow = { workspace = true, optional = true }
+cityjson-json = { workspace = true, optional = true }
+cityjson-parquet = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion = "0.7"

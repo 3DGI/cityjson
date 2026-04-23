@@ -1,0 +1,83 @@
+# CityJSON — Rust workspace
+
+[CityJSON](https://www.cityjson.org) is a JSON-based encoding for 3D city
+models. This repository is the [3DGI](https://3dgi.nl) Rust workspace
+for working with CityJSON data: native parsing, format adapters (JSON,
+Arrow, Parquet), a higher-level facade with FFI, synthetic data
+generation, and SQLite-backed indexing.
+
+All crates live here as workspace members and release in lockstep under
+a single version line.
+
+## Crates
+
+| Crate | Description | crates.io |
+|---|---|---|
+| [`cityjson`](crates/cityjson) | Core types and accessors for CityJSON 2.0 | [![crates.io](https://img.shields.io/crates/v/cityjson.svg?label=crates.io)](https://crates.io/crates/cityjson) |
+| [`cityjson-json`](crates/cityjson-json) | Serde adapter for CityJSON 2.0 | [![crates.io](https://img.shields.io/crates/v/cityjson-json.svg?label=crates.io)](https://crates.io/crates/cityjson-json) |
+| [`cityjson-arrow`](crates/cityjson-arrow) | Arrow IPC and Parquet transport | [![crates.io](https://img.shields.io/crates/v/cityjson-arrow.svg?label=crates.io)](https://crates.io/crates/cityjson-arrow) |
+| [`cityjson-parquet`](crates/cityjson-parquet) | Parquet read/write via cityjson-arrow | [![crates.io](https://img.shields.io/crates/v/cityjson-parquet.svg?label=crates.io)](https://crates.io/crates/cityjson-parquet) |
+| [`cityjson-lib`](crates/cityjson-lib) | Higher-level read/write facade (also on PyPI as `cityjson-lib`) | [![crates.io](https://img.shields.io/crates/v/cityjson-lib.svg?label=crates.io)](https://crates.io/crates/cityjson-lib) [![PyPI](https://img.shields.io/pypi/v/cityjson-lib.svg?label=PyPI)](https://pypi.org/project/cityjson-lib/) |
+| [`cityjson-fake`](crates/cityjson-fake) | Synthetic CityJSON data generator + `cjfake` CLI | [![crates.io](https://img.shields.io/crates/v/cityjson-fake.svg?label=crates.io)](https://crates.io/crates/cityjson-fake) |
+| [`cityjson-index`](crates/cityjson-index) | SQLite-backed index + `cjindex` CLI (also on PyPI as `cityjson-index`) | [![crates.io](https://img.shields.io/crates/v/cityjson-index.svg?label=crates.io)](https://crates.io/crates/cityjson-index) [![PyPI](https://img.shields.io/pypi/v/cityjson-index.svg?label=PyPI)](https://pypi.org/project/cityjson-index/) |
+
+Shared test fixtures and benchmark data live in
+[`cityjson-corpus`](https://github.com/3DGI/cityjson-corpus), a separate
+repository consumed by this workspace via the
+`CITYJSON_SHARED_CORPUS_ROOT` environment variable.
+
+## Dependency graph
+
+```mermaid
+graph TD
+    cityjson --> cityjson-json
+    cityjson --> cityjson-arrow
+    cityjson-arrow --> cityjson-parquet
+    cityjson-json --> cityjson-lib
+    cityjson-arrow --> cityjson-lib
+    cityjson-parquet --> cityjson-lib
+    cityjson-lib --> cityjson-fake
+    cityjson-lib --> cityjson-index
+    cityjson-corpus -.->|test data| cityjson
+```
+
+## Quick start
+
+```sh
+cargo add cityjson          # or cityjson-json, cityjson-lib, ...
+```
+
+## Development
+
+```sh
+just check        # cargo check --workspace
+just test         # cargo test --workspace
+just lint         # strict clippy
+just doc          # nightly docsrs build
+just ci           # fmt + lint + check + test + doc
+```
+
+MSRV: `1.93`. Edition: `2024`. See
+[`docs/development.md`](docs/development.md) for the full development
+contract.
+
+## Release flow
+
+From a clean `main` checkout:
+
+```sh
+cargo release patch --execute   # or minor / major
+```
+
+`cargo-release` bumps every crate in lockstep, promotes the `[Unreleased]`
+section of `CHANGELOG.md`, commits, tags `v<x.y.z>`, pushes, and
+publishes all crates to crates.io. The tag push triggers the GitHub
+release workflow.
+
+## License
+
+Dual-licensed under MIT or Apache-2.0, at your option. See
+[`LICENSE-MIT`](LICENSE-MIT) and [`LICENSE-APACHE`](LICENSE-APACHE).
+Individual crates may relax this to a single license (`cityjson-fake` is
+Apache-2.0 only); see each crate's `Cargo.toml` for the authoritative
+metadata.

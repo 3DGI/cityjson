@@ -1,11 +1,12 @@
 [package]
 name = "cityjson-parquet"
-version = "0.5.4"
-edition = "2024"
-rust-version = "1.93"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
 description = "Parquet read/write for CityJSON 2.0 city models via cityjson-arrow"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/3DGI/cityjson-arrow"
 keywords = ["cityjson", "parquet", "arrow", "geospatial", "3d"]
 categories = ["encoding", "science::geo"]
 readme = "README.md"
@@ -15,12 +16,12 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-cityjson-arrow = { path = "../cityjson-arrow", version = "0.6.2" }
+cityjson-arrow = { workspace = true }
 arrow = { version = "58.1.0", features = ["ipc"] }
 arrow-array = "58.1.0"
 arrow-ipc = "58.1.0"
 arrow-schema = "58.1.0"
-cityjson = { path = "../cityjson-rs", version = "0.7.2" }
+cityjson = { workspace = true }
 memmap2 = "0.9.9"
 parquet = "58.1.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -31,6 +32,6 @@ name = "package"
 harness = false
 
 [dev-dependencies]
-cityjson-json = { path = "../cityjson-json" }
+cityjson-json = { workspace = true }
 tempfile = "3"
 criterion = { version = "0.8.2", features = ["html_reports"] }

@@ -13,7 +13,7 @@ use serde_json::Value;
 
 const DEFAULT_BENCHMARK_INDEX: &str = "artifacts/benchmark-index.json";
 const PREPARE_INSTRUCTION: &str = "benchmark data is missing; set \
-    CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT to your cityjson-corpus checkout \
+    CITYJSON_SHARED_CORPUS_ROOT to your cityjson-corpus checkout \
     and ensure the corpus artifacts are present";
 
 static BENCHMARK_CASES: OnceLock<Vec<BenchmarkCase>> = OnceLock::new();
@@ -337,10 +337,10 @@ fn benchmark_index_path() -> PathBuf {
 }
 
 fn shared_corpus_root() -> PathBuf {
-    std::env::var_os("CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT").map_or_else(
+    std::env::var_os("CITYJSON_SHARED_CORPUS_ROOT").map_or_else(
         || {
             panic!(
-                "set CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT to your cityjson-corpus checkout, \
+                "set CITYJSON_SHARED_CORPUS_ROOT to your cityjson-corpus checkout, \
                 or set it in a .env file at the repo root"
             )
         },

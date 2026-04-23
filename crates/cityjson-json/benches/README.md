@@ -13,7 +13,7 @@ crate.
 
 - real-world performance inputs are consumed from the benchmark index selected
   by `CITYJSON_JSON_BENCHMARK_INDEX`, or from
-  `$CITYJSON_JSON_SHARED_CORPUS_ROOT/artifacts/benchmark-index.json`
+  `$CITYJSON_SHARED_CORPUS_ROOT/artifacts/benchmark-index.json`
 - the shared corpus repo publishes the generated workload outputs and the
   acquired real-world CityJSON workload artifacts
 - no local bootstrap download is needed for the benchmark harness

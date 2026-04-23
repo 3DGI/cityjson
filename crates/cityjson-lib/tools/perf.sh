@@ -37,12 +37,12 @@ EOF
 }
 
 require_shared_benchmark_index() {
-  if [[ -z "${CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT:-}" ]]; then
-    echo "Set CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT to your cityjson-corpus checkout." >&2
+  if [[ -z "${CITYJSON_SHARED_CORPUS_ROOT:-}" ]]; then
+    echo "Set CITYJSON_SHARED_CORPUS_ROOT to your cityjson-corpus checkout." >&2
     exit 1
   fi
 
-  local index="${CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT}/artifacts/benchmark-index.json"
+  local index="${CITYJSON_SHARED_CORPUS_ROOT}/artifacts/benchmark-index.json"
   if [[ ! -f "${index}" ]]; then
     echo "Benchmark index not found at ${index}" >&2
     exit 1

@@ -1,13 +1,14 @@
 [package]
 name = "cityjson"
-version = "0.7.2"
-authors = ["Balázs Dukai <balazs.dukai@3dgi.nl>"]
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
 categories = ["data-structures"]
 keywords = ["cityjson", "geospatial", "3d", "gis"]
-edition = "2024"
 description = "Types and accessor methods for representing semantic 3D city models in Rust, implementing the CityJSON specifications."
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/3DGI/cityjson-rs"
 exclude = ["benches/", "tests/", "docs/", "bench_results/", ".github/", "profiling/", "tools/", "docker/", "justfile"]
 
 [package.metadata]
@@ -40,6 +41,3 @@ harness = false
 [[bench]]
 name = "processor"
 harness = false
-
-[profile.bench]
-debug = true  # Enable debug symbols for better profiling

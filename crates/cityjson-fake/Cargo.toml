@@ -1,13 +1,13 @@
 [package]
 name = "cityjson-fake"
-version = "0.5.2"
-authors = ["Balázs Dukai <balazs.dukai@3dgi.nl>"]
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
 categories = ["development-tools::testing", "simulation"]
 keywords = ["cityjson", "testing", "faker"]
-edition = "2024"
-rust-version = "1.93"
 description = "Generate fake CityJSON data for testing purposes"
-repository = "https://github.com/3DGI/cityjson-fake"
 license = "Apache-2.0"
 exclude = ["benches/", "tests/", "docs/", ".github/", "tools/", "resources/", "justfile"]
 
@@ -27,8 +27,8 @@ json = ["dep:cityjson-json"]
 cli = ["json", "dep:serde", "dep:serde_json", "dep:jsonschema"]
 
 [dependencies]
-cityjson = { path = "../cityjson-rs", version = "0.7.2" }
-cityjson-json = { path = "../cityjson-json", version = "0.7.3", optional = true }
+cityjson = { workspace = true }
+cityjson-json = { workspace = true, optional = true }
 fake = { version = "5.1.0", features = ["uuid", "chrono"] }
 rand = "0.10.1"
 clap = { version = "4.5.51", features = ["derive"] }

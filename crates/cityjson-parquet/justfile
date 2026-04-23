@@ -11,13 +11,13 @@ _check-shared-benchmark-index:
     bash -lc ' \
         if [ -n "${CITYJSON_ARROW_BENCHMARK_INDEX:-}" ]; then \
             benchmark_index="$CITYJSON_ARROW_BENCHMARK_INDEX"; \
-            if [ ! -f "$benchmark_index" ] && [ -n "${CITYJSON_ARROW_SHARED_CORPUS_ROOT:-}" ]; then \
-                benchmark_index="$CITYJSON_ARROW_SHARED_CORPUS_ROOT/$CITYJSON_ARROW_BENCHMARK_INDEX"; \
+            if [ ! -f "$benchmark_index" ] && [ -n "${CITYJSON_SHARED_CORPUS_ROOT:-}" ]; then \
+                benchmark_index="$CITYJSON_SHARED_CORPUS_ROOT/$CITYJSON_ARROW_BENCHMARK_INDEX"; \
             fi; \
-        elif [ -n "${CITYJSON_ARROW_SHARED_CORPUS_ROOT:-}" ]; then \
-            benchmark_index="$CITYJSON_ARROW_SHARED_CORPUS_ROOT/artifacts/benchmark-index.json"; \
+        elif [ -n "${CITYJSON_SHARED_CORPUS_ROOT:-}" ]; then \
+            benchmark_index="$CITYJSON_SHARED_CORPUS_ROOT/artifacts/benchmark-index.json"; \
         else \
-            echo "Set CITYJSON_ARROW_SHARED_CORPUS_ROOT or CITYJSON_ARROW_BENCHMARK_INDEX before running benchmarks." >&2; \
+            echo "Set CITYJSON_SHARED_CORPUS_ROOT or CITYJSON_ARROW_BENCHMARK_INDEX before running benchmarks." >&2; \
             exit 1; \
         fi; \
         test -f "$benchmark_index" \

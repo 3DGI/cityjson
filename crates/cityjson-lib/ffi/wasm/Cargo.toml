@@ -1,8 +1,8 @@
 [package]
 name = "cityjson-lib-wasm"
-version = "0.6.1"
-edition = "2024"
-rust-version = "1.93"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 
 [lib]
@@ -10,7 +10,7 @@ name = "cityjson_lib_wasm"
 path = "src/lib.rs"
 
 [dependencies]
-cityjson-lib-ffi-core = { path = "../core", version = "0.6.1" }
+cityjson-lib-ffi-core = { workspace = true, default-features = false }
 
 [target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dependencies]
 getrandom = { version = "0.3.4", features = ["wasm_js"] }

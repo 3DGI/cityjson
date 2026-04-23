@@ -183,7 +183,7 @@ fn generate_profile_artifact(profile: &Path, output: &Path) {
 }
 
 fn corpus_root() -> PathBuf {
-    env::var_os("CITYJSON_PARQUET_SHARED_CORPUS_ROOT")
+    env::var_os("CITYJSON_SHARED_CORPUS_ROOT")
         .map_or_else(workspace_corpus_root, PathBuf::from)
 }
 

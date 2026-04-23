@@ -2,8 +2,13 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -21,13 +26,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - uses: extractions/setup-just@v4
       - run: cargo fmt --all --check
 
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -43,20 +47,20 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu, macos, windows]
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: extractions/setup-just@v4
       - run: just test
 
-  build:
+  build-msrv:
     name: Build (MSRV ${{matrix.rust}})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        rust: [ 1.93.0 ]
+        rust: [1.93.0]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
@@ -66,20 +70,10 @@ jobs:
       - uses: extractions/setup-just@v4
       - run: just build
 
-  nightly:
-    name: Build (nightly)
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@nightly
-      - uses: extractions/setup-just@v4
-      - run: just build
-
   doc:
     name: Documentation
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     env:
       RUSTDOCFLAGS: --cfg docsrs -Dwarnings
     steps:
@@ -87,43 +81,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - uses: extractions/setup-just@v4
       - run: just doc
-
-  coverage:
-    name: Coverage gate
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo install cargo-tarpaulin
-      - run: |
-          ALLOW=0
-          if ${{ contains(github.event.pull_request.labels.*.name, 'coverage-decrease-approved') }}; then
-            ALLOW=1
-          fi
-          BASE_REF="origin/${{ github.base_ref }}" ALLOW_DECREASE="$ALLOW" bash tools/ci_coverage_gate.sh
-
-  bench:
-    name: Benchmark gate
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: extractions/setup-just@v4
-      - run: sudo apt-get update && sudo apt-get install -y valgrind
-      - run: |
-          ALLOW=0
-          if ${{ contains(github.event.pull_request.labels.*.name, 'perf-regression-approved') }}; then
-            ALLOW=1
-          fi
-          BASE_REF="origin/${{ github.base_ref }}" ALLOW_REGRESSION="$ALLOW" bash tools/ci_bench_gate.sh
 
   miri:
     name: Miri

@@ -2,14 +2,14 @@
 
 Tests and benchmarks depend on a local checkout of the
 [`cityjson-corpus`](https://github.com/cityjson/cityjson-corpus) repository.
-Configure that checkout with `CITYJSON_JSON_SHARED_CORPUS_ROOT`, or point
+Configure that checkout with `CITYJSON_SHARED_CORPUS_ROOT`, or point
 directly at an index file with `CITYJSON_JSON_CORRECTNESS_INDEX` or
 `CITYJSON_JSON_BENCHMARK_INDEX`.
 
 ## Setup
 
 ```bash
-export CITYJSON_JSON_SHARED_CORPUS_ROOT=/path/to/cityjson-corpus
+export CITYJSON_SHARED_CORPUS_ROOT=/path/to/cityjson-corpus
 just ci
 ```
 
@@ -21,7 +21,7 @@ export CITYJSON_JSON_CORRECTNESS_INDEX=/path/to/cityjson-corpus/artifacts/correc
 export CITYJSON_JSON_BENCHMARK_INDEX=/path/to/cityjson-corpus/artifacts/benchmark-index.json
 ```
 
-Relative index paths are resolved against `CITYJSON_JSON_SHARED_CORPUS_ROOT`.
+Relative index paths are resolved against `CITYJSON_SHARED_CORPUS_ROOT`.
 
 ## Running Tests
 
