@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 #[test]
+#[ignore = "requires prior FFI python build; run via FFI CI job"]
 fn python_fake_complete_example_matches_fixture_structurally() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
