@@ -108,6 +108,13 @@ mod linux {
         .expect("profile json should parse");
         assert_eq!(profile["command"], "index");
         assert_eq!(profile["success"], true);
+        assert_eq!(
+            profile["worker_count"].as_u64(),
+            Some(
+                std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get) as u64
+            ),
+            "index profile should record the effective worker count"
+        );
         assert!(
             profile["stages"]
                 .as_array()

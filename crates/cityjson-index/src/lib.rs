@@ -54,6 +54,8 @@ pub struct CityIndex {
     backend: Box<dyn StorageBackend>,
 }
 
+pub const WORKER_COUNT_ENV: &str = "CITYJSON_INDEX_WORKERS";
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct IndexedFeatureRef {
     pub feature_id: String,
@@ -661,7 +663,8 @@ impl CityIndex {
     ///
     /// Returns an error if backend scanning or index population fails.
     pub fn reindex(&mut self) -> Result<()> {
-        let scans = self.backend.scan()?;
+        let worker_count = configured_worker_count()?;
+        let scans = self.backend.scan(worker_count)?;
         self.index.rebuild(&scans)
     }
 
@@ -1893,7 +1896,7 @@ impl Index {
 }
 
 trait StorageBackend: Send + Sync {
-    fn scan(&self) -> Result<Vec<SourceScan>>;
+    fn scan(&self, worker_count: usize) -> Result<Vec<SourceScan>>;
     fn read_one(&self, loc: &FeatureLocation, metadata_bytes: Arc<[u8]>) -> Result<CityModel>;
 }
 
@@ -1942,11 +1945,12 @@ struct NdjsonBackend {
 }
 
 impl StorageBackend for NdjsonBackend {
-    fn scan(&self) -> Result<Vec<SourceScan>> {
-        collect_layout_files(&self.paths, ".jsonl")?
-            .into_iter()
-            .map(|path| scan_ndjson_source(&path))
-            .collect()
+    fn scan(&self, worker_count: usize) -> Result<Vec<SourceScan>> {
+        parallel_scan_items(
+            collect_layout_files(&self.paths, ".jsonl")?,
+            worker_count,
+            |path| scan_ndjson_source(path.as_path()),
+        )
     }
 
     fn read_one(&self, loc: &FeatureLocation, metadata_bytes: Arc<[u8]>) -> Result<CityModel> {
@@ -1991,12 +1995,13 @@ impl CityJsonBackend {
 }
 
 impl StorageBackend for CityJsonBackend {
-    fn scan(&self) -> Result<Vec<SourceScan>> {
+    fn scan(&self, worker_count: usize) -> Result<Vec<SourceScan>> {
         let _ = &self.vertices_cache;
-        collect_layout_files(&self.paths, ".city.json")?
-            .into_iter()
-            .map(|path| scan_cityjson_source(&path))
-            .collect()
+        parallel_scan_items(
+            collect_layout_files(&self.paths, ".city.json")?,
+            worker_count,
+            |path| scan_cityjson_source(path.as_path()),
+        )
     }
 
     fn read_one(&self, loc: &FeatureLocation, metadata_bytes: Arc<[u8]>) -> Result<CityModel> {
@@ -2073,6 +2078,14 @@ struct FeatureFilesBackend {
     feature_glob: GlobMatcher,
 }
 
+struct FeatureFileSourcePlan {
+    path: PathBuf,
+    metadata: Meta,
+    source_size: u64,
+    source_mtime_ns: i64,
+    feature_paths: Vec<PathBuf>,
+}
+
 impl FeatureFilesBackend {
     fn new(root: PathBuf, metadata_glob: &str, feature_glob: &str) -> Self {
         let metadata_glob = globset::Glob::new(metadata_glob)
@@ -2090,8 +2103,13 @@ impl FeatureFilesBackend {
 }
 
 impl StorageBackend for FeatureFilesBackend {
-    fn scan(&self) -> Result<Vec<SourceScan>> {
-        scan_feature_files_root(&self.root, &self.metadata_glob, &self.feature_glob)
+    fn scan(&self, worker_count: usize) -> Result<Vec<SourceScan>> {
+        scan_feature_files_root(
+            &self.root,
+            &self.metadata_glob,
+            &self.feature_glob,
+            worker_count,
+        )
     }
 
     fn read_one(&self, loc: &FeatureLocation, metadata_bytes: Arc<[u8]>) -> Result<CityModel> {
@@ -2104,7 +2122,17 @@ fn scan_feature_files_root(
     root: &Path,
     metadata_glob: &GlobMatcher,
     feature_glob: &GlobMatcher,
+    worker_count: usize,
 ) -> Result<Vec<SourceScan>> {
+    let plans = discover_feature_file_sources(root, metadata_glob, feature_glob)?;
+    parallel_scan_items(plans, worker_count, scan_feature_file_source)
+}
+
+fn discover_feature_file_sources(
+    root: &Path,
+    metadata_glob: &GlobMatcher,
+    feature_glob: &GlobMatcher,
+) -> Result<Vec<FeatureFileSourcePlan>> {
     let mut metadata_files = Vec::new();
     let mut feature_files = Vec::new();
 
@@ -2149,14 +2177,12 @@ fn scan_feature_files_root(
         metadata_by_dir.insert(parent, metadata_path.clone());
         sources.insert(
             metadata_path.clone(),
-            SourceScan {
+            FeatureFileSourcePlan {
                 path: metadata_path,
                 metadata,
-                vertices_offset: None,
-                vertices_length: None,
                 source_size,
                 source_mtime_ns,
-                features: Vec::new(),
+                feature_paths: Vec::new(),
             },
         );
     }
@@ -2176,9 +2202,27 @@ fn scan_feature_files_root(
                 metadata_path.display()
             ))
         })?;
-        let feature: Value = read_json(&feature_path)?;
+        source.feature_paths.push(feature_path);
+    }
+
+    Ok(sources.into_values().collect())
+}
+
+fn scan_feature_file_source(plan: &FeatureFileSourcePlan) -> Result<SourceScan> {
+    let mut source = SourceScan {
+        path: plan.path.clone(),
+        metadata: plan.metadata.clone(),
+        vertices_offset: None,
+        vertices_length: None,
+        source_size: plan.source_size,
+        source_mtime_ns: plan.source_mtime_ns,
+        features: Vec::with_capacity(plan.feature_paths.len()),
+    };
+
+    for feature_path in &plan.feature_paths {
+        let feature: Value = read_json(feature_path)?;
         let (id, bounds, cityobject_count) = parse_feature_file_bounds(&feature, &source.metadata)?;
-        let (file_size, file_mtime_ns) = file_status(&feature_path)?;
+        let (file_size, file_mtime_ns) = file_status(feature_path)?;
         source.features.push(ScannedFeature {
             id,
             path: feature_path.clone(),
@@ -2192,7 +2236,7 @@ fn scan_feature_files_root(
         });
     }
 
-    Ok(sources.into_values().collect())
+    Ok(source)
 }
 
 fn resolve_feature_metadata_path(
@@ -2458,6 +2502,70 @@ fn value_kind(value: &Value) -> &'static str {
 
 fn import_error(message: impl Into<String>) -> Error {
     Error::Import(message.into())
+}
+
+pub fn configured_worker_count() -> Result<usize> {
+    match std::env::var(WORKER_COUNT_ENV) {
+        Ok(value) => {
+            let worker_count = value.parse::<usize>().map_err(|error| {
+                import_error(format!(
+                    "{WORKER_COUNT_ENV} must be a positive integer: {error}"
+                ))
+            })?;
+            if worker_count == 0 {
+                return Err(import_error(format!(
+                    "{WORKER_COUNT_ENV} must be greater than zero"
+                )));
+            }
+            Ok(worker_count)
+        }
+        Err(std::env::VarError::NotPresent) => {
+            Ok(std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get))
+        }
+        Err(std::env::VarError::NotUnicode(_)) => Err(import_error(format!(
+            "{WORKER_COUNT_ENV} must contain valid UTF-8"
+        ))),
+    }
+}
+
+fn parallel_scan_items<T, U, F>(items: Vec<T>, worker_count: usize, scan: F) -> Result<Vec<U>>
+where
+    T: Sync,
+    U: Send,
+    F: Fn(&T) -> Result<U> + Sync,
+{
+    if items.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let shard_count = worker_count.max(1).min(items.len());
+    if shard_count == 1 {
+        return items.iter().map(scan).collect();
+    }
+
+    let chunk_size = items.len().div_ceil(shard_count);
+    std::thread::scope(|scope| -> Result<Vec<U>> {
+        let mut handles = Vec::with_capacity(shard_count);
+        let scan = &scan;
+        for shard in items.chunks(chunk_size) {
+            handles.push(scope.spawn(move || {
+                let mut shard_results = Vec::with_capacity(shard.len());
+                for item in shard {
+                    shard_results.push(scan(item)?);
+                }
+                Ok::<Vec<U>, Error>(shard_results)
+            }));
+        }
+
+        let mut results = Vec::with_capacity(items.len());
+        for handle in handles {
+            let shard_results = handle
+                .join()
+                .map_err(|_| import_error("parallel scan worker panicked"))??;
+            results.extend(shard_results);
+        }
+        Ok(results)
+    })
 }
 
 fn serde_json_error(error: &serde_json::Error) -> Error {
@@ -3476,7 +3584,7 @@ mod tests {
         let backend = NdjsonBackend {
             paths: vec![ndjson_path.clone()],
         };
-        let scans = backend.scan().expect("NDJSON scan should succeed");
+        let scans = backend.scan(1).expect("NDJSON scan should succeed");
         assert_eq!(scans.len(), 1);
         assert_eq!(scans[0].features.len(), 1);
         assert_eq!(scans[0].features[0].id, "ndjson-test-feature");

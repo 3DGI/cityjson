@@ -165,7 +165,9 @@ pub fn run(cli: &BenchmarkCli) -> Result<BenchmarkReport> {
     for case in cases {
         for dataset in prepare_case(cli, case, &artifact)? {
             for worker_count in &worker_counts {
-                runs.extend(run_dataset(&dataset, *worker_count)?);
+                runs.extend(with_worker_count_env(*worker_count, || {
+                    run_dataset(&dataset)
+                })?);
             }
         }
     }
@@ -332,12 +334,10 @@ fn prepare_multi_tile_dataset(cli: &BenchmarkCli) -> Result<Vec<PreparedDataset>
     Ok(vec![PreparedDataset { manifest }])
 }
 
-fn run_dataset(
-    dataset: &PreparedDataset,
-    worker_count: usize,
-) -> Result<Vec<BenchmarkOperationRecord>> {
+fn run_dataset(dataset: &PreparedDataset) -> Result<Vec<BenchmarkOperationRecord>> {
     let manifest = &dataset.manifest;
     let resolved = resolve_dataset(&manifest.prepared_dataset, None)?;
+    let worker_count = crate::configured_worker_count()?;
 
     let open_started = Instant::now();
     let index = CityIndex::open(resolved.storage_layout(), &resolved.index_path)?;
@@ -611,6 +611,34 @@ fn worker_counts(mut requested: Vec<usize>) -> Vec<usize> {
     requested.sort_unstable();
     requested.dedup();
     requested
+}
+
+fn with_worker_count_env<T>(worker_count: usize, f: impl FnOnce() -> Result<T>) -> Result<T> {
+    struct WorkerCountEnvGuard {
+        previous: Option<std::ffi::OsString>,
+    }
+
+    impl Drop for WorkerCountEnvGuard {
+        fn drop(&mut self) {
+            // SAFETY: the benchmark runner sets and restores the variable on the
+            // current thread immediately around a single indexing run.
+            unsafe {
+                match self.previous.take() {
+                    Some(previous) => std::env::set_var(crate::WORKER_COUNT_ENV, previous),
+                    None => std::env::remove_var(crate::WORKER_COUNT_ENV),
+                }
+            }
+        }
+    }
+
+    let previous = std::env::var_os(crate::WORKER_COUNT_ENV);
+    let _guard = WorkerCountEnvGuard { previous };
+    // SAFETY: the benchmark process is single-threaded around environment
+    // mutation for a given run, and the variable is restored by the guard.
+    unsafe {
+        std::env::set_var(crate::WORKER_COUNT_ENV, worker_count.to_string());
+    }
+    f()
 }
 
 fn reset_dir(path: &Path) -> Result<()> {

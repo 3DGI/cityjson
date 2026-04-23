@@ -284,12 +284,13 @@ fn run_reindex(args: IndexCommand) -> Result<()> {
     let IndexCommand { input, profile } = args;
     let initial_dataset = input.dataset_dir.clone();
     let initial_index = input.index.clone();
+    let worker_count = cityjson_index::configured_worker_count()?;
     profile::run_with_profile(
         profile,
         "index",
         initial_dataset,
         initial_index,
-        None,
+        Some(worker_count),
         move |recorder| {
             let input = recorder.measure("argument/input resolution", || {
                 resolve_operational_input(input)

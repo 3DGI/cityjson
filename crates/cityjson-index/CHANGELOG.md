@@ -6,6 +6,7 @@
 
 - Added a JSON-emitting benchmark harness for Basisvoorziening 3D datasets, including full-tile, deterministic subset, and optional multi-tile preparation flows.
 - Added Linux-only `--profile` support for `cjindex` commands with stage timings, RSS snapshots, and machine-readable JSON output.
+- Added process-local worker-count control for indexing via `CITYJSON_INDEX_WORKERS`, with parallel backend scanning during `reindex()` and benchmark runs that exercise the configured worker count.
 
 ### Changed
 
