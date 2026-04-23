@@ -8,7 +8,8 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Changed
 
-- Keep `CityJSONFeature` roots valid after `subset` and `filter` shrink a model.
+- Replace the Rust `ops::filter` and `filter_with_options` APIs with opaque `ModelSelection`, `select_cityobjects`, `select_geometries`, and `extract`.
+- Keep `CityJSONFeature` roots valid after `subset` and selection-driven extraction shrink a model.
 - Reroot surviving feature subsets to a parentless `CityObject` when the original root is removed.
 - Return a model error when feature shrinking removes the root and no replacement root exists.
 - Keep the JSON boundary strict for malformed feature packages.
@@ -28,7 +29,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Added
 
 - Rust-only `cityjson_lib::ops::subset`, `append`, and `merge` operations for native CityModel subsetting and model combination workflows.
-- Rust-only `cityjson_lib::ops::filter` and `filter_with_options` APIs for predicate-based CityObject filtering, with optional recursive parent/child relative inclusion.
+- Rust-only `cityjson_lib::ops::ModelSelection`, `select_cityobjects`, `select_geometries`, and `extract` APIs for predicate-driven selection and reconstruction workflows.
 
 ## [0.6.0] - 2026-04-20
 

@@ -2,7 +2,9 @@
 //!
 //! The `subset` and `merge` semantics are ported from `cjio`, and the Rust
 //! implementation here is the crate-owned native rewrite of those workflows.
+//! Selection-driven extraction uses the opaque `ModelSelection` carrier.
 
+use std::collections::hash_map::Entry;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::cityjson::resources::storage::OwnedStringStorage;
@@ -29,18 +31,26 @@ type OwnedExtensions = Extensions<OwnedStringStorage>;
 type OwnedCityObject = CityObject<OwnedStringStorage>;
 type OwnedGeometry = Geometry<u32, OwnedStringStorage>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct FilterOptions {
-    pub include_relatives: bool,
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CityObjectSelection {
+    Whole,
+    Partial(HashSet<GeometryHandle>),
 }
 
-pub struct FilterContext<'a> {
+/// Opaque selection carrier for selection/extraction workflows.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ModelSelection {
+    cityobjects: HashMap<CityObjectHandle, CityObjectSelection>,
+}
+
+/// Context passed to cityobject-level selection predicates.
+pub struct CityObjectSelectionContext<'a> {
     model: &'a CityModel,
     handle: CityObjectHandle,
     cityobject: &'a CityObject<OwnedStringStorage>,
 }
 
-impl<'a> FilterContext<'a> {
+impl<'a> CityObjectSelectionContext<'a> {
     pub fn model(&self) -> &'a CityModel {
         self.model
     }
@@ -55,6 +65,153 @@ impl<'a> FilterContext<'a> {
 
     pub fn id(&self) -> &'a str {
         self.cityobject.id()
+    }
+}
+
+/// Context passed to geometry-level selection predicates.
+pub struct GeometrySelectionContext<'a> {
+    model: &'a CityModel,
+    cityobject_handle: CityObjectHandle,
+    cityobject: &'a CityObject<OwnedStringStorage>,
+    geometry_handle: GeometryHandle,
+    geometry: &'a OwnedGeometry,
+    geometry_index: usize,
+}
+
+impl<'a> GeometrySelectionContext<'a> {
+    pub fn model(&self) -> &'a CityModel {
+        self.model
+    }
+
+    pub fn cityobject_handle(&self) -> CityObjectHandle {
+        self.cityobject_handle
+    }
+
+    pub fn cityobject(&self) -> &'a CityObject<OwnedStringStorage> {
+        self.cityobject
+    }
+
+    pub fn cityobject_id(&self) -> &'a str {
+        self.cityobject.id()
+    }
+
+    pub fn geometry_handle(&self) -> GeometryHandle {
+        self.geometry_handle
+    }
+
+    pub fn geometry(&self) -> &'a OwnedGeometry {
+        self.geometry
+    }
+
+    pub fn geometry_index(&self) -> usize {
+        self.geometry_index
+    }
+}
+
+impl ModelSelection {
+    fn select_whole(&mut self, handle: CityObjectHandle) {
+        self.cityobjects.insert(handle, CityObjectSelection::Whole);
+    }
+
+    fn select_geometry(
+        &mut self,
+        cityobject_handle: CityObjectHandle,
+        geometry_handle: GeometryHandle,
+    ) {
+        match self.cityobjects.entry(cityobject_handle) {
+            Entry::Vacant(entry) => {
+                let mut geometries = HashSet::new();
+                geometries.insert(geometry_handle);
+                entry.insert(CityObjectSelection::Partial(geometries));
+            }
+            Entry::Occupied(mut entry) => match entry.get_mut() {
+                CityObjectSelection::Whole => {}
+                CityObjectSelection::Partial(geometries) => {
+                    geometries.insert(geometry_handle);
+                }
+            },
+        }
+    }
+
+    /// Expand the selection through parent and child relations.
+    pub fn include_relatives(self, model: &CityModel) -> Result<Self> {
+        let mut selection = self;
+        let roots = selection.cityobjects.keys().copied().collect::<Vec<_>>();
+        let relatives = collect_reachable_cityobjects(model, roots, true, true)?;
+
+        for handle in relatives {
+            selection
+                .cityobjects
+                .entry(handle)
+                .or_insert(CityObjectSelection::Whole);
+        }
+
+        Ok(selection)
+    }
+
+    /// Combine two selections, preferring whole-cityobject selection.
+    pub fn union(&self, other: &Self) -> Self {
+        let mut selection = self.clone();
+
+        for (handle, state) in &other.cityobjects {
+            match selection.cityobjects.entry(*handle) {
+                Entry::Vacant(entry) => {
+                    entry.insert(state.clone());
+                }
+                Entry::Occupied(mut entry) => {
+                    let merged = match (entry.get(), state) {
+                        (CityObjectSelection::Whole, _) | (_, CityObjectSelection::Whole) => {
+                            CityObjectSelection::Whole
+                        }
+                        (CityObjectSelection::Partial(lhs), CityObjectSelection::Partial(rhs)) => {
+                            let geometries =
+                                lhs.union(rhs).copied().collect::<HashSet<GeometryHandle>>();
+                            CityObjectSelection::Partial(geometries)
+                        }
+                    };
+                    entry.insert(merged);
+                }
+            }
+        }
+
+        selection
+    }
+
+    /// Keep only the overlap between two selections.
+    pub fn intersection(&self, other: &Self) -> Self {
+        let mut cityobjects = HashMap::new();
+
+        for (handle, lhs_state) in &self.cityobjects {
+            let Some(rhs_state) = other.cityobjects.get(handle) else {
+                continue;
+            };
+
+            let merged = match (lhs_state, rhs_state) {
+                (CityObjectSelection::Whole, CityObjectSelection::Whole) => {
+                    CityObjectSelection::Whole
+                }
+                (CityObjectSelection::Whole, CityObjectSelection::Partial(geometries))
+                | (CityObjectSelection::Partial(geometries), CityObjectSelection::Whole) => {
+                    CityObjectSelection::Partial(geometries.clone())
+                }
+                (CityObjectSelection::Partial(lhs), CityObjectSelection::Partial(rhs)) => {
+                    let geometries = lhs.intersection(rhs).copied().collect::<HashSet<_>>();
+                    if geometries.is_empty() {
+                        continue;
+                    }
+                    CityObjectSelection::Partial(geometries)
+                }
+            };
+
+            cityobjects.insert(*handle, merged);
+        }
+
+        Self { cityobjects }
+    }
+
+    /// Return `true` when no CityObjects are selected.
+    pub fn is_empty(&self) -> bool {
+        self.cityobjects.is_empty()
     }
 }
 
@@ -765,6 +922,156 @@ where
     Ok(selected)
 }
 
+fn selected_geometry_handles(
+    model: &CityModel,
+    cityobject: &OwnedCityObject,
+    state: &CityObjectSelection,
+) -> Result<Vec<GeometryHandle>> {
+    match state {
+        CityObjectSelection::Whole => {
+            let Some(original_geometry) = cityobject.geometry() else {
+                return Ok(Vec::new());
+            };
+
+            let mut selected = Vec::with_capacity(original_geometry.len());
+            for geometry in original_geometry {
+                model.get_geometry(*geometry).ok_or_else(|| {
+                    import_error(format!(
+                        "selected geometry handle {:?} is missing from the source model",
+                        geometry
+                    ))
+                })?;
+                selected.push(*geometry);
+            }
+
+            Ok(selected)
+        }
+        CityObjectSelection::Partial(geometry_handles) => {
+            let Some(original_geometry) = cityobject.geometry() else {
+                if geometry_handles.is_empty() {
+                    return Ok(Vec::new());
+                }
+
+                let missing =
+                    geometry_handles.iter().copied().next().expect(
+                        "partial selection with missing geometry requires at least one handle",
+                    );
+                return Err(import_error(format!(
+                    "selected geometry handle {:?} is missing from CityObject {}",
+                    missing,
+                    cityobject.id()
+                )));
+            };
+
+            let available = original_geometry.iter().copied().collect::<HashSet<_>>();
+            for geometry in geometry_handles {
+                if !available.contains(geometry) {
+                    return Err(import_error(format!(
+                        "selected geometry handle {:?} is missing from CityObject {}",
+                        geometry,
+                        cityobject.id()
+                    )));
+                }
+            }
+
+            let mut selected = Vec::with_capacity(geometry_handles.len());
+            for geometry in original_geometry {
+                if geometry_handles.contains(geometry) {
+                    model.get_geometry(*geometry).ok_or_else(|| {
+                        import_error(format!(
+                            "selected geometry handle {:?} is missing from the source model",
+                            geometry
+                        ))
+                    })?;
+                    selected.push(*geometry);
+                }
+            }
+
+            Ok(selected)
+        }
+    }
+}
+
+fn rebuild_model_with_selection(
+    model: &CityModel,
+    selection: &ModelSelection,
+) -> Result<CityModel> {
+    let mut result = model.clone();
+    result.clear_cityobjects();
+
+    let mut old_to_new = HashMap::with_capacity(selection.cityobjects.len());
+    let mut kept = HashSet::with_capacity(selection.cityobjects.len());
+
+    for (handle, cityobject) in model.cityobjects().iter() {
+        let Some(state) = selection.cityobjects.get(&handle) else {
+            continue;
+        };
+
+        let geometry_handles = selected_geometry_handles(model, cityobject, state)?;
+        if matches!(state, CityObjectSelection::Partial(_)) && geometry_handles.is_empty() {
+            continue;
+        }
+
+        let mut cloned = cityobject.clone();
+        cloned.clear_children();
+        cloned.clear_parents();
+        cloned.clear_geometry();
+        for geometry in &geometry_handles {
+            cloned.add_geometry(*geometry);
+        }
+        let new_handle = result.cityobjects_mut().add(cloned)?;
+        old_to_new.insert(handle, new_handle);
+        kept.insert(handle);
+    }
+
+    for (handle, cityobject) in model.cityobjects().iter() {
+        if !kept.contains(&handle) {
+            continue;
+        }
+
+        let target_handle = *old_to_new.get(&handle).ok_or_else(|| {
+            import_error(format!("missing remap for CityObject {}", cityobject.id()))
+        })?;
+        let target = result
+            .cityobjects_mut()
+            .get_mut(target_handle)
+            .ok_or_else(|| {
+                import_error(format!("missing target CityObject {}", cityobject.id()))
+            })?;
+
+        if let Some(children) = cityobject.children() {
+            for child in children {
+                model.cityobjects().get(*child).ok_or_else(|| {
+                    import_error(format!("missing child CityObject handle {child:?}"))
+                })?;
+                if let Some(mapped) = old_to_new.get(child).copied() {
+                    target.add_child(mapped);
+                }
+            }
+        }
+
+        if let Some(parents) = cityobject.parents() {
+            for parent in parents {
+                model.cityobjects().get(*parent).ok_or_else(|| {
+                    import_error(format!("missing parent CityObject handle {parent:?}"))
+                })?;
+                if let Some(mapped) = old_to_new.get(parent).copied() {
+                    target.add_parent(mapped);
+                }
+            }
+        }
+    }
+
+    if let Some(root) = select_feature_root(model, &kept)? {
+        let mapped_root = old_to_new.get(&root).copied().ok_or_else(|| {
+            import_error("feature root selected for rebuild does not exist in the rebuilt model")
+        })?;
+        result.set_id(Some(mapped_root));
+    }
+
+    Ok(result)
+}
+
 fn rebuild_model_with_cityobjects(
     model: &CityModel,
     selected: &HashSet<CityObjectHandle>,
@@ -917,39 +1224,66 @@ where
     rebuild_model_with_cityobjects(model, &selected)
 }
 
-pub fn filter<F>(model: &CityModel, predicate: F) -> Result<CityModel>
+/// Build a CityObject selection by evaluating a predicate over each CityObject.
+pub fn select_cityobjects<F>(model: &CityModel, mut predicate: F) -> Result<ModelSelection>
 where
-    F: FnMut(FilterContext<'_>) -> bool,
+    F: FnMut(CityObjectSelectionContext<'_>) -> bool,
 {
-    filter_with_options(model, FilterOptions::default(), predicate)
-}
+    let mut selection = ModelSelection::default();
 
-pub fn filter_with_options<F>(
-    model: &CityModel,
-    options: FilterOptions,
-    mut predicate: F,
-) -> Result<CityModel>
-where
-    F: FnMut(FilterContext<'_>) -> bool,
-{
-    let mut selected = model
-        .cityobjects()
-        .iter()
-        .filter_map(|(handle, cityobject)| {
-            predicate(FilterContext {
-                model,
-                handle,
-                cityobject,
-            })
-            .then_some(handle)
-        })
-        .collect::<HashSet<_>>();
-
-    if options.include_relatives {
-        selected = collect_reachable_cityobjects(model, selected, true, true)?;
+    for (handle, cityobject) in model.cityobjects().iter() {
+        if predicate(CityObjectSelectionContext {
+            model,
+            handle,
+            cityobject,
+        }) {
+            selection.select_whole(handle);
+        }
     }
 
-    rebuild_model_with_cityobjects(model, &selected)
+    Ok(selection)
+}
+
+/// Build a geometry selection by evaluating a predicate over every referenced geometry.
+pub fn select_geometries<F>(model: &CityModel, mut predicate: F) -> Result<ModelSelection>
+where
+    F: FnMut(GeometrySelectionContext<'_>) -> bool,
+{
+    let mut selection = ModelSelection::default();
+
+    for (cityobject_handle, cityobject) in model.cityobjects().iter() {
+        let Some(geometry_handles) = cityobject.geometry() else {
+            continue;
+        };
+
+        for (geometry_index, geometry_handle) in geometry_handles.iter().copied().enumerate() {
+            let geometry = model.get_geometry(geometry_handle).ok_or_else(|| {
+                import_error(format!(
+                    "geometry handle {:?} referenced by CityObject {} is missing from the source model",
+                    geometry_handle,
+                    cityobject.id()
+                ))
+            })?;
+
+            if predicate(GeometrySelectionContext {
+                model,
+                cityobject_handle,
+                cityobject,
+                geometry_handle,
+                geometry,
+                geometry_index,
+            }) {
+                selection.select_geometry(cityobject_handle, geometry_handle);
+            }
+        }
+    }
+
+    Ok(selection)
+}
+
+/// Rebuild a model from a selection.
+pub fn extract(model: &CityModel, selection: &ModelSelection) -> Result<CityModel> {
+    rebuild_model_with_selection(model, selection)
 }
 
 pub fn append(target: &mut CityModel, source: &CityModel) -> Result<()> {

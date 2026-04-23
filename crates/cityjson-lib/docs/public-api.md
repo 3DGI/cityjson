@@ -107,8 +107,14 @@ let roundtrip = parquet::from_file(&path)?;
 
 - `cleanup`
 - `subset`
+- `select_cityobjects`
+- `select_geometries`
+- `extract`
 - `append`
 - `merge`
+
+`ModelSelection` is the opaque selection carrier used by the new selection
+and extraction workflow.
 
 Those helpers are part of the stable facade, with semantic workflows owned by
 `cityjson-lib` and JSON-aware implementation details delegated to `cityjson-json`.
