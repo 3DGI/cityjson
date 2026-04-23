@@ -1,0 +1,105 @@
+{
+  "suite": "read",
+  "cases": [
+    {
+      "id": "stress_attribute_heavy_heterogenous",
+      "description": "",
+      "input_bytes": 2515415,
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_read": 2484806,
+        "cityjson-json/owned": 1419278,
+        "cityjson-parquet/read_file": 2515415
+      }
+    },
+    {
+      "id": "stress_attribute_heavy_homogenous",
+      "description": "",
+      "input_bytes": 744092,
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_read": 730877,
+        "cityjson-json/owned": 1075752,
+        "cityjson-parquet/read_file": 744092
+      }
+    },
+    {
+      "id": "stress_boundary_heavy",
+      "description": "",
+      "input_bytes": 2315317,
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_read": 2310668,
+        "cityjson-json/owned": 1442615,
+        "cityjson-parquet/read_file": 2315317
+      }
+    },
+    {
+      "id": "stress_geometry_heavy",
+      "description": "",
+      "input_bytes": 1663798,
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_read": 1659148,
+        "cityjson-json/owned": 1089272,
+        "cityjson-parquet/read_file": 1663798
+      }
+    },
+    {
+      "id": "stress_hierarchy_heavy",
+      "description": "",
+      "input_bytes": 1527095,
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_read": 1520959,
+        "cityjson-json/owned": 1312563,
+        "cityjson-parquet/read_file": 1527095
+      }
+    },
+    {
+      "id": "stress_resource_heavy",
+      "description": "",
+      "input_bytes": 1289684,
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_read": 1279672,
+        "cityjson-json/owned": 983676,
+        "cityjson-parquet/read_file": 1289684
+      }
+    },
+    {
+      "id": "stress_vertex_heavy",
+      "description": "",
+      "input_bytes": 7213303,
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_read": 7208652,
+        "cityjson-json/owned": 4343276,
+        "cityjson-parquet/read_file": 7213303
+      }
+    },
+    {
+      "id": "io_3dbag_cityjson",
+      "description": "",
+      "input_bytes": 5924889,
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_read": 5910691,
+        "cityjson-json/owned": 6008573,
+        "cityjson-parquet/read_file": 5924889
+      }
+    },
+    {
+      "id": "io_3dbag_cityjson_cluster_4x",
+      "description": "",
+      "input_bytes": 21251619,
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_read": 21237411,
+        "cityjson-json/owned": 21040983,
+        "cityjson-parquet/read_file": 21251619
+      }
+    },
+    {
+      "id": "io_basisvoorziening_3d_cityjson",
+      "description": "",
+      "input_bytes": 180431483,
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_read": 180414540,
+        "cityjson-json/owned": 177949687,
+        "cityjson-parquet/read_file": 180431483
+      }
+    }
+  ]
+}

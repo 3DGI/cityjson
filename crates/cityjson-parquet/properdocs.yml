@@ -1,0 +1,54 @@
+site_name: cityjson-parquet
+site_description: User-facing documentation for the cityjson-parquet crate
+repo_url: https://github.com/3DGI/cityjson-parquet
+repo_name: 3DGI/cityjson-parquet
+docs_dir: docs
+strict: true
+
+nav:
+  - Home: index.md
+  - cityjson-parquet: cityjson-parquet.md
+  - Specifications:
+      - Package layout: cityjson-parquet-spec.md
+      - Native Parquet dataset: native-parquet-dataset.md
+      - Canonical table schema: package-schema.md
+  - Design:
+      - Transport design: design.md
+      - "ADR 1: benchmark performance profile": adr/001-benchmark-performance-profile.md
+
+theme:
+  name: materialx
+  topbar_style: primary
+  palette:
+    primary: orange
+  font:
+    text: Roboto
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - toc.follow
+    - content.code.copy
+    - content.code.annotate
+    - search.suggest
+    - search.highlight
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
