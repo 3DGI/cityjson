@@ -1,0 +1,256 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RUSTFLAGS: -Dwarnings
+
+# Sibling checkout layout under $GITHUB_WORKSPACE:
+#   cityjson-index/  ← this repo
+#   cityjson-lib/    ← path dep ../cityjson-lib
+#   cityjson-rs/     ← transitive path dep ../cityjson-rs
+#   cityjson-json/   ← transitive path dep ../cityjson-json
+
+jobs:
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: cityjson-index
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-index
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-lib
+          path: cityjson-lib
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-json
+          path: cityjson-json
+      - run: rustup toolchain install stable --profile minimal --component rustfmt
+      - run: rustup default stable
+      - uses: extractions/setup-just@v4
+      - run: just fmt-check
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: cityjson-index
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-index
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-lib
+          path: cityjson-lib
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-json
+          path: cityjson-json
+      - run: rustup toolchain install stable --profile minimal --component clippy
+      - run: rustup default stable
+      - uses: extractions/setup-just@v4
+      - run: just lint
+
+  ffi:
+    name: FFI
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: cityjson-index
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-index
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-lib
+          path: cityjson-lib
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-json
+          path: cityjson-json
+      - run: rustup toolchain install stable --profile minimal
+      - run: rustup default stable
+      - uses: extractions/setup-just@v4
+      - run: just ffi
+
+  test:
+    name: Test (${{matrix.os}})
+    runs-on: ${{matrix.os}}-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu, macos, windows]
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: cityjson-index
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-index
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-lib
+          path: cityjson-lib
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-json
+          path: cityjson-json
+      - run: rustup toolchain install stable --profile minimal
+      - run: rustup default stable
+      - uses: extractions/setup-just@v4
+      - run: just test
+
+  build:
+    name: Build (MSRV ${{matrix.rust}})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [ 1.93.0 ]
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: cityjson-index
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-index
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-lib
+          path: cityjson-lib
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-json
+          path: cityjson-json
+      - run: rustup toolchain install ${{ matrix.rust }} --profile minimal
+      - run: rustup default ${{ matrix.rust }}
+      - uses: extractions/setup-just@v4
+      - run: just build
+
+  nightly:
+    name: Build (nightly)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: cityjson-index
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-index
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-lib
+          path: cityjson-lib
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-json
+          path: cityjson-json
+      - run: rustup toolchain install nightly --profile minimal
+      - run: rustup default nightly
+      - uses: extractions/setup-just@v4
+      - run: just build
+
+  doc:
+    name: Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: cityjson-index
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-index
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-lib
+          path: cityjson-lib
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-json
+          path: cityjson-json
+      - run: rustup toolchain install stable --profile minimal
+      - run: rustup default stable
+      - uses: extractions/setup-just@v4
+      - run: just doc
+
+  test-python:
+    name: Python bindings (${{matrix.os}})
+    runs-on: ${{matrix.os}}-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu, macos, windows]
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: cityjson-index
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-index
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-lib
+          path: cityjson-lib
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-json
+          path: cityjson-json
+      - run: rustup toolchain install stable --profile minimal
+      - run: rustup default stable
+      - uses: extractions/setup-just@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: just test-python

@@ -1,0 +1,432 @@
+mod common;
+
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
+
+use cityjson_index::{CityIndex, StorageLayout};
+use common::{
+    bbox_for_model, feature_files_root, find_first, materialize_subset, model_contains_id,
+    temp_index_path,
+};
+use serde_json::{Map, Value};
+
+#[test]
+fn feature_files_cityindex_supports_end_to_end_queries() {
+    let source_root = feature_files_root();
+    let sample = find_first(&source_root.join("features"), "city.jsonl", true);
+    let root = materialize_subset(
+        "feature-files-data",
+        &source_root,
+        &[source_root.join("metadata.json"), sample.clone()],
+    );
+    let bytes = fs::read(&sample).expect("sample feature file must be readable");
+    let value: Value = serde_json::from_slice(&bytes).expect("valid JSON feature");
+    let feature_id = value
+        .get("id")
+        .and_then(Value::as_str)
+        .expect("feature file must carry a top-level id")
+        .to_owned();
+
+    let index_path = temp_index_path("feature-files");
+    let mut index = CityIndex::open(
+        StorageLayout::FeatureFiles {
+            root: root.clone(),
+            metadata_glob: "**/metadata.json".to_owned(),
+            feature_glob: "**/*.city.jsonl".to_owned(),
+        },
+        &index_path,
+    )
+    .expect("feature-files index should open");
+
+    index
+        .reindex()
+        .expect("feature-files reindex should succeed");
+
+    let model = index
+        .get(&feature_id)
+        .expect("feature-files get should succeed")
+        .expect("feature id should be indexed");
+    assert!(model_contains_id(&model, &feature_id));
+
+    let bbox = bbox_for_model(&model).expect("bbox should be computable from indexed model");
+    let query_hits = index
+        .query(&bbox)
+        .expect("feature-files query should succeed");
+    assert!(
+        query_hits
+            .iter()
+            .any(|candidate| model_contains_id(candidate, &feature_id)),
+        "query should return the selected feature"
+    );
+
+    let iter_hits = index
+        .query_iter(&bbox)
+        .expect("feature-files query_iter should succeed")
+        .collect::<cityjson_lib::Result<Vec<_>>>()
+        .expect("feature-files query_iter items should succeed");
+    assert!(
+        iter_hits
+            .iter()
+            .any(|candidate| model_contains_id(candidate, &feature_id)),
+        "query_iter should return the selected feature"
+    );
+
+    let metadata = index
+        .metadata()
+        .expect("feature-files metadata should succeed");
+    assert!(
+        metadata
+            .iter()
+            .any(|entry| entry.get("transform").is_some()),
+        "feature-files metadata should include at least one transform"
+    );
+}
+
+#[test]
+fn feature_files_reindex_is_stable_across_worker_counts() {
+    let root = materialize_parallel_feature_files_dataset("feature-files-parity", 4);
+    let single_index_path = temp_index_path("feature-files-parity-single");
+    let multi_index_path = temp_index_path("feature-files-parity-multi");
+
+    let single = with_worker_count_env(1, || build_feature_files_index(&root, &single_index_path))
+        .expect("single-worker reindex should succeed");
+    let multi = with_worker_count_env(4, || build_feature_files_index(&root, &multi_index_path))
+        .expect("multi-worker reindex should succeed");
+
+    assert_eq!(
+        single.source_count().expect("single source count"),
+        4,
+        "single-worker source count should match the materialized dataset"
+    );
+    assert_eq!(
+        single.feature_ref_count().expect("single feature count"),
+        8,
+        "single-worker feature count should match the materialized dataset"
+    );
+    assert_eq!(
+        single.cityobject_count().expect("single CityObject count"),
+        8,
+        "single-worker CityObject count should match the materialized dataset"
+    );
+
+    assert_eq!(
+        single.source_count().expect("single source count"),
+        multi.source_count().expect("multi source count"),
+        "source counts should be stable across worker counts"
+    );
+    assert_eq!(
+        single.feature_ref_count().expect("single feature count"),
+        multi.feature_ref_count().expect("multi feature count"),
+        "feature counts should be stable across worker counts"
+    );
+    assert_eq!(
+        single.cityobject_count().expect("single CityObject count"),
+        multi.cityobject_count().expect("multi CityObject count"),
+        "CityObject counts should be stable across worker counts"
+    );
+
+    let single_ids = collect_feature_ids(&single).expect("single feature ids");
+    let multi_ids = collect_feature_ids(&multi).expect("multi feature ids");
+    assert_eq!(
+        single_ids, multi_ids,
+        "feature identifier sets should be stable across worker counts"
+    );
+
+    let sample_id = single_ids
+        .iter()
+        .next()
+        .cloned()
+        .expect("dataset should contain at least one feature");
+    let single_model = single
+        .get(&sample_id)
+        .expect("single get should succeed")
+        .expect("sample feature should be indexed");
+    let multi_model = multi
+        .get(&sample_id)
+        .expect("multi get should succeed")
+        .expect("sample feature should be indexed");
+    assert_eq!(
+        model_value(&single_model),
+        model_value(&multi_model),
+        "feature reconstruction should be stable across worker counts"
+    );
+    assert!(
+        model_contains_id(&single_model, &sample_id),
+        "sample feature should be present in the reconstructed model"
+    );
+
+    let bbox = bbox_for_model(&single_model).expect("sample model bbox should be computable");
+    let single_hits = single.query(&bbox).expect("single query should succeed");
+    let multi_hits = multi.query(&bbox).expect("multi query should succeed");
+    assert_eq!(
+        single_hits.len(),
+        1,
+        "the sample bbox should isolate the single chosen feature"
+    );
+    assert_eq!(
+        single_hits.len(),
+        multi_hits.len(),
+        "bbox hit counts should be stable across worker counts"
+    );
+    assert!(
+        multi_hits
+            .iter()
+            .any(|candidate| model_contains_id(candidate, &sample_id)),
+        "the sample feature should be present in the multi-worker bbox results"
+    );
+}
+
+#[test]
+fn feature_files_single_metadata_parallelizes_by_feature_file() {
+    let root = materialize_single_metadata_feature_files_dataset("feature-files-one-source", 16);
+    let single_index_path = temp_index_path("feature-files-one-source-single");
+    let multi_index_path = temp_index_path("feature-files-one-source-multi");
+
+    let single = with_worker_count_env(1, || build_feature_files_index(&root, &single_index_path))
+        .expect("single-worker reindex should succeed");
+    let multi = with_worker_count_env(4, || build_feature_files_index(&root, &multi_index_path))
+        .expect("multi-worker reindex should succeed");
+
+    assert_eq!(
+        single.source_count().expect("single source count"),
+        1,
+        "one metadata file should produce one source row"
+    );
+    assert_eq!(
+        multi.source_count().expect("multi source count"),
+        1,
+        "feature-file sharding must not duplicate metadata sources"
+    );
+    assert_eq!(
+        single.feature_ref_count().expect("single feature count"),
+        16,
+        "all feature files should be indexed"
+    );
+    assert_eq!(
+        single.feature_ref_count().expect("single feature count"),
+        multi.feature_ref_count().expect("multi feature count"),
+        "feature counts should be stable across worker counts"
+    );
+    assert_eq!(
+        single.cityobject_count().expect("single CityObject count"),
+        multi.cityobject_count().expect("multi CityObject count"),
+        "CityObject counts should be stable across worker counts"
+    );
+
+    let single_ids = collect_feature_ids(&single).expect("single feature ids");
+    let multi_ids = collect_feature_ids(&multi).expect("multi feature ids");
+    assert_eq!(
+        single_ids, multi_ids,
+        "feature identifiers should be stable across worker counts"
+    );
+
+    let sample_id = single_ids
+        .iter()
+        .nth(5)
+        .cloned()
+        .expect("dataset should contain a representative feature");
+    let single_model = single
+        .get(&sample_id)
+        .expect("single get should succeed")
+        .expect("sample feature should be indexed");
+    let multi_model = multi
+        .get(&sample_id)
+        .expect("multi get should succeed")
+        .expect("sample feature should be indexed");
+    assert_eq!(
+        model_value(&single_model),
+        model_value(&multi_model),
+        "representative reconstruction should be stable across worker counts"
+    );
+    assert!(
+        model_contains_id(&multi_model, &sample_id),
+        "sample feature should be present in the reconstructed model"
+    );
+
+    let bbox = bbox_for_model(&single_model).expect("sample model bbox should be computable");
+    let single_hits = single.query(&bbox).expect("single query should succeed");
+    let multi_hits = multi.query(&bbox).expect("multi query should succeed");
+    assert_eq!(
+        single_hits.len(),
+        multi_hits.len(),
+        "bbox hit counts should be stable across worker counts"
+    );
+    assert!(
+        multi_hits
+            .iter()
+            .any(|candidate| model_contains_id(candidate, &sample_id)),
+        "bbox results should include the representative feature"
+    );
+}
+
+fn build_feature_files_index(root: &Path, index_path: &Path) -> cityjson_lib::Result<CityIndex> {
+    let mut index = CityIndex::open(
+        StorageLayout::FeatureFiles {
+            root: root.to_path_buf(),
+            metadata_glob: "**/metadata.json".to_owned(),
+            feature_glob: "**/*.city.jsonl".to_owned(),
+        },
+        index_path,
+    )?;
+    index.reindex()?;
+    Ok(index)
+}
+
+fn collect_feature_ids(
+    index: &CityIndex,
+) -> cityjson_lib::Result<std::collections::BTreeSet<String>> {
+    index
+        .iter_all_with_ids()?
+        .map(|result| result.map(|(feature_id, _)| feature_id))
+        .collect()
+}
+
+fn model_value(model: &cityjson_lib::CityModel) -> Value {
+    serde_json::from_str(&cityjson_lib::json::to_string(model).expect("model should serialize"))
+        .expect("serialized model should be valid JSON")
+}
+
+fn materialize_parallel_feature_files_dataset(label: &str, source_count: usize) -> PathBuf {
+    let source_root = feature_files_root();
+    let metadata = source_root.join("metadata.json");
+    let feature_files = [
+        source_root.join("features/a/fixture-a.city.jsonl"),
+        source_root.join("features/a/fixture-b.city.jsonl"),
+    ];
+    let root = temp_parallel_fixture_root(label);
+
+    for source_index in 0..source_count {
+        let source_dir = root.join(format!("source-{source_index:02}"));
+        let features_dir = source_dir.join("features/a");
+        fs::create_dir_all(&features_dir).expect("source feature directory should be creatable");
+        fs::copy(&metadata, source_dir.join("metadata.json")).expect("metadata file should copy");
+
+        for feature_path in &feature_files {
+            let bytes = fs::read(feature_path).expect("fixture feature file should be readable");
+            let rewritten = rewrite_feature_file(&bytes, source_index);
+            fs::write(
+                features_dir.join(feature_path.file_name().expect("feature file name")),
+                rewritten,
+            )
+            .expect("feature file should write");
+        }
+    }
+
+    root
+}
+
+fn materialize_single_metadata_feature_files_dataset(label: &str, feature_count: usize) -> PathBuf {
+    let source_root = feature_files_root();
+    let metadata = source_root.join("metadata.json");
+    let feature_files = [
+        source_root.join("features/a/fixture-a.city.jsonl"),
+        source_root.join("features/a/fixture-b.city.jsonl"),
+    ];
+    let root = temp_parallel_fixture_root(label);
+    let features_dir = root.join("features/a");
+    fs::create_dir_all(&features_dir).expect("feature directory should be creatable");
+    fs::copy(&metadata, root.join("metadata.json")).expect("metadata file should copy");
+
+    for feature_index in 0..feature_count {
+        let feature_path = &feature_files[feature_index % feature_files.len()];
+        let bytes = fs::read(feature_path).expect("fixture feature file should be readable");
+        let rewritten = rewrite_feature_file(&bytes, feature_index);
+        fs::write(
+            features_dir.join(format!("feature-{feature_index:03}.city.jsonl")),
+            rewritten,
+        )
+        .expect("feature file should write");
+    }
+
+    root
+}
+
+fn rewrite_feature_file(bytes: &[u8], source_index: usize) -> Vec<u8> {
+    let mut feature: Value = serde_json::from_slice(bytes).expect("fixture feature should parse");
+    let base_id = feature
+        .get("id")
+        .and_then(Value::as_str)
+        .expect("fixture feature should carry an id")
+        .to_owned();
+    let feature_id = format!("{base_id}-{source_index:02}");
+    let shift = i64::try_from(source_index).expect("source index should fit in i64") * 1_000;
+
+    let object = feature
+        .as_object_mut()
+        .expect("feature fixture should be a JSON object");
+    object.insert("id".to_owned(), Value::String(feature_id.clone()));
+
+    if let Some(cityobjects) = object.get_mut("CityObjects").and_then(Value::as_object_mut) {
+        let mut renamed = Map::new();
+        for (_, cityobject) in std::mem::take(cityobjects) {
+            renamed.insert(feature_id.clone(), cityobject);
+        }
+        *cityobjects = renamed;
+    }
+
+    if let Some(vertices) = object.get_mut("vertices").and_then(Value::as_array_mut) {
+        for vertex in vertices {
+            let coords = vertex
+                .as_array_mut()
+                .expect("vertices should be coordinate arrays");
+            coords[0] = Value::from(
+                coords[0]
+                    .as_i64()
+                    .expect("x coordinate should be an integer")
+                    + shift,
+            );
+            coords[1] = Value::from(
+                coords[1]
+                    .as_i64()
+                    .expect("y coordinate should be an integer")
+                    + shift,
+            );
+        }
+    }
+
+    serde_json::to_vec(&feature).expect("rewritten feature should serialize")
+}
+
+fn temp_parallel_fixture_root(label: &str) -> PathBuf {
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("system time should be after the unix epoch")
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("cityjson-index-{label}-{unique}.dir"));
+    fs::create_dir_all(&path).expect("parallel fixture root should be creatable");
+    path
+}
+
+struct EnvGuard {
+    previous: Option<std::ffi::OsString>,
+}
+
+impl Drop for EnvGuard {
+    fn drop(&mut self) {
+        // SAFETY: the test serializes environment mutation with a mutex and
+        // restores the previous value before releasing it.
+        unsafe {
+            match self.previous.take() {
+                Some(previous) => std::env::set_var(cityjson_index::WORKER_COUNT_ENV, previous),
+                None => std::env::remove_var(cityjson_index::WORKER_COUNT_ENV),
+            }
+        }
+    }
+}
+
+fn with_worker_count_env<T>(worker_count: usize, f: impl FnOnce() -> T) -> T {
+    static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    let _lock = ENV_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .expect("env lock");
+
+    let previous = std::env::var_os(cityjson_index::WORKER_COUNT_ENV);
+    let _guard = EnvGuard { previous };
+    // SAFETY: the test holds a process-wide mutex while mutating the variable.
+    unsafe {
+        std::env::set_var(cityjson_index::WORKER_COUNT_ENV, worker_count.to_string());
+    }
+    f()
+}
