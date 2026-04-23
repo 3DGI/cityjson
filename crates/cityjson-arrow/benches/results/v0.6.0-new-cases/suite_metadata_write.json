@@ -1,0 +1,85 @@
+{
+  "suite": "write",
+  "cases": [
+    {
+      "id": "stress_attribute_heavy_heterogenous",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_write": 2484806,
+        "cityjson-json/to_vec": 1418627
+      }
+    },
+    {
+      "id": "stress_attribute_heavy_homogenous",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_write": 730877,
+        "cityjson-json/to_vec": 1075101
+      }
+    },
+    {
+      "id": "stress_boundary_heavy",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_write": 2310668,
+        "cityjson-json/to_vec": 1442016
+      }
+    },
+    {
+      "id": "stress_geometry_heavy",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_write": 1659148,
+        "cityjson-json/to_vec": 1088730
+      }
+    },
+    {
+      "id": "stress_hierarchy_heavy",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_write": 1520959,
+        "cityjson-json/to_vec": 1311725
+      }
+    },
+    {
+      "id": "stress_resource_heavy",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_write": 1279672,
+        "cityjson-json/to_vec": 983280
+      }
+    },
+    {
+      "id": "stress_vertex_heavy",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_write": 7208652,
+        "cityjson-json/to_vec": 4342619
+      }
+    },
+    {
+      "id": "io_3dbag_cityjson",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_write": 5910691,
+        "cityjson-json/to_vec": 5908757
+      }
+    },
+    {
+      "id": "io_3dbag_cityjson_cluster_4x",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_write": 21237411,
+        "cityjson-json/to_vec": 20480672
+      }
+    },
+    {
+      "id": "io_basisvoorziening_3d_cityjson",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-arrow/stream_write": 180414540,
+        "cityjson-json/to_vec": 176832206
+      }
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+site_name: cityjson-arrow
+site_description: User-facing documentation for cityjson-arrow and cityjson-parquet
+repo_url: https://github.com/3DGI/cityjson-arrow
+repo_name: 3DGI/cityjson-arrow
+docs_dir: docs
+strict: true
+
+nav:
+  - Home: index.md
+  - APIs:
+      - cityjson-arrow: cityjson-arrow.md
+      - Persistent package: package.md
+  - Specifications:
+      - Package schema: package-schema.md
+      - Arrow IPC layout: cityjson-arrow-ipc-spec.md
+      - Package layout: package-spec.md
+  - Design:
+      - Transport design: design.md
+      - ADR 1: adr/001-canonical-transport-boundary.md
+      - ADR 2: adr/002-address-transport-performance-bottlenecks.md
+      - ADR 3: adr/003-separate-live-arrow-ipc-from-persistent-package-io.md
+  - ADR Archive:
+      - ADR 2/3 benchmark follow-up: adr-002-003-benchmark-follow-up.md
+      - ADR 2/3 borrowed strings decision: adr-002-003-borrowed-strings-decision.md
+      - ADR 2/3 optimization plan: adr-002-003-optimization-plan.md
+      - ADR 005 V3 implementation plan: adr-005-v3-implementation-plan.md
+      - "ADR 4: reduce conversion cost with ordinal canonical relations": adr/004-reduce-conversion-cost-with-ordinal-canonical-relations.md
+      - "ADR 5: cut V3 schema for Arrow-native projection and batch-native conversion": adr/005-cut-v3-schema-for-arrow-native-projection-and-batch-native-conversion.md
+      - "ADR 6: cut public surface to thin batch and stream codec": adr/006-cut-public-surface-to-thin-batch-and-stream-codec.md
+      - "ADR 7: JSON fallback for heterogeneous attribute values": adr/007-json-fallback-for-heterogeneous-attribute-values.md
+      - "ADR 8: benchmark performance profile": adr/008-benchmark-performance-profile.md
+
+theme:
+  name: materialx
+  topbar_style: primary
+  palette:
+    primary: orange
+  font:
+    text: Roboto
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - toc.follow
+    - content.code.copy
+    - content.code.annotate
+    - search.suggest
+    - search.highlight
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
