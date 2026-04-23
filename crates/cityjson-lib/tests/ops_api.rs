@@ -17,6 +17,15 @@ fn cityobject_ids(model: &cityjson_lib::CityModel) -> BTreeSet<String> {
         .collect()
 }
 
+fn feature_root_id(model: &cityjson_lib::CityModel) -> Option<String> {
+    model.id().and_then(|handle| {
+        model
+            .cityobjects()
+            .get(handle)
+            .map(|cityobject| cityobject.id().to_owned())
+    })
+}
+
 fn related_cityobject_ids(
     model: &cityjson_lib::CityModel,
     id: &str,
@@ -52,6 +61,86 @@ fn fixture_merge_left() -> cityjson_lib::Result<cityjson_lib::CityModel> {
 
 fn fixture_merge_right() -> cityjson_lib::Result<cityjson_lib::CityModel> {
     json::from_slice(include_bytes!("data/v2_0/ops/merge_right.city.json"))
+}
+
+#[test]
+fn ops_filter_keeps_original_feature_root_when_it_survives() {
+    let model = json::from_feature_slice(
+        br#"{
+            "type":"CityJSONFeature",
+            "id":"root-building",
+            "CityObjects":{
+                "root-building":{"type":"Building","children":["building-part-1"]},
+                "building-part-1":{"type":"BuildingPart","parents":["root-building"]},
+                "other-building":{"type":"Building"}
+            },
+            "vertices":[]
+        }"#,
+    )
+    .expect("feature fixture should parse");
+
+    let filtered = ops::filter(&model, |ctx| ctx.id() == "root-building")
+        .expect("ops::filter should keep the original feature root");
+
+    assert_eq!(
+        feature_root_id(&filtered),
+        Some(String::from("root-building"))
+    );
+    assert_eq!(
+        cityobject_ids(&filtered),
+        BTreeSet::from([String::from("root-building")])
+    );
+}
+
+#[test]
+fn ops_subset_reroots_to_surviving_parentless_object() {
+    let model = json::from_feature_slice(
+        br#"{
+            "type":"CityJSONFeature",
+            "id":"root-building",
+            "CityObjects":{
+                "root-building":{"type":"Building","children":["building-part-1"]},
+                "building-part-1":{"type":"BuildingPart","parents":["root-building"]},
+                "other-building":{"type":"Building"}
+            },
+            "vertices":[]
+        }"#,
+    )
+    .expect("feature fixture should parse");
+
+    let subset = ops::subset(&model, ["other-building"], false)
+        .expect("ops::subset should reroot to the surviving parentless CityObject");
+
+    assert_eq!(
+        feature_root_id(&subset),
+        Some(String::from("other-building"))
+    );
+    assert_eq!(
+        cityobject_ids(&subset),
+        BTreeSet::from([String::from("other-building")])
+    );
+}
+
+#[test]
+fn ops_filter_errors_when_feature_loses_everything() {
+    let model = json::from_feature_slice(
+        br#"{
+            "type":"CityJSONFeature",
+            "id":"root-building",
+            "CityObjects":{
+                "root-building":{"type":"Building","children":["building-part-1"]},
+                "building-part-1":{"type":"BuildingPart","parents":["root-building"]},
+                "other-building":{"type":"Building"}
+            },
+            "vertices":[]
+        }"#,
+    )
+    .expect("feature fixture should parse");
+
+    let error = ops::filter(&model, |_| false)
+        .expect_err("ops::filter should fail when a feature loses its root");
+
+    assert_eq!(error.kind(), cityjson_lib::ErrorKind::Model);
 }
 
 #[test]

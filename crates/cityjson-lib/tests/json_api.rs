@@ -7,6 +7,15 @@ use serde_json::value::RawValue;
 
 use cityjson_lib::{CityJSONVersion, json};
 
+fn assert_close_array(actual: [f64; 3], expected: [f64; 3]) {
+    for (actual, expected) in actual.into_iter().zip(expected) {
+        assert!(
+            (actual - expected).abs() < 1e-9,
+            "expected {expected}, found {actual}"
+        );
+    }
+}
+
 #[test]
 fn explicit_json_module_supports_document_and_stream_loading() -> cityjson_lib::Result<()> {
     let document = br#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
@@ -41,6 +50,16 @@ fn explicit_json_module_supports_document_and_stream_loading() -> cityjson_lib::
     assert_eq!(output, expected);
 
     Ok(())
+}
+
+#[test]
+fn explicit_json_module_rejects_malformed_feature_packages() {
+    let base = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
+    let feature = r#"{"type":"CityJSONFeature","CityObjects":{},"vertices":[]}"#;
+
+    assert!(
+        json::staged::from_feature_slice_with_base(feature.as_bytes(), base.as_bytes()).is_err()
+    );
 }
 
 #[test]
@@ -168,8 +187,8 @@ fn explicit_json_module_can_write_strict_cityjsonseq_with_auto_transform()
         report.geographical_extent,
         Some(BBox::new(9.0, 20.0, 30.0, 12.0, 23.0, 40.0))
     );
-    assert_eq!(report.transform.scale(), [0.5, 1.0, 5.0]);
-    assert_eq!(report.transform.translate(), [9.0, 20.0, 30.0]);
+    assert_close_array(report.transform.scale(), [0.5, 1.0, 5.0]);
+    assert_close_array(report.transform.translate(), [9.0, 20.0, 30.0]);
 
     let items = serde_json::Deserializer::from_slice(&output)
         .into_iter::<serde_json::Value>()
@@ -205,8 +224,8 @@ fn explicit_json_module_can_materialize_standalone_features_with_a_base_document
     let v0 = vertices.as_slice()[0].to_array();
     let v2 = vertices.as_slice()[2].to_array();
 
-    assert_eq!(v0, [10.0, 20.0, 30.0]);
-    assert_eq!(v2, [11.0, 22.0, 35.0]);
+    assert_close_array(v0, [10.0, 20.0, 30.0]);
+    assert_close_array(v2, [11.0, 22.0, 35.0]);
 
     Ok(())
 }
@@ -249,8 +268,8 @@ fn explicit_json_module_can_materialize_feature_parts_with_a_base_document()
         output["vertices"],
         serde_json::json!([[0, 0, 0], [2, 0, 0], [1, 0, 0]])
     );
-    assert_eq!(vertices.as_slice()[0].to_array(), [10.0, 20.0, 30.0]);
-    assert_eq!(vertices.as_slice()[2].to_array(), [10.5, 20.0, 30.0]);
+    assert_close_array(vertices.as_slice()[0].to_array(), [10.0, 20.0, 30.0]);
+    assert_close_array(vertices.as_slice()[2].to_array(), [10.5, 20.0, 30.0]);
 
     Ok(())
 }

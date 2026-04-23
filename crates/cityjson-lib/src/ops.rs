@@ -823,15 +823,49 @@ fn rebuild_model_with_cityobjects(
         }
     }
 
-    if let Some(root) = model.id() {
-        model
-            .cityobjects()
-            .get(root)
-            .ok_or_else(|| import_error("feature root references a missing CityObject"))?;
-        result.set_id(old_to_new.get(&root).copied());
+    if let Some(root) = select_feature_root(model, selected)? {
+        let mapped_root = old_to_new.get(&root).copied().ok_or_else(|| {
+            import_error("feature root selected for rebuild does not exist in the rebuilt model")
+        })?;
+        result.set_id(Some(mapped_root));
     }
 
     Ok(result)
+}
+
+fn select_feature_root(
+    model: &CityModel,
+    selected: &HashSet<CityObjectHandle>,
+) -> Result<Option<CityObjectHandle>> {
+    let Some(root) = model.id() else {
+        return Ok(None);
+    };
+
+    model
+        .cityobjects()
+        .get(root)
+        .ok_or_else(|| import_error("feature root references a missing CityObject"))?;
+
+    if selected.contains(&root) {
+        return Ok(Some(root));
+    }
+
+    for (handle, cityobject) in model.cityobjects().iter() {
+        if !selected.contains(&handle) {
+            continue;
+        }
+
+        let is_parentless = cityobject
+            .parents()
+            .is_none_or(|parents| parents.iter().all(|parent| !selected.contains(parent)));
+        if is_parentless {
+            return Ok(Some(handle));
+        }
+    }
+
+    Err(import_error(
+        "feature root was removed and no parentless CityObject remained",
+    ))
 }
 
 pub fn subset<'a, I>(model: &CityModel, cityobject_ids: I, exclude: bool) -> Result<CityModel>

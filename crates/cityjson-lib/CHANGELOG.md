@@ -8,6 +8,11 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Changed
 
+- Keep `CityJSONFeature` roots valid after `subset` and `filter` shrink a model.
+- Reroot surviving feature subsets to a parentless `CityObject` when the original root is removed.
+- Return a model error when feature shrinking removes the root and no replacement root exists.
+- Keep the JSON boundary strict for malformed feature packages.
+- Replace float-exact assertions in the test suite with tolerant comparisons so strict clippy checks pass.
 - Removed the local `cityjson-export` crate from the repository and dropped the benchmark helper path that depended on it.
 - Restored `just ci` to a Rust-only validation path and kept the C++/Python/native validation under `just ffi *`.
 
