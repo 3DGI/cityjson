@@ -150,7 +150,6 @@ impl OpenedIndex {
     fn read_feature_bytes(feature: &cjx_feature_ref_t) -> Result<Vec<u8>, AbiError> {
         let source_path = bytes_to_string(feature.source_path, "source_path")?;
         read_exact_range(Path::new(&source_path), feature.offset, feature.length)
-            .map_err(AbiError::from)
     }
 
     fn read_feature_model_bytes(&self, feature: &cjx_feature_ref_t) -> Result<Vec<u8>, AbiError> {

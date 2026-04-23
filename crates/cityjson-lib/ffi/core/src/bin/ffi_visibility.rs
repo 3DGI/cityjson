@@ -92,6 +92,7 @@ fn main() {
     println!("{}", serde_json::to_string_pretty(&output).unwrap());
 }
 
+#[allow(clippy::too_many_lines)]
 fn benchmark_fixture(fixture: Fixture, mode: Mode) -> Vec<serde_json::Value> {
     let direct_parse = measure_iterations(mode.iterations, mode.repeats, || {
         black_box(cityjson_lib::json::from_slice(black_box(fixture.bytes)).unwrap())
@@ -117,7 +118,7 @@ fn benchmark_fixture(fixture: Fixture, mode: Mode) -> Vec<serde_json::Value> {
     let abi_serialize = measure_iterations(mode.iterations, mode.repeats, || {
         let mut payload = cj_bytes_t::null();
         assert_eq!(
-            cj_model_serialize_document(black_box(abi_model), &mut payload),
+            cj_model_serialize_document(black_box(abi_model), &raw mut payload),
             cj_status_t::CJ_STATUS_SUCCESS
         );
         black_box(take_bytes(payload))
@@ -234,7 +235,7 @@ fn benchmark_append(mode: Mode) -> Vec<serde_json::Value> {
     let abi_append = measure_append_abi(mode.append_repeats, || {
         let mut target = ptr::null_mut();
         assert_eq!(
-            cj_model_create(cj_model_type_t::CJ_MODEL_TYPE_CITY_JSON, &mut target),
+            cj_model_create(cj_model_type_t::CJ_MODEL_TYPE_CITY_JSON, &raw mut target),
             cj_status_t::CJ_STATUS_SUCCESS
         );
         assert_eq!(
@@ -326,6 +327,7 @@ where
     summarize_samples(samples, 1)
 }
 
+#[allow(clippy::cast_precision_loss)]
 fn summarize_samples(samples: Vec<u128>, iterations: usize) -> Timing {
     let elapsed_ns = median(samples);
     Timing {
@@ -346,7 +348,7 @@ fn median(mut samples: Vec<u128>) -> u128 {
 
     let upper = samples[samples.len() / 2];
     let lower = samples[(samples.len() / 2) - 1];
-    (upper + lower) / 2
+    u128::midpoint(upper, lower)
 }
 
 fn result_json(
@@ -373,7 +375,7 @@ fn result_json(
 fn parse_document_abi(bytes: &[u8]) -> *mut cj_model_t {
     let mut handle = ptr::null_mut();
     assert_eq!(
-        cj_model_parse_document_bytes(bytes.as_ptr(), bytes.len(), &mut handle),
+        cj_model_parse_document_bytes(bytes.as_ptr(), bytes.len(), &raw mut handle),
         cj_status_t::CJ_STATUS_SUCCESS
     );
     handle
@@ -390,7 +392,7 @@ fn cityobject_ids_direct(model: &CityModel) -> Vec<String> {
 fn cityobject_ids_abi(model: *const cj_model_t) -> Vec<String> {
     let mut payload = cj_bytes_list_t::null();
     assert_eq!(
-        cityjson_lib_ffi_core::exports::cj_model_copy_cityobject_ids(model, &mut payload),
+        cityjson_lib_ffi_core::exports::cj_model_copy_cityobject_ids(model, &raw mut payload),
         cj_status_t::CJ_STATUS_SUCCESS
     );
     take_bytes_list(payload)
@@ -406,7 +408,7 @@ fn geometry_types_direct(model: &CityModel) -> Vec<cj_geometry_type_t> {
 fn geometry_types_abi(model: *const cj_model_t) -> Vec<cj_geometry_type_t> {
     let mut payload = cj_geometry_types_t::null();
     assert_eq!(
-        cityjson_lib_ffi_core::exports::cj_model_copy_geometry_types(model, &mut payload),
+        cityjson_lib_ffi_core::exports::cj_model_copy_geometry_types(model, &raw mut payload),
         cj_status_t::CJ_STATUS_SUCCESS
     );
     take_geometry_types(payload)
@@ -459,10 +461,7 @@ fn take_geometry_types(types: cj_geometry_types_t) -> Vec<cj_geometry_type_t> {
 
     assert!(!types.data.is_null());
     // SAFETY: the ABI allocated `types.len` readable geometry types.
-    let values = unsafe { std::slice::from_raw_parts(types.data.cast_const(), types.len) }
-        .iter()
-        .copied()
-        .collect::<Vec<_>>();
+    let values = unsafe { std::slice::from_raw_parts(types.data.cast_const(), types.len) }.to_vec();
     assert_eq!(
         cj_geometry_types_free(types),
         cj_status_t::CJ_STATUS_SUCCESS
@@ -477,7 +476,7 @@ fn clear_cityobject_geometries_direct(model: &mut cityjson_lib::CityModel) {
 }
 
 fn clear_cityobject_geometries_abi(model: *mut cj_model_t) {
-    let ids = cityobject_ids_abi(model as *const cj_model_t);
+    let ids = cityobject_ids_abi(model.cast_const());
     for id in ids {
         let view = cj_string_view_t {
             data: id.as_bytes().as_ptr(),

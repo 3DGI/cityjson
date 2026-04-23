@@ -717,6 +717,7 @@ fn model_creation_reserve_and_vertex_insertion_work() {
     assert_eq!(cj_model_free(handle), cj_status_t::CJ_STATUS_SUCCESS);
 }
 
+#[allow(clippy::too_many_lines)]
 fn build_targeted_fixture() -> *mut cj_model_t {
     let mut handle = ptr::null_mut();
     assert_eq!(
@@ -894,6 +895,7 @@ fn targeted_cleanup_work() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn subset_merge_and_feature_stream_exports_work() {
     let mut subset_input = ptr::null_mut();
     assert_eq!(

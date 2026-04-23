@@ -133,8 +133,7 @@ fn correctness_index_path() -> PathBuf {
 }
 
 fn shared_corpus_root() -> PathBuf {
-    env::var_os("CITYJSON_SHARED_CORPUS_ROOT")
-        .map_or_else(workspace_corpus_root, PathBuf::from)
+    env::var_os("CITYJSON_SHARED_CORPUS_ROOT").map_or_else(workspace_corpus_root, PathBuf::from)
 }
 
 fn resolve_shared_path(path: PathBuf) -> PathBuf {
