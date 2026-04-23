@@ -1,4 +1,5 @@
 use std::fs::File;
+#[cfg(target_os = "linux")]
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
