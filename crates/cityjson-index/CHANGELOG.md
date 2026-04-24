@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- Added `CityIndex::feature_bounds_summary()` to return whole-index 3D bounds
+  and feature count in one aggregate query, with `None` for empty indexes.
+
+### Changed
+
+- Optimized ordered full-index page scans by using separate first-page and
+  later-page SQL paths. Later pages now page with `WHERE f.id > ?`, preserving
+  result order and page semantics while allowing SQLite to use the integer
+  primary-key range scan.
+
 ## 0.4.2
 
 ### Added

@@ -8,6 +8,10 @@ crate in the workspace to the same version.
 
 ## [Unreleased]
 
+### Added
+- Added a `cityjson-index` aggregate feature-bounds summary API for callers that
+  need whole-index bounds and feature counts without scanning feature pages.
+
 ### Changed
 - Consolidated the seven `cityjson-*` Rust crates (`cityjson`,
   `cityjson-json`, `cityjson-arrow`, `cityjson-parquet`, `cityjson-lib`,
@@ -23,6 +27,8 @@ crate in the workspace to the same version.
   is a higher version than any pre-merge crate held.
 - Crate names on crates.io and Python package names on PyPI are
   unchanged; only source repository URLs have moved.
+- Optimized `cityjson-index` full-index page scans so later pages use a direct
+  `features.id` range scan instead of a nullable paging predicate.
 
 ---
 

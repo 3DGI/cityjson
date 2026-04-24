@@ -37,6 +37,12 @@ pub struct FeatureBounds {
     pub max_z: f64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct FeatureBoundsSummary {
+    pub bounds: FeatureBounds,
+    pub feature_count: usize,
+}
+
 impl FeatureBounds {
     #[must_use]
     pub fn bbox_2d(self) -> BBox {
@@ -865,6 +871,17 @@ impl CityIndex {
         self.index.lookup_all_ref_page_iter(page_size)
     }
 
+    /// Returns aggregate bounds and feature count for the whole index.
+    ///
+    /// Returns `Ok(None)` when the index contains no features.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the aggregate query fails.
+    pub fn feature_bounds_summary(&self) -> Result<Option<FeatureBoundsSummary>> {
+        self.index.feature_bounds_summary()
+    }
+
     /// Reconstructs a single indexed feature from a lightweight reference.
     ///
     /// # Errors
@@ -1457,29 +1474,54 @@ impl Index {
         after_row_id: Option<i64>,
         limit: usize,
     ) -> Result<Vec<IndexedFeatureLocation>> {
-        let mut stmt = sqlite_result(self.conn.prepare(
-            r"
-            SELECT
-                f.id,
-                f.feature_id,
-                s.id,
-                f.path,
-                f.offset,
-                f.length,
-                s.vertices_offset,
-                s.vertices_length,
-                f.member_ranges
-            FROM features AS f
-            JOIN sources AS s ON s.id = f.source_id
-            WHERE (?1 IS NULL OR f.id > ?1)
-            ORDER BY f.id
-            LIMIT ?2
-            ",
-        ))?;
-        let rows = sqlite_result(stmt.query_map(
-            params![after_row_id, limit],
-            Self::indexed_feature_location_from_row,
-        ))?;
+        let sql = match after_row_id {
+            Some(_) => {
+                r"
+                SELECT
+                    f.id,
+                    f.feature_id,
+                    s.id,
+                    f.path,
+                    f.offset,
+                    f.length,
+                    s.vertices_offset,
+                    s.vertices_length,
+                    f.member_ranges
+                FROM features AS f
+                JOIN sources AS s ON s.id = f.source_id
+                WHERE f.id > ?1
+                ORDER BY f.id
+                LIMIT ?2
+                "
+            }
+            None => {
+                r"
+                SELECT
+                    f.id,
+                    f.feature_id,
+                    s.id,
+                    f.path,
+                    f.offset,
+                    f.length,
+                    s.vertices_offset,
+                    s.vertices_length,
+                    f.member_ranges
+                FROM features AS f
+                JOIN sources AS s ON s.id = f.source_id
+                ORDER BY f.id
+                LIMIT ?1
+                "
+            }
+        };
+        let mut stmt = sqlite_result(self.conn.prepare(sql))?;
+        let rows = if let Some(after_row_id) = after_row_id {
+            sqlite_result(stmt.query_map(
+                params![after_row_id, limit],
+                Self::indexed_feature_location_from_row,
+            ))?
+        } else {
+            sqlite_result(stmt.query_map(params![limit], Self::indexed_feature_location_from_row))?
+        };
         sqlite_result(rows.collect())
     }
 
@@ -1488,36 +1530,70 @@ impl Index {
         after_row_id: Option<i64>,
         limit: usize,
     ) -> Result<Vec<IndexedFeatureRefLocation>> {
-        let mut stmt = sqlite_result(self.conn.prepare(
-            r"
-            SELECT
-                f.id,
-                f.feature_id,
-                s.id,
-                f.path,
-                f.offset,
-                f.length,
-                s.vertices_offset,
-                s.vertices_length,
-                f.member_ranges,
-                fb.min_x,
-                fb.max_x,
-                fb.min_y,
-                fb.max_y,
-                f.min_z,
-                f.max_z
-            FROM features AS f
-            JOIN sources AS s ON s.id = f.source_id
-            JOIN feature_bbox AS fb ON fb.feature_rowid = f.id
-            WHERE (?1 IS NULL OR f.id > ?1)
-            ORDER BY f.id
-            LIMIT ?2
-            ",
-        ))?;
-        let rows = sqlite_result(stmt.query_map(
-            params![after_row_id, limit],
-            Self::indexed_feature_ref_location_from_row,
-        ))?;
+        let sql = match after_row_id {
+            Some(_) => {
+                r"
+                SELECT
+                    f.id,
+                    f.feature_id,
+                    s.id,
+                    f.path,
+                    f.offset,
+                    f.length,
+                    s.vertices_offset,
+                    s.vertices_length,
+                    f.member_ranges,
+                    fb.min_x,
+                    fb.max_x,
+                    fb.min_y,
+                    fb.max_y,
+                    f.min_z,
+                    f.max_z
+                FROM features AS f
+                JOIN sources AS s ON s.id = f.source_id
+                JOIN feature_bbox AS fb ON fb.feature_rowid = f.id
+                WHERE f.id > ?1
+                ORDER BY f.id
+                LIMIT ?2
+                "
+            }
+            None => {
+                r"
+                SELECT
+                    f.id,
+                    f.feature_id,
+                    s.id,
+                    f.path,
+                    f.offset,
+                    f.length,
+                    s.vertices_offset,
+                    s.vertices_length,
+                    f.member_ranges,
+                    fb.min_x,
+                    fb.max_x,
+                    fb.min_y,
+                    fb.max_y,
+                    f.min_z,
+                    f.max_z
+                FROM features AS f
+                JOIN sources AS s ON s.id = f.source_id
+                JOIN feature_bbox AS fb ON fb.feature_rowid = f.id
+                ORDER BY f.id
+                LIMIT ?1
+                "
+            }
+        };
+        let mut stmt = sqlite_result(self.conn.prepare(sql))?;
+        let rows = if let Some(after_row_id) = after_row_id {
+            sqlite_result(stmt.query_map(
+                params![after_row_id, limit],
+                Self::indexed_feature_ref_location_from_row,
+            ))?
+        } else {
+            sqlite_result(
+                stmt.query_map(params![limit], Self::indexed_feature_ref_location_from_row),
+            )?
+        };
         sqlite_result(rows.collect())
     }
 
@@ -1587,6 +1663,49 @@ impl Index {
     fn query_count(&self, sql: &str) -> Result<usize> {
         let count = sqlite_result(self.conn.query_row(sql, [], |row| row.get::<_, i64>(0)))?;
         usize::try_from(count).map_err(|_| import_error("count does not fit in usize"))
+    }
+
+    fn feature_bounds_summary(&self) -> Result<Option<FeatureBoundsSummary>> {
+        let summary = sqlite_result(self.conn.query_row(
+            r"
+            SELECT
+                COUNT(*),
+                MIN(fb.min_x),
+                MAX(fb.max_x),
+                MIN(fb.min_y),
+                MAX(fb.max_y),
+                MIN(f.min_z),
+                MAX(f.max_z)
+            FROM features AS f
+            JOIN feature_bbox AS fb ON fb.feature_rowid = f.id
+            ",
+            [],
+            |row| {
+                let count = row.get::<_, i64>(0)?;
+                if count == 0 {
+                    return Ok(None);
+                }
+                let feature_count = usize::try_from(count).map_err(|error| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        0,
+                        rusqlite::types::Type::Integer,
+                        Box::new(error),
+                    )
+                })?;
+                Ok(Some(FeatureBoundsSummary {
+                    bounds: FeatureBounds {
+                        min_x: row.get::<_, f64>(1)?,
+                        max_x: row.get::<_, f64>(2)?,
+                        min_y: row.get::<_, f64>(3)?,
+                        max_y: row.get::<_, f64>(4)?,
+                        min_z: row.get::<_, f64>(5)?,
+                        max_z: row.get::<_, f64>(6)?,
+                    },
+                    feature_count,
+                }))
+            },
+        ))?;
+        Ok(summary)
     }
 
     fn indexed_sources(&self) -> Result<Vec<IndexedSourceRecord>> {
@@ -3754,6 +3873,86 @@ mod tests {
                 .flat_map(|page| page.iter().map(|feature| feature.feature_id.as_str()))
                 .collect::<Vec<_>>(),
             ids.iter().map(String::as_str).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn iter_all_feature_ref_pages_handles_page_boundaries_without_gaps() {
+        let ids = (0..256)
+            .map(|idx| format!("boundary-{idx:03}"))
+            .collect::<Vec<_>>();
+        let id_refs = ids.iter().map(String::as_str).collect::<Vec<_>>();
+        let root = write_temp_ndjson_root(&id_refs);
+        let index_path = write_temp_index_path_with_prefix("iter-boundary-pages");
+        let mut index = CityIndex::open(StorageLayout::Ndjson { paths: vec![root] }, &index_path)
+            .expect("index should open");
+        index.reindex().expect("dataset should index");
+
+        let pages = index
+            .iter_all_feature_ref_pages(128)
+            .expect("iter_all_feature_ref_pages should build")
+            .collect::<Result<Vec<_>>>()
+            .expect("iter_all_feature_ref_pages should collect");
+
+        assert_eq!(
+            pages.iter().map(Vec::len).collect::<Vec<_>>(),
+            vec![128, 128]
+        );
+        assert_eq!(
+            pages
+                .iter()
+                .flat_map(|page| page.iter().map(|feature| feature.feature_id.as_str()))
+                .collect::<Vec<_>>(),
+            ids.iter().map(String::as_str).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn feature_bounds_summary_matches_iterative_bounds() {
+        let ids = ["alpha", "beta", "gamma"];
+        let root = write_temp_ndjson_root(&ids);
+        let index_path = write_temp_index_path_with_prefix("bounds-summary");
+        let mut index = CityIndex::open(StorageLayout::Ndjson { paths: vec![root] }, &index_path)
+            .expect("index should open");
+        index.reindex().expect("dataset should index");
+
+        let summary = index
+            .feature_bounds_summary()
+            .expect("bounds summary should load")
+            .expect("non-empty index should have a summary");
+        let mut pages = index
+            .iter_all_bbox_pages(2)
+            .expect("bbox pages should build")
+            .collect::<Result<Vec<_>>>()
+            .expect("bbox pages should collect")
+            .into_iter()
+            .flatten();
+        let first = pages.next().expect("first indexed feature");
+        let mut expected = first.bounds;
+        let mut count = 1usize;
+        for feature in pages {
+            expected.min_x = expected.min_x.min(feature.bounds.min_x);
+            expected.max_x = expected.max_x.max(feature.bounds.max_x);
+            expected.min_y = expected.min_y.min(feature.bounds.min_y);
+            expected.max_y = expected.max_y.max(feature.bounds.max_y);
+            expected.min_z = expected.min_z.min(feature.bounds.min_z);
+            expected.max_z = expected.max_z.max(feature.bounds.max_z);
+            count += 1;
+        }
+
+        assert_eq!(summary.feature_count, count);
+        assert_eq!(summary.bounds, expected);
+    }
+
+    #[test]
+    fn feature_bounds_summary_returns_none_for_empty_index() {
+        let index_path = write_temp_index_path_with_prefix("empty-bounds-summary");
+        let index = CityIndex::open(StorageLayout::Ndjson { paths: Vec::new() }, &index_path)
+            .expect("index should open");
+
+        assert_eq!(
+            index.feature_bounds_summary().expect("summary should load"),
+            None
         );
     }
 
