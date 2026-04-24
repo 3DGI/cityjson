@@ -61,6 +61,7 @@ pub struct CityIndex {
 }
 
 pub const WORKER_COUNT_ENV: &str = "CITYJSON_INDEX_WORKERS";
+const DEFAULT_SCAN_PAGE_SIZE: usize = 512;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IndexedFeatureRef {
@@ -74,6 +75,11 @@ pub struct IndexedFeatureRef {
     pub vertices_length: Option<u64>,
     pub member_ranges_json: Option<String>,
     pub bounds: FeatureBounds,
+}
+
+pub struct IndexedFeature {
+    pub reference: IndexedFeatureRef,
+    pub model: CityModel,
 }
 
 impl IndexedFeatureRef {
@@ -709,6 +715,15 @@ impl CityIndex {
         self.index.lookup_feature_ref(id)
     }
 
+    /// Returns a lightweight feature reference for a feature row id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the lookup fails.
+    pub fn lookup_feature_ref_by_rowid(&self, row_id: i64) -> Result<Option<IndexedFeatureRef>> {
+        self.index.lookup_feature_ref_by_rowid(row_id)
+    }
+
     /// Returns cached metadata for a source id.
     ///
     /// # Errors
@@ -872,6 +887,44 @@ impl CityIndex {
         self.index.lookup_all_ref_page_iter(page_size)
     }
 
+    /// Returns every indexed feature together with its decoded payload in
+    /// ascending feature row id order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the iterator cannot be constructed.
+    pub fn scan_features(&self) -> Result<impl Iterator<Item = Result<IndexedFeature>> + '_> {
+        let ref_pages = self
+            .index
+            .lookup_all_ref_page_iter(DEFAULT_SCAN_PAGE_SIZE)?;
+        Ok(AllIndexedFeatureIter::new(AllIndexedFeaturePageIter {
+            city_index: self,
+            ref_pages,
+        }))
+    }
+
+    /// Returns every indexed feature as decoded pages in ascending feature row
+    /// id order.
+    ///
+    /// Each page preserves the row order from
+    /// [`CityIndex::iter_all_feature_ref_pages`] and reconstructs its payloads
+    /// with the grouped batch path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the iterator cannot be constructed or `page_size`
+    /// is zero.
+    pub fn scan_feature_pages(
+        &self,
+        page_size: usize,
+    ) -> Result<impl Iterator<Item = Result<Vec<IndexedFeature>>> + '_> {
+        let ref_pages = self.index.lookup_all_ref_page_iter(page_size)?;
+        Ok(AllIndexedFeaturePageIter {
+            city_index: self,
+            ref_pages,
+        })
+    }
+
     /// Returns aggregate bounds and feature count for the whole index.
     ///
     /// Returns `Ok(None)` when the index contains no features.
@@ -900,10 +953,89 @@ impl CityIndex {
     ///
     /// Returns an error if any feature cannot be reconstructed.
     pub fn read_features(&self, features: &[IndexedFeatureRef]) -> Result<Vec<CityModel>> {
-        features
+        self.read_feature_models(features)
+    }
+
+    /// Reconstructs multiple indexed features with their references.
+    ///
+    /// The returned features preserve the input order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any feature cannot be reconstructed.
+    pub fn read_indexed_features(
+        &self,
+        features: &[IndexedFeatureRef],
+    ) -> Result<Vec<IndexedFeature>> {
+        let models = self.read_feature_models(features)?;
+        Ok(features
             .iter()
-            .map(|feature| self.read_feature(feature))
-            .collect()
+            .cloned()
+            .zip(models)
+            .map(|(reference, model)| IndexedFeature { reference, model })
+            .collect())
+    }
+
+    /// Reconstructs a feature by row id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if lookup or reconstruction fails.
+    pub fn read_feature_by_rowid(&self, row_id: i64) -> Result<Option<IndexedFeature>> {
+        let Some(reference) = self.lookup_feature_ref_by_rowid(row_id)? else {
+            return Ok(None);
+        };
+        let model = self.read_feature(&reference)?;
+        Ok(Some(IndexedFeature { reference, model }))
+    }
+
+    /// Reconstructs features by row id while preserving the input order.
+    ///
+    /// Missing row ids are returned as `None`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if lookup or reconstruction fails.
+    pub fn read_features_by_rowids(&self, row_ids: &[i64]) -> Result<Vec<Option<IndexedFeature>>> {
+        let references = self.index.lookup_feature_refs_by_rowids(row_ids)?;
+        let present_references = references.iter().flatten().cloned().collect::<Vec<_>>();
+        let mut present_features = self.read_indexed_features(&present_references)?.into_iter();
+        let mut features = Vec::with_capacity(row_ids.len());
+        for reference in references {
+            if reference.is_some() {
+                let feature = present_features.next().ok_or_else(|| {
+                    import_error("feature reconstruction returned fewer models than references")
+                })?;
+                features.push(Some(feature));
+            } else {
+                features.push(None);
+            }
+        }
+        Ok(features)
+    }
+
+    /// Reconstructs a page of features after a row id.
+    ///
+    /// Passing `None` starts from the first row. Results are ordered by row id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if lookup or reconstruction fails, or `limit` is zero.
+    pub fn read_feature_range_after_rowid(
+        &self,
+        after_row_id: Option<i64>,
+        limit: usize,
+    ) -> Result<Vec<IndexedFeature>> {
+        if limit == 0 {
+            return Err(import_error("limit must be greater than zero"));
+        }
+        let refs = self
+            .index
+            .lookup_all_ref_page(after_row_id, limit)?
+            .into_iter()
+            .map(|record| record.feature)
+            .collect::<Vec<_>>();
+        self.read_indexed_features(&refs)
     }
 
     /// Returns the total number of indexed feature references.
@@ -972,6 +1104,38 @@ impl CityIndex {
     /// Returns an error if metadata lookup fails.
     pub fn metadata(&self) -> Result<Vec<Arc<Meta>>> {
         self.index.metadata()
+    }
+
+    fn read_feature_models(&self, features: &[IndexedFeatureRef]) -> Result<Vec<CityModel>> {
+        let mut features_by_source: BTreeMap<i64, Vec<(usize, FeatureLocation)>> = BTreeMap::new();
+        for (index, feature) in features.iter().enumerate() {
+            features_by_source
+                .entry(feature.source_id)
+                .or_default()
+                .push((index, feature.to_location()));
+        }
+
+        let mut models = std::iter::repeat_with(|| None)
+            .take(features.len())
+            .collect::<Vec<Option<CityModel>>>();
+        for (source_id, indexed_locations) in features_by_source {
+            let metadata = self.index.get_cached_metadata(source_id)?;
+            let locations = indexed_locations
+                .iter()
+                .map(|(_, location)| location)
+                .collect::<Vec<_>>();
+            let source_models = self
+                .backend
+                .read_many(&locations, Arc::clone(&metadata.bytes))?;
+            for ((index, _), model) in indexed_locations.into_iter().zip(source_models) {
+                models[index] = Some(model);
+            }
+        }
+
+        Ok(models
+            .into_iter()
+            .map(|model| model.expect("every input feature should have a decoded model"))
+            .collect())
     }
 }
 
@@ -1053,6 +1217,17 @@ struct AllFeatureRefPageIter<'a> {
     index: &'a Index,
     page_size: usize,
     last_row_id: Option<i64>,
+    finished: bool,
+}
+
+struct AllIndexedFeaturePageIter<'a> {
+    city_index: &'a CityIndex,
+    ref_pages: AllFeatureRefPageIter<'a>,
+}
+
+struct AllIndexedFeatureIter<'a> {
+    pages: AllIndexedFeaturePageIter<'a>,
+    page: std::vec::IntoIter<IndexedFeature>,
     finished: bool,
 }
 
@@ -1216,6 +1391,55 @@ impl Iterator for AllFeatureRefPageIter<'_> {
             Err(error) => {
                 self.finished = true;
                 Some(Err(error))
+            }
+        }
+    }
+}
+
+impl Iterator for AllIndexedFeaturePageIter<'_> {
+    type Item = Result<Vec<IndexedFeature>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.ref_pages
+            .next()
+            .map(|page| page.and_then(|refs| self.city_index.read_indexed_features(&refs)))
+    }
+}
+
+impl<'a> AllIndexedFeatureIter<'a> {
+    fn new(pages: AllIndexedFeaturePageIter<'a>) -> Self {
+        Self {
+            pages,
+            page: Vec::new().into_iter(),
+            finished: false,
+        }
+    }
+}
+
+impl Iterator for AllIndexedFeatureIter<'_> {
+    type Item = Result<IndexedFeature>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            return None;
+        }
+
+        loop {
+            if let Some(feature) = self.page.next() {
+                return Some(Ok(feature));
+            }
+            match self.pages.next() {
+                Some(Ok(page)) => {
+                    self.page = page.into_iter();
+                }
+                Some(Err(error)) => {
+                    self.finished = true;
+                    return Some(Err(error));
+                }
+                None => {
+                    self.finished = true;
+                    return None;
+                }
             }
         }
     }
@@ -1387,6 +1611,50 @@ impl Index {
                 .optional()
                 .map(|maybe| maybe.map(|record| record.feature)),
         )
+    }
+
+    fn lookup_feature_ref_by_rowid(&self, row_id: i64) -> Result<Option<IndexedFeatureRef>> {
+        sqlite_result(
+            self.conn
+                .query_row(
+                    r"
+                SELECT
+                    f.id,
+                    f.feature_id,
+                    s.id,
+                    f.path,
+                    f.offset,
+                    f.length,
+                    s.vertices_offset,
+                    s.vertices_length,
+                    f.member_ranges,
+                    fb.min_x,
+                    fb.max_x,
+                    fb.min_y,
+                    fb.max_y,
+                    f.min_z,
+                    f.max_z
+                FROM features AS f
+                JOIN sources AS s ON s.id = f.source_id
+                JOIN feature_bbox AS fb ON fb.feature_rowid = f.id
+                WHERE f.id = ?1
+                ",
+                    params![row_id],
+                    Self::indexed_feature_ref_location_from_row,
+                )
+                .optional()
+                .map(|maybe| maybe.map(|record| record.feature)),
+        )
+    }
+
+    fn lookup_feature_refs_by_rowids(
+        &self,
+        row_ids: &[i64],
+    ) -> Result<Vec<Option<IndexedFeatureRef>>> {
+        row_ids
+            .iter()
+            .map(|row_id| self.lookup_feature_ref_by_rowid(*row_id))
+            .collect()
     }
 
     fn lookup_bbox_iter(&self, bbox: BBox) -> BBoxLocationIter<'_> {
@@ -2031,6 +2299,16 @@ impl Index {
 trait StorageBackend: Send + Sync {
     fn scan(&self, worker_count: usize) -> Result<Vec<SourceScan>>;
     fn read_one(&self, loc: &FeatureLocation, metadata_bytes: Arc<[u8]>) -> Result<CityModel>;
+    fn read_many(
+        &self,
+        locations: &[&FeatureLocation],
+        metadata_bytes: Arc<[u8]>,
+    ) -> Result<Vec<CityModel>> {
+        locations
+            .iter()
+            .map(|loc| self.read_one(loc, Arc::clone(&metadata_bytes)))
+            .collect()
+    }
 }
 
 struct SourceScan {
@@ -2089,6 +2367,14 @@ impl StorageBackend for NdjsonBackend {
         let bytes = read_exact_range(&loc.source_path, loc.offset, loc.length)?;
         staged::from_feature_slice_with_base(&bytes, metadata_bytes.as_ref())
     }
+
+    fn read_many(
+        &self,
+        locations: &[&FeatureLocation],
+        metadata_bytes: Arc<[u8]>,
+    ) -> Result<Vec<CityModel>> {
+        read_feature_slices_with_base(locations, metadata_bytes.as_ref())
+    }
 }
 
 struct CityJsonBackend {
@@ -2136,6 +2422,53 @@ impl StorageBackend for CityJsonBackend {
     }
 
     fn read_one(&self, loc: &FeatureLocation, metadata_bytes: Arc<[u8]>) -> Result<CityModel> {
+        let mut source_file = fs::File::open(&loc.source_path)?;
+        self.read_one_from_file(loc, metadata_bytes.as_ref(), &mut source_file)
+    }
+
+    fn read_many(
+        &self,
+        locations: &[&FeatureLocation],
+        metadata_bytes: Arc<[u8]>,
+    ) -> Result<Vec<CityModel>> {
+        let mut locations_by_path: BTreeMap<PathBuf, Vec<usize>> = BTreeMap::new();
+        for (index, location) in locations.iter().enumerate() {
+            locations_by_path
+                .entry(location.source_path.clone())
+                .or_default()
+                .push(index);
+        }
+
+        let mut models = std::iter::repeat_with(|| None)
+            .take(locations.len())
+            .collect::<Vec<Option<CityModel>>>();
+        for (path, mut indexes) in locations_by_path {
+            indexes.sort_by_key(|index| locations[*index].offset);
+            let mut source_file = fs::File::open(&path)?;
+            for index in indexes {
+                let model = self.read_one_from_file(
+                    locations[index],
+                    metadata_bytes.as_ref(),
+                    &mut source_file,
+                )?;
+                models[index] = Some(model);
+            }
+        }
+
+        Ok(models
+            .into_iter()
+            .map(|model| model.expect("every input feature should have a decoded model"))
+            .collect())
+    }
+}
+
+impl CityJsonBackend {
+    fn read_one_from_file(
+        &self,
+        loc: &FeatureLocation,
+        metadata_bytes: &[u8],
+        source_file: &mut fs::File,
+    ) -> Result<CityModel> {
         let vertices_offset = loc.vertices_offset.ok_or_else(|| {
             Error::UnsupportedFeature(
                 "regular CityJSON reads require an indexed shared vertices range".into(),
@@ -2147,7 +2480,6 @@ impl StorageBackend for CityJsonBackend {
             )
         })?;
 
-        let mut source_file = fs::File::open(&loc.source_path)?;
         let member_ranges = loc
             .member_ranges_json
             .as_deref()
@@ -2163,7 +2495,7 @@ impl StorageBackend for CityJsonBackend {
         let mut object_entries = Vec::with_capacity(member_ranges.len());
         for member_range in &member_ranges {
             let object_fragment = read_exact_range_from_file(
-                &mut source_file,
+                source_file,
                 &loc.source_path,
                 member_range.offset,
                 member_range.length,
@@ -2179,7 +2511,7 @@ impl StorageBackend for CityJsonBackend {
         }
         let shared_vertices = self.load_shared_vertices(
             &loc.source_path,
-            &mut source_file,
+            source_file,
             vertices_offset,
             vertices_length,
         )?;
@@ -2199,7 +2531,7 @@ impl StorageBackend for CityJsonBackend {
             vertices: &feature_parts.vertices,
         };
 
-        staged::from_feature_assembly_with_base(assembly, metadata_bytes.as_ref())
+        staged::from_feature_assembly_with_base(assembly, metadata_bytes)
     }
 }
 
@@ -2252,6 +2584,14 @@ impl StorageBackend for FeatureFilesBackend {
     fn read_one(&self, loc: &FeatureLocation, metadata_bytes: Arc<[u8]>) -> Result<CityModel> {
         let feature_bytes = read_exact_range(&loc.source_path, loc.offset, loc.length)?;
         staged::from_feature_slice_with_base(&feature_bytes, metadata_bytes.as_ref())
+    }
+
+    fn read_many(
+        &self,
+        locations: &[&FeatureLocation],
+        metadata_bytes: Arc<[u8]>,
+    ) -> Result<Vec<CityModel>> {
+        read_feature_slices_with_base(locations, metadata_bytes.as_ref())
     }
 }
 
@@ -2752,6 +3092,40 @@ fn read_exact_range(path: &Path, offset: u64, length: u64) -> Result<Vec<u8>> {
     let mut file = fs::File::open(path)
         .map_err(|error| import_error(format!("failed to open {}: {error}", path.display())))?;
     read_exact_range_from_file(&mut file, path, offset, length)
+}
+
+fn read_feature_slices_with_base(
+    locations: &[&FeatureLocation],
+    metadata_bytes: &[u8],
+) -> Result<Vec<CityModel>> {
+    let mut locations_by_path: BTreeMap<PathBuf, Vec<usize>> = BTreeMap::new();
+    for (index, location) in locations.iter().enumerate() {
+        locations_by_path
+            .entry(location.source_path.clone())
+            .or_default()
+            .push(index);
+    }
+
+    let mut models = std::iter::repeat_with(|| None)
+        .take(locations.len())
+        .collect::<Vec<Option<CityModel>>>();
+    for (path, mut indexes) in locations_by_path {
+        indexes.sort_by_key(|index| locations[*index].offset);
+        let mut file = fs::File::open(&path)
+            .map_err(|error| import_error(format!("failed to open {}: {error}", path.display())))?;
+        for index in indexes {
+            let location = locations[index];
+            let feature_bytes =
+                read_exact_range_from_file(&mut file, &path, location.offset, location.length)?;
+            let model = staged::from_feature_slice_with_base(&feature_bytes, metadata_bytes)?;
+            models[index] = Some(model);
+        }
+    }
+
+    Ok(models
+        .into_iter()
+        .map(|model| model.expect("every input feature should have a decoded model"))
+        .collect())
 }
 
 fn read_exact_range_from_file(
@@ -3875,6 +4249,10 @@ mod tests {
             .expect("feature batch should reconstruct");
         assert_eq!(first_batch.len(), 128);
 
+        assert_indexed_batch_preserves_order(&index, ref_pages.first().expect("first page"), &ids);
+        assert_decoded_scan_pages(&index, &ids);
+        assert_rowid_feature_reads(&index);
+
         for page in &ref_pages {
             for feature in page {
                 let model = index
@@ -4293,6 +4671,99 @@ mod tests {
                 );
             }
         }
+    }
+
+    fn assert_indexed_batch_preserves_order(
+        index: &CityIndex,
+        features: &[IndexedFeatureRef],
+        ids: &[String],
+    ) {
+        let indexed_features = index
+            .read_indexed_features(features)
+            .expect("indexed feature batch should reconstruct");
+        assert_eq!(
+            indexed_features
+                .iter()
+                .map(|feature| feature.reference.feature_id.as_str())
+                .collect::<Vec<_>>(),
+            ids.iter()
+                .take(features.len())
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    fn assert_decoded_scan_pages(index: &CityIndex, ids: &[String]) {
+        let scan_pages = index
+            .scan_feature_pages(128)
+            .expect("scan_feature_pages should build")
+            .collect::<Result<Vec<_>>>()
+            .expect("scan_feature_pages should collect");
+        assert_eq!(
+            scan_pages.iter().map(Vec::len).collect::<Vec<_>>(),
+            vec![128, 128, 128, 128, 88]
+        );
+        assert_eq!(
+            scan_pages
+                .iter()
+                .flat_map(|page| {
+                    page.iter()
+                        .map(|feature| feature.reference.feature_id.as_str())
+                })
+                .collect::<Vec<_>>(),
+            ids.iter().map(String::as_str).collect::<Vec<_>>()
+        );
+
+        let scanned_ids = index
+            .scan_features()
+            .expect("scan_features should build")
+            .map(|result| result.map(|feature| feature.reference.feature_id))
+            .collect::<Result<Vec<_>>>()
+            .expect("scan_features should collect");
+        assert_eq!(scanned_ids, ids);
+    }
+
+    fn assert_rowid_feature_reads(index: &CityIndex) {
+        let first_ref = index
+            .lookup_feature_ref_by_rowid(1)
+            .expect("rowid lookup should load")
+            .expect("first rowid should exist");
+        assert_eq!(first_ref.feature_id, "feature-000");
+        assert_eq!(
+            index
+                .lookup_feature_ref_by_rowid(9999)
+                .expect("missing rowid lookup should load"),
+            None
+        );
+
+        let rowid_features = index
+            .read_features_by_rowids(&[2, 9999, 1, 2])
+            .expect("rowid batch should reconstruct");
+        assert_eq!(
+            rowid_features
+                .iter()
+                .map(|feature| feature
+                    .as_ref()
+                    .map(|feature| feature.reference.feature_id.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                Some("feature-001"),
+                None,
+                Some("feature-000"),
+                Some("feature-001")
+            ]
+        );
+
+        let range_features = index
+            .read_feature_range_after_rowid(Some(127), 3)
+            .expect("rowid range should reconstruct");
+        assert_eq!(
+            range_features
+                .iter()
+                .map(|feature| feature.reference.feature_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["feature-127", "feature-128", "feature-129"]
+        );
     }
 
     fn model_contains_id(model: &CityModel, id: &str) -> bool {

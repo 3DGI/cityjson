@@ -12,6 +12,8 @@ crate in the workspace to the same version.
 - Added a `cityjson-index` aggregate feature-bounds summary API for callers that
   need whole-index bounds and feature counts without scanning feature pages.
 - Added `cityjson-index` batch reconstruction from persisted feature references.
+- Added `cityjson-index` rowid-ordered decoded scan APIs and rowid-keyed lookup
+  and reconstruction helpers.
 
 ### Changed
 - Consolidated the seven `cityjson-*` Rust crates (`cityjson`,
@@ -30,6 +32,8 @@ crate in the workspace to the same version.
   unchanged; only source repository URLs have moved.
 - Optimized `cityjson-index` full-index page scans so later pages use a direct
   `features.id` range scan instead of a nullable paging predicate.
+- Optimized `cityjson-index` batch reconstruction to group reads by source and
+  reuse source metadata and open files while preserving caller order.
 
 ---
 

@@ -8,6 +8,11 @@
   serializable so downstream tools can persist row-ordered scan references.
 - Added `CityIndex::read_features()` for batch reconstruction from persisted
   `IndexedFeatureRef` values.
+- Added decoded rowid-ordered scan APIs, including `scan_features()` and
+  `scan_feature_pages()`, that return feature references together with decoded
+  `CityModel` payloads.
+- Added rowid-keyed lookup and reconstruction helpers for callers that persist
+  SQLite feature row ids instead of feature-id strings.
 - Added `CityIndex::feature_bounds_summary()` to return whole-index 3D bounds
   and feature count in one aggregate query, with `None` for empty indexes.
 
@@ -17,6 +22,9 @@
   later-page SQL paths. Later pages now page with `WHERE f.id > ?`, preserving
   result order and page semantics while allowing SQLite to use the integer
   primary-key range scan.
+- Optimized batch feature reconstruction so source metadata is loaded once per
+  source and backend reads are grouped by source file while preserving input
+  order.
 
 ## 0.4.2
 
