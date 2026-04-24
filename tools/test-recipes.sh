@@ -40,7 +40,8 @@ is_skipped() {
     for s in "${SKIP_ALWAYS[@]}"; do
         [[ "$recipe" == "$s" ]] && return 0
     done
-    if [[ $INCLUDE_BENCHES -eq 0 && "$recipe" == bench* ]]; then
+    # `bench-check` is a fast compile-only check — always run it.
+    if [[ $INCLUDE_BENCHES -eq 0 && "$recipe" == bench* && "$recipe" != "bench-check" ]]; then
         return 0
     fi
     return 1

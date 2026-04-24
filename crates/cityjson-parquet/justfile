@@ -96,5 +96,5 @@ site-build:
 site-serve *args:
     uv run properdocs serve -o {{args}}
 
-# Run fmt-check, check, lint, test, and rustdoc.
-ci: fmt-check check lint test rustdoc
+# Run fmt-check, check, lint, test, bench-check, and rustdoc.
+ci: fmt-check check lint test bench-check rustdoc
