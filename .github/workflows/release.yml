@@ -10,14 +10,30 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Verify tag is on main
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --workspace --locked
+      - name: Require CI success on tagged commit
+        run: |
+          conclusion=$(gh run list \
+            --workflow=ci.yml \
+            --commit="$GITHUB_SHA" \
+            --limit 1 \
+            --json conclusion \
+            --jq '.[0].conclusion')
+          echo "Latest ci.yml conclusion for $GITHUB_SHA: ${conclusion:-<none>}"
+          if [[ "$conclusion" != "success" ]]; then
+            echo "::error::ci.yml must have succeeded on $GITHUB_SHA before release" >&2
+            exit 1
+          fi
 
   wheels-lib:
     needs: verify

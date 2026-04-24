@@ -298,6 +298,64 @@ Each crate README should have — in this order — something close to:
 The individual-crate "Use of AI in this project" sections have been
 consolidated into `CONTRIBUTING.md` — don't re-introduce them per crate.
 
+## CI
+
+`.github/workflows/ci.yml` runs:
+
+- **Pull requests** — full matrix. Every crate and every Python build runs
+  regardless of which files changed. The PR gate is non-negotiable.
+- **Pushes to `main`** — selective. A leading `affected` job inspects the
+  diff range and emits the set of crates to test. Downstream jobs (`test`,
+  `test-python`, `lint`, `doc`, `build-msrv`, `miri`) consume that set.
+  Docs-only pushes (Markdown, `LICENSE*`, `CHANGELOG.md`, `docs/`) skip
+  everything except `fmt`.
+
+The classifier lives in `.github/scripts/affected-crates.sh`. It reads the
+diff range from `GITHUB_EVENT_BEFORE` / `GITHUB_SHA` and walks the
+dependency graph to expand each changed crate into its downstream closure:
+
+```
+cityjson         → + cityjson-json, cityjson-arrow, cityjson-parquet,
+                     cityjson-lib, cityjson-fake, cityjson-index
+cityjson-json    → + cityjson-lib, cityjson-fake, cityjson-index
+cityjson-arrow   → + cityjson-parquet, cityjson-lib, cityjson-fake, cityjson-index
+cityjson-parquet → + cityjson-lib, cityjson-fake, cityjson-index
+cityjson-lib     → + cityjson-fake, cityjson-index
+cityjson-fake    → cityjson-fake
+cityjson-index   → cityjson-index
+```
+
+Workspace-level changes (root `Cargo.toml`, `Cargo.lock`,
+`rust-toolchain.toml`, `justfile`, `release.toml`, the CI workflow itself,
+or `.github/scripts/`) trigger the full suite. So does any path the
+classifier doesn't recognise (conservative default).
+
+**Adding a new crate.** Edit `affected-crates.sh` in two places:
+
+1. Append the crate name to `ALL_CRATES` (and `PYTHON_CRATES` if it ships
+   Python bindings).
+2. Add a `CLOSURE[<name>]=...` line listing the crate plus all crates that
+   depend on it transitively. Update the closures of its upstream crates
+   too — this is the step that's easy to miss.
+
+You can exercise the script locally:
+
+```sh
+GITHUB_EVENT_NAME=push \
+GITHUB_EVENT_BEFORE=$(git rev-parse HEAD~1) \
+GITHUB_SHA=$(git rev-parse HEAD) \
+bash .github/scripts/affected-crates.sh
+```
+
+It prints `matrix=…`, `any=…`, `run_python=…` to stdout.
+
+**Release flow interaction.** `release.yml` (tag-triggered) does **not**
+re-run the full test suite. It checks that `ci.yml` succeeded on the
+tagged commit via `gh run list` and fails fast otherwise. Because
+`cargo release` pushes `main` before tagging, CI has already run on that
+exact commit. If you want to release a commit that CI hasn't seen, push
+it to `main` and wait for green first.
+
 ## Release
 
 From a clean `main`:

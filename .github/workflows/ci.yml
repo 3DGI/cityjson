@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -17,6 +17,40 @@ env:
   RUSTFLAGS: -Dwarnings
 
 jobs:
+  affected:
+    name: Affected crates
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+      any: ${{ steps.detect.outputs.any }}
+      run_python: ${{ steps.detect.outputs.run_python }}
+      python_matrix: ${{ steps.detect.outputs.python_matrix }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: detect
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          # Run the classifier; it writes matrix/any/run_python to $GITHUB_OUTPUT
+          # and also mirrors to stdout so we can derive the python subset.
+          output=$(GITHUB_OUTPUT=/dev/null bash .github/scripts/affected-crates.sh)
+          echo "$output"
+          matrix=$(echo "$output" | awk -F= '/^matrix=/ {print $2}')
+          any=$(echo "$output" | awk -F= '/^any=/ {print $2}')
+          run_python=$(echo "$output" | awk -F= '/^run_python=/ {print $2}')
+          python_matrix=$(echo "$matrix" | jq -c '[.[] | select(. == "cityjson-lib" or . == "cityjson-index")]')
+          {
+            echo "matrix=$matrix"
+            echo "any=$any"
+            echo "run_python=$run_python"
+            echo "python_matrix=$python_matrix"
+          } >>"$GITHUB_OUTPUT"
+
   fmt:
     name: Format
     runs-on: ubuntu-latest
@@ -30,6 +64,8 @@ jobs:
 
   lint:
     name: Lint
+    needs: affected
+    if: needs.affected.outputs.any == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -37,16 +73,20 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+      - uses: Swatinem/rust-cache@v2
       - uses: extractions/setup-just@v4
       - run: just lint
 
   test:
-    name: Test (${{matrix.os}})
+    name: Test (${{matrix.crate}} / ${{matrix.os}})
+    needs: affected
+    if: needs.affected.outputs.any == 'true'
     runs-on: ${{matrix.os}}-latest
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu, macos, windows]
+        crate: ${{ fromJson(needs.affected.outputs.matrix) }}
     timeout-minutes: 60
     env:
       CITYJSON_SHARED_CORPUS_ROOT: ${{ github.workspace }}/cityjson-corpus
@@ -70,11 +110,15 @@ jobs:
         working-directory: cityjson-corpus
         run: python scripts/render_correctness_index.py
       - uses: dtolnay/rust-toolchain@stable
-      - uses: extractions/setup-just@v4
-      - run: just test
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.crate }}
+      - run: cargo test -p ${{ matrix.crate }} --all-features
 
   build-msrv:
     name: Build (MSRV ${{matrix.rust}})
+    needs: affected
+    if: needs.affected.outputs.any == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -86,11 +130,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{matrix.rust}}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: msrv-${{ matrix.rust }}
       - uses: extractions/setup-just@v4
       - run: just build
 
   doc:
     name: Documentation
+    needs: affected
+    if: needs.affected.outputs.any == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -98,24 +147,32 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: doc-nightly
       - uses: extractions/setup-just@v4
       - run: just doc
 
   test-python:
     name: Python (${{matrix.crate}} / ${{matrix.os}} / ${{matrix.python}})
+    needs: affected
+    if: needs.affected.outputs.run_python == 'true' && needs.affected.outputs.python_matrix != '[]'
     runs-on: ${{matrix.os}}-latest
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu, macos, windows]
         python: ["3.11", "3.12", "3.13"]
-        crate: [cityjson-lib, cityjson-index]
+        crate: ${{ fromJson(needs.affected.outputs.python_matrix) }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.93.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: pywheel-${{ matrix.crate }}
       - uses: actions/setup-python@v5
         with:
           python-version: ${{matrix.python}}
@@ -130,6 +187,8 @@ jobs:
 
   miri:
     name: Miri
+    needs: affected
+    if: needs.affected.outputs.any == 'true'
     runs-on: ubuntu-latest
     env:
       MIRIFLAGS: -Zmiri-strict-provenance
@@ -137,5 +196,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@miri
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: miri
       - uses: extractions/setup-just@v4
       - run: just miri
