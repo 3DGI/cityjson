@@ -72,6 +72,7 @@ class _IndexStatus(Structure):
 
 class _FeatureRef(Structure):
     _fields_ = [
+        ("row_id", c_int64),
         ("feature_id", _Bytes),
         ("source_path", _Bytes),
         ("offset", c_uint64),
@@ -280,6 +281,7 @@ class FfiLibrary:
                 ref = refs[index]
                 result.append(
                     FeatureRef(
+                        row_id=int(ref.row_id),
                         feature_id=_bytes_to_py(ref.feature_id).decode("utf-8"),
                         source_path=_bytes_to_py(ref.source_path).decode("utf-8"),
                         offset=int(ref.offset),
@@ -323,6 +325,7 @@ class FfiLibrary:
         source_bytes = source_path.encode("utf-8")
         source_buffer = create_string_buffer(source_bytes)
         native = _FeatureRef()
+        native.row_id = 0
         native.feature_id.data = None
         native.feature_id.len = 0
         native.source_path.data = cast(source_buffer, c_void_p)
@@ -362,6 +365,7 @@ class FfiLibrary:
         member_ranges_buffer = create_string_buffer(member_ranges_bytes)
 
         native = _FeatureRef()
+        native.row_id = 0
         native.feature_id.data = cast(feature_id_buffer, c_void_p)
         native.feature_id.len = len(feature_id_bytes)
         native.source_path.data = cast(source_buffer, c_void_p)

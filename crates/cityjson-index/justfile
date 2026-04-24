@@ -56,7 +56,7 @@ bench-index-json:
 # Build the shared library and run the Python install smoke tests through tox and tox-uv.
 test-python:
     cargo build --manifest-path ffi/core/Cargo.toml --release --lib
-    sh -c 'set -eu; tmpdir=$(mktemp -d); sh scripts/build-cityjson-lib-python-wheel.sh "$tmpdir"; cd ffi/python && UV_FIND_LINKS="$tmpdir" uv run tox run'
+    sh -c 'set -eu; out_dir="$(pwd)/../cityjson-lib/ffi/python/dist"; mkdir -p "$out_dir"; sh scripts/build-cityjson-lib-python-wheel.sh "$out_dir"; cd ffi/python && uv run tox run'
 
 # Build API docs for all features without pulling in dependencies.
 doc:

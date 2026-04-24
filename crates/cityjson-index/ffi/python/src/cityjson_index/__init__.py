@@ -21,6 +21,7 @@ class FeatureRef:
     vertices_length: int = 0
     member_ranges_json: str = ""
     source_id: int = 0
+    row_id: int = 0
 
     @classmethod
     def from_native(cls, native: _native._FeatureRef) -> Self:
@@ -33,6 +34,7 @@ class FeatureRef:
             vertices_length=int(native.vertices_length),
             member_ranges_json=_native._bytes_to_py(native.member_ranges_json).decode("utf-8"),
             source_id=int(native.source_id),
+            row_id=int(native.row_id),
         )
 
 

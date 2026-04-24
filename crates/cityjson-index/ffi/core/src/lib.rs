@@ -36,6 +36,7 @@ pub struct cjx_index_status_t {
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct cjx_feature_ref_t {
+    pub row_id: i64,
     pub feature_id: cj_bytes_t,
     pub source_path: cj_bytes_t,
     pub offset: u64,
@@ -49,6 +50,7 @@ pub struct cjx_feature_ref_t {
 impl From<IndexedFeatureRef> for cjx_feature_ref_t {
     fn from(feature: IndexedFeatureRef) -> Self {
         Self {
+            row_id: feature.row_id,
             feature_id: bytes_from_string(feature.feature_id),
             source_path: bytes_from_string(feature.source_path.to_string_lossy().into_owned()),
             offset: feature.offset,
@@ -74,6 +76,7 @@ impl TryFrom<&cjx_feature_ref_t> for IndexedFeatureRef {
         let has_vertices_range = feature.vertices_offset != 0 || feature.vertices_length != 0;
 
         Ok(Self {
+            row_id: feature.row_id,
             feature_id,
             source_id: feature.source_id,
             source_path,
