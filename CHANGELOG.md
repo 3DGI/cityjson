@@ -11,6 +11,7 @@ crate in the workspace to the same version.
 ### Added
 - Added a `cityjson-index` aggregate feature-bounds summary API for callers that
   need whole-index bounds and feature counts without scanning feature pages.
+- Added `cityjson-index` batch reconstruction from persisted feature references.
 
 ### Changed
 - Consolidated the seven `cityjson-*` Rust crates (`cityjson`,

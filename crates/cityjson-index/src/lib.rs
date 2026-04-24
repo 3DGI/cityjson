@@ -894,6 +894,18 @@ impl CityIndex {
             .read_one(&feature.to_location(), Arc::clone(&metadata.bytes))
     }
 
+    /// Reconstructs multiple indexed features from lightweight references.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any feature cannot be reconstructed.
+    pub fn read_features(&self, features: &[IndexedFeatureRef]) -> Result<Vec<CityModel>> {
+        features
+            .iter()
+            .map(|feature| self.read_feature(feature))
+            .collect()
+    }
+
     /// Returns the total number of indexed feature references.
     ///
     /// # Errors
@@ -3850,6 +3862,18 @@ mod tests {
                 .collect::<Vec<_>>(),
             ids.iter().map(String::as_str).collect::<Vec<_>>()
         );
+        assert_eq!(
+            ref_pages
+                .iter()
+                .flat_map(|page| page.iter().map(|feature| feature.row_id))
+                .collect::<Vec<_>>(),
+            (1..=600).collect::<Vec<_>>()
+        );
+
+        let first_batch = index
+            .read_features(ref_pages.first().expect("first page should exist"))
+            .expect("feature batch should reconstruct");
+        assert_eq!(first_batch.len(), 128);
 
         for page in &ref_pages {
             for feature in page {
