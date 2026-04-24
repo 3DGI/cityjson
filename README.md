@@ -98,7 +98,5 @@ release workflow.
 ## License
 
 Dual-licensed under MIT or Apache-2.0, at your option. See
-[`LICENSE-MIT`](LICENSE-MIT) and [`LICENSE-APACHE`](LICENSE-APACHE).
-Individual crates may relax this to a single license (`cityjson-fake` is
-Apache-2.0 only); see each crate's `Cargo.toml` for the authoritative
-metadata.
+[`LICENSE-MIT`](LICENSE-MIT) and [`LICENSE-APACHE`](LICENSE-APACHE). Each
+crate's `Cargo.toml` is the authoritative source if that ever changes.

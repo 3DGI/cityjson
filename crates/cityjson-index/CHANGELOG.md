@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added the SQLite row id to `IndexedFeatureRef` and made the type
+  serializable so downstream tools can persist row-ordered scan references.
 - Added `CityIndex::feature_bounds_summary()` to return whole-index 3D bounds
   and feature count in one aggregate query, with `None` for empty indexes.
 

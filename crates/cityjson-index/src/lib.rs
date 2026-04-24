@@ -62,8 +62,9 @@ pub struct CityIndex {
 
 pub const WORKER_COUNT_ENV: &str = "CITYJSON_INDEX_WORKERS";
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IndexedFeatureRef {
+    pub row_id: i64,
     pub feature_id: String,
     pub source_id: i64,
     pub source_path: PathBuf,
@@ -2000,6 +2001,7 @@ impl Index {
         Ok(IndexedFeatureRefLocation {
             row_id,
             feature: IndexedFeatureRef {
+                row_id,
                 feature_id,
                 source_id,
                 source_path,
