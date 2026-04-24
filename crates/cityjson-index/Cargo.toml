@@ -41,6 +41,9 @@ path = "src/main.rs"
 name = "bench-index"
 path = "src/bin/bench-index.rs"
 
+[lints]
+workspace = true
+
 [dependencies]
 cityjson-lib = { workspace = true, features = ["json"] }
 clap = { version = "4.6.0", features = ["derive"] }

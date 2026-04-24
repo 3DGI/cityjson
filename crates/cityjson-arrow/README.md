@@ -64,10 +64,17 @@ just rustdoc
 just site-build
 ```
 
-## Use of AI in this project
+## Contributing
 
-This crate was written with AI assistance after the schema and specs were defined by hand.
-Development used an iterative process of testing, benchmarking, and optimization controlled and verified by me.
+This crate follows the workspace contract. See
+[`CONTRIBUTING.md`](../../CONTRIBUTING.md) for PR guidelines and
+[`docs/development.md`](../../docs/development.md) for tooling, lints,
+and release flow.
+
+## License
+
+Dual-licensed under MIT or Apache-2.0, at your option. See
+[`LICENSE-MIT`](LICENSE-MIT) and [`LICENSE-APACHE`](LICENSE-APACHE).
 
 ## Repository map
 

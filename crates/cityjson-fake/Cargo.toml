@@ -26,6 +26,9 @@ default = []
 json = ["dep:cityjson-json"]
 cli = ["json", "dep:serde", "dep:serde_json", "dep:jsonschema"]
 
+[lints]
+workspace = true
+
 [dependencies]
 cityjson = { workspace = true }
 cityjson-json = { workspace = true, optional = true }

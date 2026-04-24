@@ -31,5 +31,9 @@ cityjson-lib-ffi-core   = { version = "0.8.0", path = "crates/cityjson-lib/ffi/c
 cityjson-index          = { version = "0.8.0", path = "crates/cityjson-index" }
 cityjson-index-ffi-core = { version = "0.8.0", path = "crates/cityjson-index/ffi/core" }
 
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+
 [profile.bench]
 debug = true

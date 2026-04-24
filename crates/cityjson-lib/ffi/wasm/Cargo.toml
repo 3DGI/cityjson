@@ -9,6 +9,9 @@ publish = false
 name = "cityjson_lib_wasm"
 path = "src/lib.rs"
 
+[lints]
+workspace = true
+
 [dependencies]
 cityjson-lib-ffi-core = { workspace = true, default-features = false }
 

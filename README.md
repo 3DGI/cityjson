@@ -79,6 +79,7 @@ just ci           # fmt + lint + check + test + doc
 ```
 
 MSRV: `1.93`. Edition: `2024`. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for PR guidelines and
 [`docs/development.md`](docs/development.md) for the full development
 contract.
 

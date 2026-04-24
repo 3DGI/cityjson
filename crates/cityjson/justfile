@@ -20,7 +20,7 @@ build *args:
 
 # Run cargo clippy on all targets and features, using a strict set of lints
 lint:
-    cargo clippy --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic
+    cargo clippy --all-targets --all-features
 
 # Run cargo fmt on all crates
 fmt:

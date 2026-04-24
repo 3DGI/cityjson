@@ -37,6 +37,9 @@ parquet = ["json", "dep:cityjson-arrow", "dep:cityjson-parquet"]
 name = "cityjson_lib"
 path = "src/lib.rs"
 
+[lints]
+workspace = true
+
 [dependencies]
 cityjson = { workspace = true }
 cityjson-arrow = { workspace = true, optional = true }

@@ -18,9 +18,9 @@ check:
 build *args:
     cargo build --workspace --all-targets --all-features {{args}}
 
-# Strict clippy across the workspace
+# Strict clippy across the workspace (flags live in [workspace.lints])
 lint:
-    cargo clippy --workspace --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic
+    cargo clippy --workspace --all-targets --all-features
 
 # cargo fmt across the workspace
 fmt:

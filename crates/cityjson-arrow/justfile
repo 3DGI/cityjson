@@ -77,7 +77,7 @@ build *args:
 
 # Run clippy across the workspace.
 lint:
-    cargo clippy --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic
+    cargo clippy --all-targets --all-features
 
 # Format the workspace.
 fmt:

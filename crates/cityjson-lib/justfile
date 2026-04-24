@@ -21,7 +21,7 @@ build *args:
 
 # Run cargo clippy on the project
 lint:
-    cargo clippy --manifest-path Cargo.toml {{native_packages}} --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic -Aclippy::float_cmp
+    cargo clippy --manifest-path Cargo.toml {{native_packages}} --all-targets --all-features -- -Aclippy::float_cmp
 
 # Run cargo fmt on the project
 fmt:

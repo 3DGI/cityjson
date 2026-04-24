@@ -179,36 +179,16 @@ Development setup, test configuration, and benchmark workflow are documented in
 
 ## Contributing
 
-Contributions are welcome in all forms.
-Please open an issue to discuss any potential changes before working on a patch.
-You can submit LLM-generated PRs for bug fixes and documentation improvements.
-Regardless of handwritten or LLM-generated code, the PR should follow these guidelines:
-
-- relatively small, focused changes, otherwise I won't be able to review it,
-- follow the existing style and conventions,
-- include unit tests and documentation for new features and bug fixes,
-- the patched code should pass:
-  - `just ci`
-- if you remove or merge tests or examples or benchmarks, please explain why and update the documentation accordingly.
+This crate follows the workspace contract. See
+[`CONTRIBUTING.md`](../../CONTRIBUTING.md) for PR guidelines and
+[`docs/development.md`](../../docs/development.md) for tooling, lints,
+and release flow. Crate-local benchmark env vars live in
+[`docs/development.md`](docs/development.md).
 
 ## License
 
-Licensed under either:
-
-- Apache License, Version 2.0 (`LICENSE-APACHE`)
-- MIT license (`LICENSE-MIT`)
-
-at your option.
-
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in
-cityjson-json by you, as defined in the Apache-2.0 license, shall be dual licensed as above,
-without additional terms or conditions.
-
-## Use of AI in this project
-
-This crate was originally hand written.
-It was later refactored to the `cityjson-rs` API with AI assistance.
-AI was also used for documentation, and for the test and benchmark harnesses.
+Dual-licensed under MIT or Apache-2.0, at your option. See
+[`LICENSE-MIT`](LICENSE-MIT) and [`LICENSE-APACHE`](LICENSE-APACHE).
 
 ## Roadmap
 

@@ -19,6 +19,9 @@ rustdoc-args = ["--cfg", "docsrs", "--no-deps"]
 name = "cityjson_json"
 path = "src/lib.rs"
 
+[lints]
+workspace = true
+
 [dependencies]
 cityjson = { workspace = true }
 derive_more = { version = "2.1", features = ["display", "add_assign", "deref", "deref_mut", "from", "into_iterator"] }

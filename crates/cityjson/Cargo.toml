@@ -19,6 +19,9 @@ platform_support = "Portable across pointer widths; wider index conversions to u
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 
+[lints]
+workspace = true
+
 [dependencies]
 num = "0.4.3"
 

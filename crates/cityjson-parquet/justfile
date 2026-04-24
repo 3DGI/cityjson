@@ -62,7 +62,7 @@ build *args:
 
 # Run clippy across all targets.
 lint:
-    cargo clippy --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic
+    cargo clippy --all-targets --all-features
 
 # Format the crate.
 fmt:

@@ -139,21 +139,14 @@ just ffi
 just ci
 ```
 
-## Use of AI in this project
+## Contributing
 
-This crate was written with AI assistance and human guidance.
-Development used an iterative process of testing and optimization controlled and verified by me.
+This crate follows the workspace contract. See
+[`CONTRIBUTING.md`](../../CONTRIBUTING.md) for PR guidelines and
+[`docs/development.md`](../../docs/development.md) for tooling, lints,
+and release flow.
 
 ## License
 
-Licensed under either of:
-
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-- MIT license ([LICENSE-MIT](LICENSE-MIT))
-
-at your option.
-
-## Contributing
-
-Contributions are welcome.
-Please keep changes focused, add tests when behavior changes, and run `just ci` before opening a pull request.
+Dual-licensed under MIT or Apache-2.0, at your option. See
+[`LICENSE-MIT`](LICENSE-MIT) and [`LICENSE-APACHE`](LICENSE-APACHE).

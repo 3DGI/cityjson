@@ -37,16 +37,21 @@ Start with:
 - [`docs/ffi/api.md`](docs/ffi/api.md)
 - [`docs/ffi/performance.md`](docs/ffi/performance.md)
 
-## Use of AI in this project
-
-This crate was written with AI assistance and human guidance.
-Development used an iterative process of testing, benchmarking, and optimization controlled and verified by me.
-
 ## Acknowledgements
 
 `cityjson-lib`'s native `subset` and `merge` workflows were ported from [`cjio`](https://github.com/cityjson/cjio), the CityJSON/io project, which is licensed under MIT.
 
+## Contributing
+
+This crate follows the workspace contract. See
+[`CONTRIBUTING.md`](../../CONTRIBUTING.md) for PR guidelines and
+[`docs/development.md`](../../docs/development.md) for tooling, lints,
+and release flow.
+
+Crate-specific notes: the `ffi/` subtree ships FFI cores for Python, C++,
+and wasm; see the `just ffi` helper and [`docs/ffi/`](docs/ffi/).
+
 ## License
 
-This repository is dual-licensed under MIT or Apache-2.0.
-See [LICENSE](LICENSE) and [LICENSE-APACHE](LICENSE-APACHE).
+Dual-licensed under MIT or Apache-2.0, at your option. See
+[`LICENSE`](LICENSE) and [`LICENSE-APACHE`](LICENSE-APACHE).

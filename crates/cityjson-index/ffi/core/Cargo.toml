@@ -25,6 +25,9 @@ name = "cityjson_index_ffi_core"
 path = "src/lib.rs"
 crate-type = ["rlib", "cdylib", "staticlib"]
 
+[lints]
+workspace = true
+
 [dependencies]
 cityjson-index = { workspace = true }
 cityjson-lib = { workspace = true, features = ["json"] }

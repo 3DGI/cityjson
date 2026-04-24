@@ -103,37 +103,15 @@ The minimum supported rustc version is `1.93.0`.
 
 ## Contributing
 
-Contributions are welcome in all forms.
-Please open an issue to discuss any potential changes before working on a patch.
-You can submit LLM-generated PRs for bug fixes and documentation improvements.
-Regardless of handwritten or LLM-generated code, the PR should follow these guidelines:
-
-- relatively small, focused changes, otherwise I won't be able to review it,
-- follow the existing style and conventions,
-- include unit tests and documentation for new features and bug fixes,
-- the patched code should pass:
-  - `just check / lint / fmt / test / docs / miri / perf-check`
-- if you remove or merge tests or examples or benchmarks, please explain why and update the documentation accordingly.
+This crate follows the workspace contract. See
+[`CONTRIBUTING.md`](../../CONTRIBUTING.md) for PR guidelines and
+[`docs/development.md`](../../docs/development.md) for tooling, lints,
+and release flow.
 
 ## License
 
-Licensed under either:
-
-- Apache License, Version 2.0 (`LICENSE-APACHE`)
-- MIT license (`LICENSE-MIT`)
-
-at your option.
-
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in
-cityjson-rs by you, as defined in the Apache-2.0 license, shall be dual licensed as above,
-without additional terms or conditions.
-
-## Use of AI in this project
-
-This crate was originally developed without the use of AI.
-Since then, it underwent multiple significant refactors and various LLM models (Claude, `ChatGPT`) were used for experimenting with alternative designs, in particular for the resource pool and attribute storage strategies.
-LLM generated code is also used for improving the test coverage and documentation and mechanical improvements.
-Code correctness and performance are verified by carefully curated test cases and benchmarks that cover the entire `CityJSON` 2.0 specification.
+Dual-licensed under MIT or Apache-2.0, at your option. See
+[`LICENSE-MIT`](LICENSE-MIT) and [`LICENSE-APACHE`](LICENSE-APACHE).
 
 ## Roadmap
 

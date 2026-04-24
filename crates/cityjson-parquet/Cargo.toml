@@ -15,6 +15,9 @@ readme = "README.md"
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+[lints]
+workspace = true
+
 [dependencies]
 cityjson-arrow = { workspace = true }
 arrow = { version = "58.1.0", features = ["ipc"] }

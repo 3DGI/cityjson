@@ -31,7 +31,7 @@ clean:
 
 # Run clippy with the project's strict lint settings.
 lint:
-    cargo clippy -p cityjson-index --lib --bin cjindex --tests -- -Dclippy::all -Dclippy::pedantic
+    cargo clippy -p cityjson-index --lib --bin cjindex --tests
 
 # Format this workspace with rustfmt without traversing sibling path dependencies.
 fmt:
