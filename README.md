@@ -47,6 +47,27 @@ graph TD
 cargo add cityjson          # or cityjson-json, cityjson-lib, ...
 ```
 
+## Python
+
+Two crates also ship Python bindings, published as prebuilt wheels
+(Linux x86_64, macOS x86_64 + arm64, Windows AMD64; Python 3.11–3.13):
+
+```sh
+pip install cityjson-lib
+pip install cityjson-index
+```
+
+```python
+from cityjson_lib import CityModel
+
+model = CityModel.parse_document_bytes(open("model.city.json", "rb").read())
+print(model.summary().cityobject_count)
+```
+
+See [`crates/cityjson-lib/ffi/python/README.md`](crates/cityjson-lib/ffi/python/README.md)
+and [`crates/cityjson-index/ffi/python/README.md`](crates/cityjson-index/ffi/python/README.md)
+for the full Python docs.
+
 ## Development
 
 ```sh

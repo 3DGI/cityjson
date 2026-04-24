@@ -101,6 +101,33 @@ jobs:
       - uses: extractions/setup-just@v4
       - run: just doc
 
+  test-python:
+    name: Python (${{matrix.crate}} / ${{matrix.os}} / ${{matrix.python}})
+    runs-on: ${{matrix.os}}-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu, macos, windows]
+        python: ["3.11", "3.12", "3.13"]
+        crate: [cityjson-lib, cityjson-index]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.93.0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{matrix.python}}
+      - run: python -m pip install --upgrade pip uv
+      - name: Pre-build cityjson-lib wheel (needed when testing cityjson-index)
+        if: matrix.crate == 'cityjson-index'
+        working-directory: crates/cityjson-lib/ffi/python
+        run: uv build --wheel
+      - name: Build + tox smoke
+        working-directory: crates/${{matrix.crate}}/ffi/python
+        run: uv run tox run
+
   miri:
     name: Miri
     runs-on: ubuntu-latest

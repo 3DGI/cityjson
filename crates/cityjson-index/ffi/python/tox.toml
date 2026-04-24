@@ -1,14 +1,11 @@
 requires = ["tox>=4", "tox-uv>=1"]
-env_list = ["py311-wheel", "py311-sdist"]
+env_list = ["wheel"]
 
 [env_run_base]
 description = "run the Python smoke tests against an installed package"
-base_python = ["3.11"]
-pass_env = ["RUSTFLAGS"]
+pass_env = ["RUSTFLAGS", "UV_FIND_LINKS"]
+set_env = { UV_FIND_LINKS = "{tox_root}/../../../cityjson-lib/ffi/python/dist" }
 commands = [["python", "-m", "unittest", "tests.test_api"]]
 
-[env.py311-wheel]
+[env.wheel]
 package = "wheel"
-
-[env.py311-sdist]
-package = "sdist"

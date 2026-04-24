@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=69", "wheel>=0.43"]
+requires = ["setuptools>=70.1", "wheel>=0.43"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,10 +8,29 @@ version = "0.8.0"
 description = "Python bindings for cityjson-index"
 readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT OR Apache-2.0"
+license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
+authors = [{ name = "Balázs Dukai", email = "balazs.dukai@3dgi.nl" }]
 dependencies = ["cityjson-lib==0.8.0"]
+keywords = ["cityjson", "3d", "gis", "geospatial", "sqlite", "index"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: GIS",
+]
 
 [project.urls]
-Repository = "https://github.com/3DGI/cityjson"
+Repository    = "https://github.com/3DGI/cityjson"
+Documentation = "https://3dgi.github.io/cityjson"
+Issues        = "https://github.com/3DGI/cityjson/issues"
+Changelog     = "https://github.com/3DGI/cityjson/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 dev = ["tox>=4", "tox-uv>=1"]

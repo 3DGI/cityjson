@@ -7,8 +7,8 @@ import subprocess
 import sys
 
 from setuptools import setup
+from setuptools.command.bdist_wheel import bdist_wheel as _bdist_wheel
 from setuptools.command.build_py import build_py as _build_py
-from setuptools.command.sdist import sdist as _sdist
 
 
 def _shared_library_name() -> str:
@@ -33,44 +33,6 @@ def _repo_root() -> Path:
     raise FileNotFoundError(
         "could not locate the cityjson-lib repository root; set CITYJSON_LIB_REPO_ROOT"
     )
-
-
-def _copy_path(source: Path, destination: Path) -> None:
-    if source.is_dir():
-        shutil.copytree(source, destination, dirs_exist_ok=True)
-        return
-
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, destination)
-
-
-def _write_trimmed_root_manifest(source: Path, destination: Path) -> None:
-    lines = source.read_text(encoding="utf-8").splitlines()
-    trimmed: list[str] = []
-    skipping_workspace = False
-
-    for line in lines:
-        if line.strip() == "[workspace]":
-            skipping_workspace = True
-            continue
-
-        if skipping_workspace and line.lstrip().startswith("["):
-            skipping_workspace = False
-
-        if not skipping_workspace:
-            trimmed.append(line)
-
-    manifest = "\n".join(trimmed) + "\n"
-    manifest = manifest.replace('path = "../cityjson-rs"', 'path = "./cityjson-rs"')
-    manifest = manifest.replace('path = "../cityjson-json"', 'path = "./cityjson-json"')
-    manifest = manifest.replace('path = "../cityjson-arrow"', 'path = "./cityjson-arrow"')
-    manifest = manifest.replace('path = "../cityjson-parquet"', 'path = "./cityjson-parquet"')
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(manifest, encoding="utf-8")
-
-
-def _copy_release_tree_file(source_root: Path, release_root: Path, relative: str) -> None:
-    _copy_path(source_root / relative, release_root / relative)
 
 
 class build_py(_build_py):
@@ -107,42 +69,17 @@ class build_py(_build_py):
         return built_library
 
 
-class sdist(_sdist):
-    def make_release_tree(self, base_dir: str, files) -> None:  # type: ignore[override]
-        super().make_release_tree(base_dir, files)
+class bdist_wheel(_bdist_wheel):
+    def finalize_options(self) -> None:
+        super().finalize_options()
+        self.root_is_pure = False
 
-        release_root = Path(base_dir)
-        source_root = _repo_root()
-        _write_trimmed_root_manifest(source_root / "Cargo.toml", release_root / "Cargo.toml")
-        for relative in (
-            "src",
-            "docs/public-api.md",
-            "LICENSE",
-            "LICENSE-APACHE",
-            "tests/data",
-        ):
-            _copy_release_tree_file(source_root, release_root, relative)
-
-        for relative in (
-            "ffi/core/Cargo.toml",
-            "ffi/core/README.md",
-            "ffi/core/LICENSE",
-            "ffi/core/LICENSE-APACHE",
-            "ffi/core/cbindgen.toml",
-            "ffi/core/include",
-            "ffi/core/src",
-            "ffi/core/tests",
-        ):
-            _copy_release_tree_file(source_root, release_root, relative)
-
-        sibling_root = source_root.parent
-        for crate_name in ("cityjson-rs", "cityjson-json", "cityjson-arrow", "cityjson-parquet"):
-            crate_root = sibling_root / crate_name
-            for relative in ("Cargo.toml", "README.md", "src"):
-                _copy_path(crate_root / relative, release_root / crate_name / relative)
+    def get_tag(self) -> tuple[str, str, str]:
+        _, _, plat = super().get_tag()
+        return ("py3", "none", plat)
 
 
 setup(
-    cmdclass={"build_py": build_py, "sdist": sdist},
+    cmdclass={"build_py": build_py, "bdist_wheel": bdist_wheel},
     package_data={"cityjson_lib": ["*.so", "*.dylib", "*.dll"]},
 )

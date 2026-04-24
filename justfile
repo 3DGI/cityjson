@@ -47,5 +47,19 @@ miri:
     MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p cityjson raw_access
     MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p cityjson geometry
 
+# Run the Python binding test suites (tox smoke) for both crates
+test-python:
+    cd crates/cityjson-lib/ffi/python && uv run tox run
+    cd crates/cityjson-index/ffi/python && uv run tox run
+
+# Build the Python wheels for both crates
+build-python:
+    cd crates/cityjson-lib/ffi/python && uv build --wheel
+    cd crates/cityjson-index/ffi/python && uv build --wheel
+
+# Delegate to the cityjson-lib ffi helper (build/headers/etc)
+ffi *args:
+    cd crates/cityjson-lib && ./tools/ffi.sh {{args}}
+
 # Full local CI (fmt + lint + check + test + doc)
 ci: fmt-check lint check test doc

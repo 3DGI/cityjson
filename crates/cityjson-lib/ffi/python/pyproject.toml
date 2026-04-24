@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=69", "wheel>=0.43"]
+requires = ["setuptools>=70.1", "wheel>=0.43"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,7 +9,21 @@ description = "Python bindings for cityjson-lib"
 requires-python = ">=3.11"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
-authors = [{ name = "Balázs Dukai" }]
+license-files = ["LICENSE", "LICENSE-APACHE"]
+authors = [{ name = "Balázs Dukai", email = "balazs.dukai@3dgi.nl" }]
+keywords = ["cityjson", "3d", "gis", "geospatial"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: GIS",
+]
 
 [dependency-groups]
 dev = ["tox>=4", "tox-uv>=1"]
@@ -18,7 +32,10 @@ dev = ["tox>=4", "tox-uv>=1"]
 default-groups = ["dev"]
 
 [project.urls]
-Repository = "https://github.com/3DGI/cityjson"
+Repository    = "https://github.com/3DGI/cityjson"
+Documentation = "https://3dgi.github.io/cityjson"
+Issues        = "https://github.com/3DGI/cityjson/issues"
+Changelog     = "https://github.com/3DGI/cityjson/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -19,70 +19,100 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --workspace --locked
 
-  python-lib:
+  wheels-lib:
     needs: verify
-    runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      id-token: write
-      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-13, macos-14, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.93.0
-      - uses: actions/setup-python@v5
+      - uses: pypa/cibuildwheel@v2.21
         with:
-          python-version: "3.11"
-      - name: Install uv
-        run: python -m pip install --upgrade pip uv
-      - name: Build wheel
-        working-directory: crates/cityjson-lib
-        run: uv build ffi/python/ --wheel --out-dir ffi/python/dist
-      - name: Smoke-test wheel install
-        run: |
-          python -m venv /tmp/cityjson-lib-wheel
-          /tmp/cityjson-lib-wheel/bin/pip install --upgrade pip
-          /tmp/cityjson-lib-wheel/bin/pip install crates/cityjson-lib/ffi/python/dist/*.whl
-          /tmp/cityjson-lib-wheel/bin/python -c "import cityjson_lib"
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+          package-dir: crates/cityjson-lib/ffi/python
+        env:
+          CIBW_BUILD: "cp311-*"
+          CIBW_SKIP: "*-musllinux* *_i686 *_ppc64le *_s390x *_aarch64"
+          CIBW_ARCHS_LINUX: "x86_64"
+          CIBW_ARCHS_MACOS: "x86_64 arm64"
+          CIBW_ARCHS_WINDOWS: "AMD64"
+          CIBW_BEFORE_ALL_LINUX: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -t stable && . $HOME/.cargo/env"
+          CIBW_ENVIRONMENT_LINUX: 'PATH="$HOME/.cargo/bin:$PATH"'
+          CIBW_TEST_COMMAND: 'python -c "import cityjson_lib"'
+      - uses: actions/upload-artifact@v4
         with:
-          packages-dir: crates/cityjson-lib/ffi/python/dist
+          name: wheels-lib-${{ matrix.os }}
+          path: wheelhouse/*.whl
 
-  python-index:
-    needs: python-lib
+  wheels-index:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-13, macos-14, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.93.0
+      - uses: pypa/cibuildwheel@v2.21
+        with:
+          package-dir: crates/cityjson-index/ffi/python
+        env:
+          CIBW_BUILD: "cp311-*"
+          CIBW_SKIP: "*-musllinux* *_i686 *_ppc64le *_s390x *_aarch64"
+          CIBW_ARCHS_LINUX: "x86_64"
+          CIBW_ARCHS_MACOS: "x86_64 arm64"
+          CIBW_ARCHS_WINDOWS: "AMD64"
+          CIBW_BEFORE_ALL_LINUX: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -t stable && . $HOME/.cargo/env"
+          CIBW_ENVIRONMENT_LINUX: 'PATH="$HOME/.cargo/bin:$PATH"'
+          CIBW_TEST_COMMAND: 'python -c "import cityjson_index"'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-index-${{ matrix.os }}
+          path: wheelhouse/*.whl
+
+  publish-lib:
+    needs: wheels-lib
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
       id-token: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/download-artifact@v4
         with:
-          toolchain: 1.93.0
-      - uses: actions/setup-python@v5
+          pattern: wheels-lib-*
+          path: dist
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          python-version: "3.11"
-      - name: Install uv
-        run: python -m pip install --upgrade pip uv
-      - name: Build wheel
-        working-directory: crates/cityjson-index
-        run: uv build ffi/python/ --wheel --out-dir ffi/python/dist
-      - name: Smoke-test wheel install
-        run: |
-          python -m venv /tmp/cityjson-index-wheel
-          /tmp/cityjson-index-wheel/bin/pip install --upgrade pip
-          /tmp/cityjson-index-wheel/bin/pip install crates/cityjson-index/ffi/python/dist/*.whl
-          /tmp/cityjson-index-wheel/bin/python -c "import cityjson_index"
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+          packages-dir: dist
+
+  publish-index:
+    needs: [publish-lib, wheels-index]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
         with:
-          packages-dir: crates/cityjson-index/ffi/python/dist
+          pattern: wheels-index-*
+          path: dist
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
 
   github-release:
-    needs: [python-lib, python-index]
+    needs: [publish-lib, publish-index]
     runs-on: ubuntu-latest
     permissions:
       contents: write
