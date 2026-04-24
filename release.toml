@@ -13,3 +13,8 @@ pre-release-commit-message = "chore: release {{version}}"
 # pointing `pre-release-replacements` at a single workspace-root file. When you
 # run `cargo release <level> --execute`, remember to promote `## [Unreleased]`
 # to `## [x.y.z] - <date>` in CHANGELOG.md as part of the release commit.
+
+# Python package versions are kept in lockstep with the workspace via
+# `[package.metadata.release.pre-release-replacements]` entries in
+# `crates/cityjson-lib/Cargo.toml` and `crates/cityjson-index/Cargo.toml` —
+# cargo-release resolves replacement paths relative to each crate's manifest.

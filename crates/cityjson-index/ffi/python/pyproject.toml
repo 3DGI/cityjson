@@ -4,11 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cityjson-index"
-version = "0.4.2"
+version = "0.8.0"
 description = "Python bindings for cityjson-index"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["cityjson-lib~=0.6.1"]
+dependencies = ["cityjson-lib==0.8.0"]
+
+[project.urls]
+Repository = "https://github.com/3DGI/cityjson"
 
 [dependency-groups]
 dev = ["tox>=4", "tox-uv>=1"]
