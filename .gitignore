@@ -7,3 +7,7 @@ Cargo.lock.bak
 .direnv/
 .idea/
 .vscode/
+
+# Nix build outputs
+result
+result-*

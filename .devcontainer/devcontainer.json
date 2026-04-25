@@ -1,0 +1,55 @@
+{
+  "$schema": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json",
+  "name": "cityjson (nix flake)",
+
+  "build": {
+    "dockerfile": "Containerfile",
+    "context": ".."
+  },
+
+  "workspaceFolder": "/workspaces/cityjson",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/cityjson,type=bind,consistency=cached,Z",
+
+  "remoteUser": "dev",
+  "containerUser": "dev",
+  "updateRemoteUserUID": true,
+
+  // Rootless podman: keep the host UID inside the container so files written
+  // to the bind mount are owned by the invoking user, not by uid 0 mapped
+  // through subuid. SELinux relabel is requested on the mount above (`,Z`);
+  // `label=disable` keeps things working on hosts without SELinux too.
+  "runArgs": [
+    "--userns=keep-id",
+    "--security-opt=label=disable",
+    "--cap-drop=ALL",
+    "--security-opt=no-new-privileges"
+  ],
+
+  "containerEnv": {
+    "CARGO_HOME": "/workspaces/cityjson/.cache/cargo",
+    "UV_CACHE_DIR": "/workspaces/cityjson/.cache/uv"
+  },
+
+  // After the container is created, list the available recipes through the
+  // baked-in dev env — proves the toolchain is wired up.
+  "postCreateCommand": "bash -lc 'just --list || true'",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "tamasfe.even-better-toml",
+        "skellock.just",
+        "jnoortheen.nix-ide",
+        "ms-python.python",
+        "charliermarsh.ruff"
+      ],
+      "settings": {
+        "rust-analyzer.cargo.allTargets": true,
+        "rust-analyzer.cargo.features": "all",
+        "rust-analyzer.check.command": "clippy",
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

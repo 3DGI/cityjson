@@ -1,0 +1,121 @@
+# syntax=docker/dockerfile:1.7
+#
+# Devcontainer image for the cityjson workspace, built from `flake.nix`.
+#
+# Two-stage build:
+#   * `flake-build` runs Nix to materialise the dev shell closure into a
+#     dedicated /nix store, and snapshots the dev shell's environment
+#     variables / PATH into a sourceable profile script.
+#   * The runtime stage copies that store and the profile into a fresh
+#     image, sets up a non-root `dev` user (uid/gid 1000) for rootless
+#     podman, and points the entrypoint at a script that sources the
+#     profile. Sourcing a frozen profile means runtime never touches the
+#     nix DB and the whole /nix tree can stay read-only.
+#
+# Build (rootless podman):
+#   podman build -t cityjson-dev -f .devcontainer/Containerfile .
+#
+# Run interactively:
+#   podman run --rm -it \
+#     --userns=keep-id \
+#     -v "$PWD":/workspaces/cityjson:Z \
+#     cityjson-dev
+#
+# VS Code / cursor / other devcontainer-aware tooling will pick up
+# .devcontainer/devcontainer.json automatically.
+
+ARG NIX_VERSION=2.32.0
+
+############################
+# Stage 1 — populate /nix
+############################
+FROM docker.io/nixos/nix:${NIX_VERSION} AS flake-build
+
+# Enable flakes and the new CLI globally.
+RUN mkdir -p /etc/nix \
+    && printf '%s\n' \
+        'experimental-features = nix-command flakes' \
+        'accept-flake-config = true' \
+        'sandbox = false' \
+        > /etc/nix/nix.conf
+
+WORKDIR /flake
+
+# Copy only what the flake itself reads. Source code is mounted at runtime,
+# so changing a .rs file does not invalidate this layer.
+COPY flake.nix flake.lock rust-toolchain.toml ./
+
+# Realise the dev shell into the store and snapshot the resulting env into
+# a profile script so the runtime stage can source it without re-entering
+# `nix develop` (and therefore without needing write access to /nix).
+RUN nix --extra-experimental-features 'nix-command flakes' \
+        build --out-link /nix/var/nix/gcroots/devshell \
+        '.#devShells.x86_64-linux.default' \
+    && nix --extra-experimental-features 'nix-command flakes' \
+        print-dev-env '.#devShells.x86_64-linux.default' \
+        > /flake/dev-env.sh
+
+############################
+# Stage 2 — runtime image
+############################
+FROM docker.io/nixos/nix:${NIX_VERSION}
+
+ARG DEV_USER=dev
+ARG DEV_UID=1000
+ARG DEV_GID=1000
+
+# Pull in the pre-built /nix store from the build stage. /nix can stay
+# read-only and root-owned: the runtime never invokes `nix`, it just runs
+# the binaries the closure already contains.
+#
+# This MUST happen before the user setup, because nixos/nix ships
+# /etc/{passwd,group,shadow} as symlinks into the /nix store and copying
+# /nix would wipe any direct edits made beforehand.
+COPY --from=flake-build /nix /nix
+
+# Bring the flake source and the snapshot of its dev environment in. The
+# snapshot is everything `nix develop` would set: PATH, package-specific
+# env vars, the shellHook, etc.
+COPY --from=flake-build /flake/dev-env.sh /etc/profile.d/cityjson-dev-env.sh
+COPY flake.nix flake.lock rust-toolchain.toml /flake/
+
+# nixos/nix carries only /bin/sh — no useradd/adduser. Replace the
+# symlinked /etc/{passwd,group,shadow} with concrete files that include
+# the dev account, so rootless podman can map the host invoker onto it
+# via `--userns=keep-id`.
+RUN cp -L /etc/passwd /etc/passwd.real && mv /etc/passwd.real /etc/passwd \
+    && cp -L /etc/group  /etc/group.real  && mv /etc/group.real  /etc/group  \
+    && cp -L /etc/shadow /etc/shadow.real && mv /etc/shadow.real /etc/shadow \
+    && printf '%s:x:%s:%s::/home/%s:/bin/sh\n' "${DEV_USER}" "${DEV_UID}" "${DEV_GID}" "${DEV_USER}" >> /etc/passwd \
+    && printf '%s:x:%s:\n' "${DEV_USER}" "${DEV_GID}" >> /etc/group \
+    && printf '%s:!:::::::\n' "${DEV_USER}" >> /etc/shadow \
+    && mkdir -p /workspaces/cityjson /home/${DEV_USER}/.cache /home/${DEV_USER}/.config \
+    && chmod 0644 /etc/profile.d/cityjson-dev-env.sh \
+    && find /home/${DEV_USER} /workspaces -exec chown ${DEV_UID}:${DEV_GID} {} +
+
+# Tiny entrypoint shim: source the snapshotted dev env, then exec the
+# requested command (or drop into an interactive bash). Using a script
+# keeps `--login` semantics off the table while still pulling in the env.
+RUN mkdir -p /usr/local/bin \
+    && printf '%s\n' \
+        '#!/bin/sh' \
+        'set -e' \
+        '. /etc/profile.d/cityjson-dev-env.sh' \
+        'if [ "$#" -eq 0 ]; then' \
+        '  exec bash -i' \
+        'fi' \
+        'exec "$@"' \
+        > /usr/local/bin/cityjson-dev-entrypoint \
+    && chmod +x /usr/local/bin/cityjson-dev-entrypoint
+
+USER ${DEV_USER}
+ENV USER=${DEV_USER} \
+    HOME=/home/${DEV_USER} \
+    LANG=C.UTF-8 \
+    RUST_BACKTRACE=1 \
+    UV_LINK_MODE=copy
+
+WORKDIR /workspaces/cityjson
+
+ENTRYPOINT ["/usr/local/bin/cityjson-dev-entrypoint"]
+CMD ["bash", "-i"]
