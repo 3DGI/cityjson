@@ -196,5 +196,5 @@ fn load_correctness_cases() -> BTreeMap<String, CorrectnessEntry> {
 }
 
 fn workspace_corpus_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../cityjson-corpus")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../cityjson-corpus")
 }

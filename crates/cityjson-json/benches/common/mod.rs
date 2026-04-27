@@ -227,7 +227,7 @@ fn resolve_shared_path(path: PathBuf) -> PathBuf {
 }
 
 fn workspace_corpus_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../cityjson-corpus")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../cityjson-corpus")
 }
 
 fn case_spec_name(case_id: &str, artifact: &BenchmarkArtifact, use_suffix: bool) -> String {
