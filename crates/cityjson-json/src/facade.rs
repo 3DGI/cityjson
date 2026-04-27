@@ -173,10 +173,6 @@ fn import_error(message: impl Into<String>) -> Error {
     Error::InvalidValue(message.into())
 }
 
-fn unsupported(message: &'static str) -> Error {
-    Error::UnsupportedFeature(message)
-}
-
 fn serialize_root(model: &OwnedCityModel) -> Result<Map<String, Value>> {
     match serde_json::from_slice(&to_vec(model, &WriteOptions::default())?)? {
         Value::Object(root) => Ok(root),
@@ -217,10 +213,51 @@ fn get_array_mut<'a>(root: &'a mut Map<String, Value>, key: &str) -> Option<&'a 
     root.get_mut(key).and_then(Value::as_array_mut)
 }
 
-fn same_transform(target: &Map<String, Value>, source: &Map<String, Value>) -> bool {
-    match source.get("transform") {
-        None => true,
-        Some(source_transform) => target.get("transform") == Some(source_transform),
+#[derive(Debug, Clone, PartialEq)]
+enum TransformMergeState {
+    Empty,
+    Present(Value),
+    Cleared,
+}
+
+impl TransformMergeState {
+    fn from_root(root: &Map<String, Value>) -> Self {
+        match root.get("transform") {
+            Some(transform) => Self::Present(transform.clone()),
+            None => Self::Empty,
+        }
+    }
+}
+
+fn reconcile_transform_state(
+    current: TransformMergeState,
+    source: Option<&Value>,
+) -> TransformMergeState {
+    match (current, source) {
+        (TransformMergeState::Empty, None) => TransformMergeState::Empty,
+        (TransformMergeState::Empty, Some(transform)) => {
+            TransformMergeState::Present(transform.clone())
+        }
+        (TransformMergeState::Present(transform), None) => TransformMergeState::Present(transform),
+        (TransformMergeState::Present(transform), Some(source_transform))
+            if transform == *source_transform =>
+        {
+            TransformMergeState::Present(transform)
+        }
+        (TransformMergeState::Cleared, _) | (TransformMergeState::Present(_), Some(_)) => {
+            TransformMergeState::Cleared
+        }
+    }
+}
+
+fn apply_transform_state(root: &mut Map<String, Value>, state: &TransformMergeState) {
+    match state {
+        TransformMergeState::Empty | TransformMergeState::Cleared => {
+            root.remove("transform");
+        }
+        TransformMergeState::Present(transform) => {
+            root.insert("transform".to_string(), transform.clone());
+        }
     }
 }
 
@@ -356,41 +393,36 @@ where
     parse_root(root)
 }
 
-/// # Errors
-///
-/// Returns an error if transforms differ, root types are incompatible, ids conflict, or JSON fails.
-pub fn append(target: &mut OwnedCityModel, source: &OwnedCityModel) -> Result<()> {
-    let mut target_root = serialize_root(target)?;
-    let source_root = serialize_root(source)?;
-
-    if !same_transform(&target_root, &source_root) {
-        return Err(unsupported(
-            "model append currently requires identical transform objects",
-        ));
-    }
-
-    if !append_kind_compatible(root_kind(&target_root)?, root_kind(&source_root)?) {
+fn merge_one(
+    target_root: &mut Map<String, Value>,
+    source_root: &Map<String, Value>,
+    transform_state: &mut TransformMergeState,
+) -> Result<()> {
+    if !append_kind_compatible(root_kind(target_root)?, root_kind(source_root)?) {
         return Err(import_error(
             "model append currently requires both inputs to have the same root type",
         ));
     }
 
-    let vertex_offset = get_array(&target_root, "vertices").map_or(0_u64, |vertices| {
+    *transform_state =
+        reconcile_transform_state(transform_state.clone(), source_root.get("transform"));
+
+    let vertex_offset = get_array(target_root, "vertices").map_or(0_u64, |vertices| {
         u64::try_from(vertices.len()).unwrap_or(u64::MAX)
     });
 
-    let source_vertices = get_array(&source_root, "vertices")
+    let source_vertices = get_array(source_root, "vertices")
         .cloned()
         .ok_or_else(|| import_error("source model is missing its vertices array"))?;
-    let target_vertices = get_array_mut(&mut target_root, "vertices")
+    let target_vertices = get_array_mut(target_root, "vertices")
         .ok_or_else(|| import_error("target model is missing its vertices array"))?;
     target_vertices.extend(source_vertices);
 
-    merge_root_object_field(&mut target_root, &source_root, "extensions")?;
+    merge_root_object_field(target_root, source_root, "extensions")?;
 
-    let source_cityobjects = get_object(&source_root, "CityObjects")
+    let source_cityobjects = get_object(source_root, "CityObjects")
         .ok_or_else(|| import_error("source model is missing its CityObjects map"))?;
-    let target_cityobjects = get_object_mut(&mut target_root, "CityObjects")
+    let target_cityobjects = get_object_mut(target_root, "CityObjects")
         .ok_or_else(|| import_error("target model is missing its CityObjects map"))?;
 
     for (id, cityobject_value) in source_cityobjects {
@@ -417,27 +449,47 @@ pub fn append(target: &mut OwnedCityModel, source: &OwnedCityModel) -> Result<()
         target_cityobjects.insert(id.clone(), Value::Object(cityobject));
     }
 
+    Ok(())
+}
+
+/// # Errors
+///
+/// Returns an error if JSON serialization or parsing fails, the root types are incompatible,
+/// ids conflict, or the append cannot be applied.
+pub fn append(target: &mut OwnedCityModel, source: &OwnedCityModel) -> Result<()> {
+    let mut target_root = serialize_root(target)?;
+    let source_root = serialize_root(source)?;
+    let mut transform_state = TransformMergeState::from_root(&target_root);
+
+    merge_one(&mut target_root, &source_root, &mut transform_state)?;
+    apply_transform_state(&mut target_root, &transform_state);
+
     *target = parse_root(target_root)?;
     Ok(())
 }
 
 /// # Errors
 ///
-/// Returns an error if the iterator is empty or if any `append` call fails.
+/// Returns an error if the iterator is empty or if any merge step fails.
 pub fn merge<I>(models: I) -> Result<OwnedCityModel>
 where
     I: IntoIterator<Item = OwnedCityModel>,
 {
     let mut models = models.into_iter();
-    let Some(mut merged) = models.next() else {
+    let Some(first) = models.next() else {
         return Err(import_error("merge requires at least one model"));
     };
 
+    let mut merged_root = serialize_root(&first)?;
+    let mut transform_state = TransformMergeState::from_root(&merged_root);
+
     for model in models {
-        append(&mut merged, &model)?;
+        let source_root = serialize_root(&model)?;
+        merge_one(&mut merged_root, &source_root, &mut transform_state)?;
     }
 
-    Ok(merged)
+    apply_transform_state(&mut merged_root, &transform_state);
+    parse_root(merged_root)
 }
 
 /// # Errors

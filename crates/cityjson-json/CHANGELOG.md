@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Changed
+
+- `facade::append` now mirrors the Rust merge semantics for model transforms,
+  so differing source transforms are accepted and collapse to a transform-free
+  merged result.
+
 ## [0.7.1] - 2026-04-18
 
 ### Added

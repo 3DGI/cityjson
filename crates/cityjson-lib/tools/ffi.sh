@@ -3,6 +3,7 @@
 set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+workspace_root="$(cd "${repo_dir}/../.." && pwd)"
 header_path="${repo_dir}/ffi/core/include/cityjson_lib/cityjson_lib.h"
 cpp_build_dir="${repo_dir}/target/ffi-cpp-build"
 
@@ -51,7 +52,7 @@ build_cpp() {
     --all-targets \
     --all-features
   cmake -S "${repo_dir}/ffi/cpp" -B "${cpp_build_dir}" \
-    -DCITYJSON_LIB_FFI_CORE_SHARED_LIB="${repo_dir}/target/debug/libcityjson_lib_ffi_core.so"
+    -DCITYJSON_LIB_FFI_CORE_SHARED_LIB="${workspace_root}/target/debug/libcityjson_lib_ffi_core.so"
   cmake --build "${cpp_build_dir}" "$@"
 }
 

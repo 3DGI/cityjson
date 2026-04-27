@@ -76,6 +76,11 @@ fn fixture_merge_right() -> cityjson_lib::Result<cityjson_lib::CityModel> {
     json::from_slice(include_bytes!("data/v2_0/ops/merge_right.city.json"))
 }
 
+fn set_transform(model: &mut cityjson_lib::CityModel, scale: [f64; 3], translate: [f64; 3]) {
+    model.transform_mut().set_scale(scale);
+    model.transform_mut().set_translate(translate);
+}
+
 #[test]
 fn ops_select_cityobjects_keeps_original_feature_root_when_it_survives() {
     let model = json::from_feature_slice(
@@ -436,4 +441,88 @@ fn ops_merge_coalesces_overlapping_models_and_remaps_templates() {
             .len(),
         36
     );
+}
+
+#[test]
+fn ops_append_accepts_mismatched_transforms_and_clears_the_result() {
+    let mut left = fixture_merge_left().expect("left merge fixture should parse");
+    let mut right = fixture_merge_right().expect("right merge fixture should parse");
+    set_transform(&mut left, [1.0, 1.0, 1.0], [0.0, 0.0, 0.0]);
+    set_transform(&mut right, [2.0, 2.0, 2.0], [10.0, 0.0, 0.0]);
+
+    ops::append(&mut left, &right).expect("ops::append should merge mismatched transforms");
+
+    assert!(left.transform().is_none());
+}
+
+#[test]
+fn ops_merge_preserves_identical_transforms() {
+    let left = fixture_merge_left().expect("left merge fixture should parse");
+    let right = fixture_merge_right().expect("right merge fixture should parse");
+
+    let merged = ops::merge([left, right]).expect("ops::merge should accept identical transforms");
+
+    assert!(merged.transform().is_some());
+}
+
+#[test]
+fn ops_merge_clears_mixed_transforms() {
+    let mut left = fixture_merge_left().expect("left merge fixture should parse");
+    let mut right = fixture_merge_right().expect("right merge fixture should parse");
+    set_transform(&mut left, [1.0, 1.0, 1.0], [0.0, 0.0, 0.0]);
+    set_transform(&mut right, [2.0, 2.0, 2.0], [10.0, 0.0, 0.0]);
+
+    let merged = ops::merge([left, right]).expect("ops::merge should accept mixed transforms");
+
+    assert!(merged.transform().is_none());
+}
+
+#[test]
+fn ops_merge_preserves_a_single_shared_transform_when_the_first_model_has_none() {
+    let left = json::from_feature_slice(
+        br#"{
+            "type":"CityJSONFeature",
+            "id":"feature-a",
+            "CityObjects":{
+                "feature-a":{"type":"Building"}
+            },
+            "vertices":[]
+        }"#,
+    )
+    .expect("feature without transform should parse");
+    let right = json::from_feature_slice(
+        br#"{
+            "type":"CityJSONFeature",
+            "id":"feature-b",
+            "transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},
+            "CityObjects":{
+                "feature-b":{"type":"Building"}
+            },
+            "vertices":[]
+        }"#,
+    )
+    .expect("feature with transform should parse");
+
+    let merged = ops::merge([left, right]).expect("ops::merge should preserve a single transform");
+
+    assert!(merged.transform().is_some());
+}
+
+#[test]
+fn ops_merge_without_transform_serializes_without_transform_and_roundtrips() {
+    let mut left = fixture_merge_left().expect("left merge fixture should parse");
+    let mut right = fixture_merge_right().expect("right merge fixture should parse");
+    set_transform(&mut left, [1.0, 1.0, 1.0], [0.0, 0.0, 0.0]);
+    set_transform(&mut right, [2.0, 2.0, 2.0], [10.0, 0.0, 0.0]);
+
+    let merged = ops::merge([left, right]).expect("ops::merge should accept mixed transforms");
+    assert!(merged.transform().is_none());
+
+    let merged_json = json::to_string(&merged).expect("merged model should serialize");
+    let written: Value = serde_json::from_str(&merged_json).expect("merged JSON should parse");
+    assert!(written.get("transform").is_none());
+
+    let reparsed = json::from_slice(merged_json.as_bytes()).expect("merged model should roundtrip");
+    assert!(reparsed.transform().is_none());
+    assert_eq!(cityobject_ids(&reparsed), cityobject_ids(&merged));
 }

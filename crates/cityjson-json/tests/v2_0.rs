@@ -9,7 +9,7 @@ use cityjson::v2_0::{
 };
 use cityjson::v2_0::{ImageType, TextureType};
 use cityjson_json::{
-    CityJsonSeqWriteOptions, FeatureStreamTransform, ReadOptions, read_feature,
+    CityJsonSeqWriteOptions, FeatureStreamTransform, ReadOptions, append, read_feature,
     read_feature_stream, read_feature_with_base, read_model, write_feature_stream,
 };
 use common::*;
@@ -298,6 +298,41 @@ fn read_feature_stream_rejects_duplicate_cityobject_ids() {
     assert!(reader.next().unwrap().is_ok());
     let error = reader.next().unwrap().unwrap_err();
     assert!(error.to_string().contains("duplicate CityObject id"));
+}
+
+#[test]
+fn append_accepts_mismatched_transforms_and_clears_the_result() {
+    let mut left = read_model_str(
+        &json!({
+            "type": "CityJSON",
+            "version": "2.0",
+            "transform": {
+                "scale": [1.0, 1.0, 1.0],
+                "translate": [0.0, 0.0, 0.0]
+            },
+            "CityObjects": {},
+            "vertices": []
+        })
+        .to_string(),
+    );
+    let right = read_model_str(
+        &json!({
+            "type": "CityJSON",
+            "version": "2.0",
+            "transform": {
+                "scale": [2.0, 2.0, 2.0],
+                "translate": [10.0, 0.0, 0.0]
+            },
+            "CityObjects": {},
+            "vertices": []
+        })
+        .to_string(),
+    );
+
+    append(&mut left, &right).expect("append should accept mismatched transforms");
+
+    assert!(left.transform().is_none());
+    assert!(write_value(&left).get("transform").is_none());
 }
 
 #[test]

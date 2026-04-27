@@ -16,6 +16,15 @@ crate in the workspace to the same version.
   and reconstruction helpers.
 
 ### Changed
+- `cityjson-lib::ops::append` and `merge` now reconcile differing input
+  transforms instead of rejecting them. Identical transforms are preserved,
+  mixed transforms clear the merged model transform, and transform-free
+  inputs stay transform-free.
+- `cityjson-json::facade::append` now mirrors the same transform merge
+  semantics as the Rust layer.
+- FFI tooling now resolves the shared library from the workspace target
+  directory, which keeps the C/C++ smoke tests aligned with Cargo's build
+  output.
 - Consolidated the seven `cityjson-*` Rust crates (`cityjson`,
   `cityjson-json`, `cityjson-arrow`, `cityjson-parquet`, `cityjson-lib`,
   `cityjson-fake`, `cityjson-index`) plus the two FFI core crates

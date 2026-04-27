@@ -8,6 +8,11 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Changed
 
+- `ops::append` and `ops::merge` now accept differing source transforms and
+  reconcile them into the merged result instead of rejecting the merge.
+  Identical transforms are preserved, mixed transforms clear the merged model
+  transform, and transform-free inputs stay transform-free.
+
 - Replace the Rust `ops::filter` and `filter_with_options` APIs with opaque `ModelSelection`, `select_cityobjects`, `select_geometries`, and `extract`.
 - Keep `CityJSONFeature` roots valid after `subset` and selection-driven extraction shrink a model.
 - Reroot surviving feature subsets to a parentless `CityObject` when the original root is removed.

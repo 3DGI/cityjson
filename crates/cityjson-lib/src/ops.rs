@@ -14,7 +14,8 @@ use crate::cityjson::v2_0::geometry::{
 };
 use crate::cityjson::v2_0::metadata::BBox;
 use crate::cityjson::v2_0::{
-    CityObject, CityObjectIdentifier, MaterialMap, Metadata, SemanticMap, TextureMap, VertexIndex,
+    CityObject, CityObjectIdentifier, MaterialMap, Metadata, SemanticMap, TextureMap, Transform,
+    VertexIndex,
 };
 use crate::cityjson::{
     CityModelType,
@@ -24,7 +25,8 @@ use crate::cityjson::{
     },
     v2_0::Extensions,
 };
-use crate::{CityModel, Error, Result};
+use crate::{CityModel, Error, Result, json};
+use serde_json::Value;
 
 type OwnedMetadata = Metadata<OwnedStringStorage>;
 type OwnedExtensions = Extensions<OwnedStringStorage>;
@@ -219,15 +221,81 @@ fn import_error(message: impl Into<String>) -> Error {
     Error::Import(message.into())
 }
 
-fn unsupported(message: &'static str) -> Error {
-    Error::UnsupportedFeature(message.to_string())
+#[derive(Debug, Clone, PartialEq)]
+enum TransformMergeState {
+    Empty,
+    Present(Transform),
+    Cleared,
 }
 
-fn same_transform(target: &CityModel, source: &CityModel) -> bool {
-    match source.transform() {
-        None => true,
-        Some(source_transform) => target.transform() == Some(source_transform),
+impl TransformMergeState {
+    fn from_model(model: &CityModel) -> Self {
+        match model.transform() {
+            Some(transform) => Self::Present(transform.clone()),
+            None => Self::Empty,
+        }
     }
+}
+
+fn reconcile_transform_state(
+    current: TransformMergeState,
+    source: Option<&Transform>,
+) -> TransformMergeState {
+    match (current, source) {
+        (TransformMergeState::Empty, None) => TransformMergeState::Empty,
+        (TransformMergeState::Empty, Some(transform)) => {
+            TransformMergeState::Present(transform.clone())
+        }
+        (TransformMergeState::Present(transform), None) => TransformMergeState::Present(transform),
+        (TransformMergeState::Present(transform), Some(source_transform))
+            if transform == *source_transform =>
+        {
+            TransformMergeState::Present(transform)
+        }
+        (TransformMergeState::Cleared, _) | (TransformMergeState::Present(_), Some(_)) => {
+            TransformMergeState::Cleared
+        }
+    }
+}
+
+fn strip_transform(model: &CityModel) -> Result<CityModel> {
+    let mut root = serde_json::from_slice::<Value>(&json::to_vec(model)?)
+        .map_err(|error| import_error(error.to_string()))?;
+    let Value::Object(root) = &mut root else {
+        return Err(import_error("serialized CityJSON root is not an object"));
+    };
+    root.remove("transform");
+    let bytes = serde_json::to_vec(&root).map_err(|error| import_error(error.to_string()))?;
+    match model.type_citymodel() {
+        CityModelType::CityJSON => json::from_slice(&bytes),
+        CityModelType::CityJSONFeature => json::from_feature_slice(&bytes),
+        other => Err(Error::UnsupportedType(other.to_string())),
+    }
+}
+
+fn apply_transform_state(target: &mut CityModel, state: &TransformMergeState) -> Result<()> {
+    match state {
+        TransformMergeState::Empty => {
+            if target.transform().is_some() {
+                *target = strip_transform(target)?;
+            }
+        }
+        TransformMergeState::Present(transform) => {
+            if target.transform().is_none() {
+                *target.transform_mut() = transform.clone();
+            } else if target.transform() != Some(transform) {
+                *target = strip_transform(target)?;
+                *target.transform_mut() = transform.clone();
+            }
+        }
+        TransformMergeState::Cleared => {
+            if target.transform().is_some() {
+                *target = strip_transform(target)?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn append_kind_compatible(target_kind: CityModelType, source_kind: CityModelType) -> bool {
@@ -742,18 +810,18 @@ fn merge_cityobject(
     Ok(())
 }
 
-fn merge_one(target: &mut CityModel, source: &CityModel) -> Result<()> {
-    if !same_transform(target, source) {
-        return Err(unsupported(
-            "model merge currently requires identical transform objects",
-        ));
-    }
-
+fn merge_one(
+    target: &mut CityModel,
+    source: &CityModel,
+    transform_state: &mut TransformMergeState,
+) -> Result<()> {
     if !append_kind_compatible(target.type_citymodel(), source.type_citymodel()) {
         return Err(import_error(
             "model merge currently requires compatible root types",
         ));
     }
+
+    *transform_state = reconcile_transform_state(transform_state.clone(), source.transform());
 
     if target.metadata().is_none() {
         if let Some(metadata) = source.metadata() {
@@ -780,12 +848,6 @@ fn merge_one(target: &mut CityModel, source: &CityModel) -> Result<()> {
         }
     } else if let Some(extensions) = source.extensions() {
         merge_root_extensions(target.extensions_mut(), extensions);
-    }
-
-    if target.transform().is_none() {
-        if let Some(transform) = source.transform() {
-            *target.transform_mut() = transform.clone();
-        }
     }
 
     if target.default_material_theme().is_none()
@@ -1287,7 +1349,9 @@ pub fn extract(model: &CityModel, selection: &ModelSelection) -> Result<CityMode
 }
 
 pub fn append(target: &mut CityModel, source: &CityModel) -> Result<()> {
-    merge_one(target, source)
+    let mut transform_state = TransformMergeState::from_model(target);
+    merge_one(target, source, &mut transform_state)?;
+    apply_transform_state(target, &transform_state)
 }
 
 pub fn merge<I>(models: I) -> Result<CityModel>
@@ -1299,9 +1363,13 @@ where
         return Err(import_error("merge requires at least one model"));
     };
 
+    let mut transform_state = TransformMergeState::from_model(&merged);
+
     for model in models {
-        merge_one(&mut merged, &model)?;
+        merge_one(&mut merged, &model, &mut transform_state)?;
     }
+
+    apply_transform_state(&mut merged, &transform_state)?;
 
     Ok(merged)
 }
