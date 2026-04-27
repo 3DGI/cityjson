@@ -183,6 +183,14 @@ class FfiLibrary:
             POINTER(c_size_t),
         ]
         self._lib.cjx_index_feature_ref_page.restype = c_int
+        self._lib.cjx_index_lookup_feature_refs.argtypes = [
+            c_void_p,
+            c_char_p,
+            c_size_t,
+            POINTER(POINTER(_FeatureRef)),
+            POINTER(c_size_t),
+        ]
+        self._lib.cjx_index_lookup_feature_refs.restype = c_int
         self._lib.cjx_feature_ref_page_free.argtypes = [POINTER(_FeatureRef), c_size_t]
         self._lib.cjx_feature_ref_page_free.restype = c_int
         self._lib.cjx_index_get_bytes.argtypes = [c_void_p, c_char_p, c_size_t, POINTER(_Bytes)]
@@ -263,6 +271,30 @@ class FfiLibrary:
         self._check_status(self._lib.cjx_index_feature_ref_count(handle, byref(count)))
         return int(count.value)
 
+    def _feature_refs_from_native(self, refs: POINTER(_FeatureRef), count: int) -> list[object]:
+        if count == 0 or not refs:
+            return []
+
+        from . import FeatureRef
+
+        result: list[FeatureRef] = []
+        for index in range(count):
+            ref = refs[index]
+            result.append(
+                FeatureRef(
+                    row_id=int(ref.row_id),
+                    feature_id=_bytes_to_py(ref.feature_id).decode("utf-8"),
+                    source_path=_bytes_to_py(ref.source_path).decode("utf-8"),
+                    offset=int(ref.offset),
+                    length=int(ref.length),
+                    vertices_offset=int(ref.vertices_offset),
+                    vertices_length=int(ref.vertices_length),
+                    member_ranges_json=_bytes_to_py(ref.member_ranges_json).decode("utf-8"),
+                    source_id=int(ref.source_id),
+                )
+            )
+        return result
+
     def feature_ref_page(self, handle: c_void_p, offset: int, limit: int) -> list[object]:
         refs = POINTER(_FeatureRef)()
         count = c_size_t()
@@ -271,28 +303,22 @@ class FfiLibrary:
         )
 
         try:
-            if count.value == 0 or not refs:
-                return []
+            return self._feature_refs_from_native(refs, count.value)
+        finally:
+            self._check_status(self._lib.cjx_feature_ref_page_free(refs, count.value))
 
-            from . import FeatureRef
+    def lookup_feature_refs(self, handle: c_void_p, feature_id: str) -> list[object]:
+        refs = POINTER(_FeatureRef)()
+        count = c_size_t()
+        payload = feature_id.encode("utf-8")
+        self._check_status(
+            self._lib.cjx_index_lookup_feature_refs(
+                handle, c_char_p(payload), len(payload), byref(refs), byref(count)
+            )
+        )
 
-            result: list[FeatureRef] = []
-            for index in range(count.value):
-                ref = refs[index]
-                result.append(
-                    FeatureRef(
-                        row_id=int(ref.row_id),
-                        feature_id=_bytes_to_py(ref.feature_id).decode("utf-8"),
-                        source_path=_bytes_to_py(ref.source_path).decode("utf-8"),
-                        offset=int(ref.offset),
-                        length=int(ref.length),
-                        vertices_offset=int(ref.vertices_offset),
-                        vertices_length=int(ref.vertices_length),
-                        member_ranges_json=_bytes_to_py(ref.member_ranges_json).decode("utf-8"),
-                        source_id=int(ref.source_id),
-                    )
-                )
-            return result
+        try:
+            return self._feature_refs_from_native(refs, count.value)
         finally:
             self._check_status(self._lib.cjx_feature_ref_page_free(refs, count.value))
 
@@ -423,6 +449,10 @@ def feature_ref_count(handle: c_void_p) -> int:
 
 def feature_ref_page(handle: c_void_p, offset: int, limit: int) -> list[object]:
     return _ffi.feature_ref_page(handle, offset, limit)
+
+
+def lookup_feature_refs(handle: c_void_p, feature_id: str) -> list[object]:
+    return _ffi.lookup_feature_refs(handle, feature_id)
 
 
 def get_bytes(handle: c_void_p, feature_id: str) -> bytes | None:

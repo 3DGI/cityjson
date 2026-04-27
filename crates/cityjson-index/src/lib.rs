@@ -715,6 +715,17 @@ impl CityIndex {
         self.index.lookup_feature_ref(id)
     }
 
+    /// Returns all lightweight feature references for a feature id.
+    ///
+    /// Results are ordered by the internal feature row id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the lookup fails.
+    pub fn lookup_feature_refs(&self, id: &str) -> Result<Vec<IndexedFeatureRef>> {
+        self.index.lookup_feature_refs(id)
+    }
+
     /// Returns a lightweight feature reference for a feature row id.
     ///
     /// # Errors
@@ -1201,8 +1212,8 @@ struct IndexedFeaturePathRecord {
 struct BBoxLocationIter<'a> {
     index: &'a Index,
     bbox: BBox,
-    last_feature_id: Option<String>,
-    page: std::vec::IntoIter<FeatureLocation>,
+    last_row_id: Option<i64>,
+    page: std::vec::IntoIter<IndexedFeatureLocation>,
     finished: bool,
 }
 
@@ -1238,7 +1249,7 @@ impl<'a> BBoxLocationIter<'a> {
         Self {
             index,
             bbox,
-            last_feature_id: None,
+            last_row_id: None,
             page: Vec::new().into_iter(),
             finished: false,
         }
@@ -1250,15 +1261,13 @@ impl<'a> BBoxLocationIter<'a> {
         }
 
         if let Some(feature) = self.page.next() {
-            self.last_feature_id = Some(feature.feature_id.clone());
-            return Ok(Some(feature));
+            self.last_row_id = Some(feature.row_id);
+            return Ok(Some(feature.location));
         }
 
-        let page = self.index.lookup_bbox_page(
-            &self.bbox,
-            self.last_feature_id.as_deref(),
-            Self::PAGE_SIZE,
-        )?;
+        let page = self
+            .index
+            .lookup_bbox_page(&self.bbox, self.last_row_id, Self::PAGE_SIZE)?;
         if page.is_empty() {
             self.finished = true;
             return Ok(None);
@@ -1269,8 +1278,8 @@ impl<'a> BBoxLocationIter<'a> {
             .page
             .next()
             .expect("non-empty page should yield at least one feature");
-        self.last_feature_id = Some(feature.feature_id.clone());
-        Ok(Some(feature))
+        self.last_row_id = Some(feature.row_id);
+        Ok(Some(feature.location))
     }
 }
 
@@ -1471,7 +1480,7 @@ impl Index {
 
             CREATE TABLE IF NOT EXISTS features (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                feature_id TEXT NOT NULL UNIQUE,
+                feature_id TEXT NOT NULL,
                 source_id INTEGER NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
                 path TEXT NOT NULL,
                 file_size INTEGER,
@@ -1495,10 +1504,11 @@ impl Index {
 
             CREATE TABLE IF NOT EXISTS bbox_map (
                 feature_rowid INTEGER PRIMARY KEY,
-                feature_id TEXT NOT NULL UNIQUE REFERENCES features(feature_id) ON DELETE CASCADE
+                feature_id TEXT NOT NULL
             );
             ",
         ))?;
+        Self::ensure_duplicate_feature_ids_allowed(&conn)?;
         Self::ensure_member_ranges_column(&conn)?;
         Self::ensure_source_status_columns(&conn)?;
         Self::ensure_feature_status_columns(&conn)?;
@@ -1571,6 +1581,8 @@ impl Index {
                 FROM features AS f
                 JOIN sources AS s ON s.id = f.source_id
                 WHERE f.feature_id = ?1
+                ORDER BY f.id
+                LIMIT 1
                 ",
                     params![id],
                     Self::feature_location_from_row,
@@ -1604,6 +1616,8 @@ impl Index {
                 JOIN sources AS s ON s.id = f.source_id
                 JOIN feature_bbox AS fb ON fb.feature_rowid = f.id
                 WHERE f.feature_id = ?1
+                ORDER BY f.id
+                LIMIT 1
                 ",
                     params![id],
                     Self::indexed_feature_ref_location_from_row,
@@ -1611,6 +1625,38 @@ impl Index {
                 .optional()
                 .map(|maybe| maybe.map(|record| record.feature)),
         )
+    }
+
+    fn lookup_feature_refs(&self, id: &str) -> Result<Vec<IndexedFeatureRef>> {
+        let mut stmt = sqlite_result(self.conn.prepare(
+            r"
+            SELECT
+                f.id,
+                f.feature_id,
+                s.id,
+                f.path,
+                f.offset,
+                f.length,
+                s.vertices_offset,
+                s.vertices_length,
+                f.member_ranges,
+                fb.min_x,
+                fb.max_x,
+                fb.min_y,
+                fb.max_y,
+                f.min_z,
+                f.max_z
+            FROM features AS f
+            JOIN sources AS s ON s.id = f.source_id
+            JOIN feature_bbox AS fb ON fb.feature_rowid = f.id
+            WHERE f.feature_id = ?1
+            ORDER BY f.id
+            ",
+        ))?;
+        let rows = sqlite_result(
+            stmt.query_map(params![id], Self::indexed_feature_ref_location_from_row),
+        )?;
+        sqlite_result(rows.map(|row| row.map(|record| record.feature)).collect())
     }
 
     fn lookup_feature_ref_by_rowid(&self, row_id: i64) -> Result<Option<IndexedFeatureRef>> {
@@ -1709,12 +1755,13 @@ impl Index {
     fn lookup_bbox_page(
         &self,
         bbox: &BBox,
-        after_feature_id: Option<&str>,
+        after_row_id: Option<i64>,
         limit: usize,
-    ) -> Result<Vec<FeatureLocation>> {
+    ) -> Result<Vec<IndexedFeatureLocation>> {
         let mut stmt = sqlite_result(self.conn.prepare(
             r"
-            SELECT DISTINCT
+            SELECT
+                f.id,
                 f.feature_id,
                 s.id,
                 f.path,
@@ -1725,14 +1772,14 @@ impl Index {
                 f.member_ranges
             FROM feature_bbox AS fb
             JOIN bbox_map AS bm ON bm.feature_rowid = fb.feature_rowid
-            JOIN features AS f ON f.feature_id = bm.feature_id
+            JOIN features AS f ON f.id = bm.feature_rowid
             JOIN sources AS s ON s.id = f.source_id
             WHERE fb.min_x <= ?2
               AND fb.max_x >= ?1
               AND fb.min_y <= ?4
               AND fb.max_y >= ?3
-              AND (?5 IS NULL OR bm.feature_id > ?5)
-            ORDER BY bm.feature_id
+              AND (?5 IS NULL OR f.id > ?5)
+            ORDER BY f.id
             LIMIT ?6
             ",
         ))?;
@@ -1742,10 +1789,10 @@ impl Index {
                 bbox.max_x,
                 bbox.min_y,
                 bbox.max_y,
-                after_feature_id,
+                after_row_id,
                 limit
             ],
-            Self::feature_location_from_row,
+            Self::indexed_feature_location_from_row,
         ))?;
         sqlite_result(rows.collect())
     }
@@ -2093,6 +2140,77 @@ impl Index {
         Ok(missing == 0)
     }
 
+    fn ensure_duplicate_feature_ids_allowed(conn: &rusqlite::Connection) -> Result<()> {
+        if table_sql_contains(conn, "features", "feature_id TEXT NOT NULL UNIQUE")?
+            || table_sql_contains(conn, "bbox_map", "feature_id TEXT NOT NULL UNIQUE")?
+        {
+            sqlite_result(conn.execute_batch(
+                r"
+                PRAGMA foreign_keys = OFF;
+
+                DROP TABLE IF EXISTS bbox_map_new;
+                CREATE TABLE bbox_map_new (
+                    feature_rowid INTEGER PRIMARY KEY,
+                    feature_id TEXT NOT NULL
+                );
+                INSERT INTO bbox_map_new (feature_rowid, feature_id)
+                SELECT feature_rowid, feature_id FROM bbox_map;
+                DROP TABLE bbox_map;
+                ALTER TABLE bbox_map_new RENAME TO bbox_map;
+
+                DROP TABLE IF EXISTS features_new;
+                CREATE TABLE features_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    feature_id TEXT NOT NULL,
+                    source_id INTEGER NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+                    path TEXT NOT NULL,
+                    file_size INTEGER,
+                    file_mtime_ns INTEGER,
+                    offset INTEGER NOT NULL,
+                    length INTEGER NOT NULL,
+                    min_z REAL,
+                    max_z REAL,
+                    cityobject_count INTEGER,
+                    member_ranges TEXT
+                );
+                INSERT INTO features_new (
+                    id,
+                    feature_id,
+                    source_id,
+                    path,
+                    file_size,
+                    file_mtime_ns,
+                    offset,
+                    length,
+                    min_z,
+                    max_z,
+                    cityobject_count,
+                    member_ranges
+                )
+                SELECT
+                    id,
+                    feature_id,
+                    source_id,
+                    path,
+                    file_size,
+                    file_mtime_ns,
+                    offset,
+                    length,
+                    min_z,
+                    max_z,
+                    cityobject_count,
+                    member_ranges
+                FROM features;
+                DROP TABLE features;
+                ALTER TABLE features_new RENAME TO features;
+
+                PRAGMA foreign_keys = ON;
+                ",
+            ))?;
+        }
+        Ok(())
+    }
+
     fn clear_tables(tx: &rusqlite::Transaction<'_>) -> Result<()> {
         sqlite_result(tx.execute_batch(
             r"
@@ -2365,7 +2483,7 @@ impl StorageBackend for NdjsonBackend {
 
     fn read_one(&self, loc: &FeatureLocation, metadata_bytes: Arc<[u8]>) -> Result<CityModel> {
         let bytes = read_exact_range(&loc.source_path, loc.offset, loc.length)?;
-        staged::from_feature_slice_with_base(&bytes, metadata_bytes.as_ref())
+        feature_slice_with_indexed_id(&bytes, loc, metadata_bytes.as_ref())
     }
 
     fn read_many(
@@ -2583,7 +2701,7 @@ impl StorageBackend for FeatureFilesBackend {
 
     fn read_one(&self, loc: &FeatureLocation, metadata_bytes: Arc<[u8]>) -> Result<CityModel> {
         let feature_bytes = read_exact_range(&loc.source_path, loc.offset, loc.length)?;
-        staged::from_feature_slice_with_base(&feature_bytes, metadata_bytes.as_ref())
+        feature_slice_with_indexed_id(&feature_bytes, loc, metadata_bytes.as_ref())
     }
 
     fn read_many(
@@ -2628,8 +2746,8 @@ fn scan_feature_files_root(
         })
         .collect::<Vec<_>>();
     let features = parallel_scan_items(&scan_items, worker_count, scan_feature_file)?;
-    for (source_index, feature) in features {
-        sources[source_index].features.push(feature);
+    for (source_index, features) in features {
+        sources[source_index].features.extend(features);
     }
     Ok(sources)
 }
@@ -2714,13 +2832,13 @@ fn discover_feature_file_sources(
     Ok(sources.into_values().collect())
 }
 
-fn scan_feature_file(item: &FeatureFileScanItem<'_>) -> Result<(usize, ScannedFeature)> {
+fn scan_feature_file(item: &FeatureFileScanItem<'_>) -> Result<(usize, Vec<ScannedFeature>)> {
     let feature: Value = read_json(item.path)?;
-    let (id, bounds, cityobject_count) = parse_feature_file_bounds(&feature, item.metadata)?;
+    let (ids, bounds, cityobject_count) = parse_feature_file_bounds(&feature, item.metadata)?;
     let (file_size, file_mtime_ns) = file_status(item.path)?;
-    Ok((
-        item.source_index,
-        ScannedFeature {
+    let features = ids
+        .into_iter()
+        .map(|id| ScannedFeature {
             id,
             path: item.path.to_path_buf(),
             file_size,
@@ -2730,8 +2848,9 @@ fn scan_feature_file(item: &FeatureFileScanItem<'_>) -> Result<(usize, ScannedFe
             bounds,
             cityobject_count,
             member_ranges: None,
-        },
-    ))
+        })
+        .collect();
+    Ok((item.source_index, features))
 }
 
 fn resolve_feature_metadata_path(
@@ -2755,8 +2874,8 @@ fn resolve_feature_metadata_path(
 fn parse_feature_file_bounds(
     feature: &Value,
     metadata: &Meta,
-) -> Result<(String, FeatureBounds, u64)> {
-    let id = feature_identifier(feature, "feature file")?;
+) -> Result<(Vec<String>, FeatureBounds, u64)> {
+    let ids = feature_cityobject_keys(feature, "feature file")?;
     let vertices = feature
         .get("vertices")
         .cloned()
@@ -2767,7 +2886,7 @@ fn parse_feature_file_bounds(
     let (scale, translate) = parse_ndjson_transform(metadata)?;
     let bounds = feature_bounds_from_vertices(&vertices, &referenced_vertices, scale, translate)?;
     let cityobject_count = feature_cityobject_count(feature, "feature file")?;
-    Ok((id, bounds, cityobject_count))
+    Ok((ids, bounds, cityobject_count))
 }
 
 fn trim_fragment_delimiters(bytes: &[u8]) -> &[u8] {
@@ -3088,6 +3207,20 @@ fn json_string<T: Serialize + ?Sized>(value: &T) -> Result<String> {
     serde_json::to_string(value).map_err(|error| serde_json_error(&error))
 }
 
+fn table_sql_contains(conn: &rusqlite::Connection, table: &str, needle: &str) -> Result<bool> {
+    let sql = sqlite_result(
+        conn.query_row(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?1",
+            params![table],
+            |row| row.get::<_, Option<String>>(0),
+        )
+        .optional(),
+    )?
+    .flatten()
+    .unwrap_or_default();
+    Ok(sql.contains(needle))
+}
+
 fn read_exact_range(path: &Path, offset: u64, length: u64) -> Result<Vec<u8>> {
     let mut file = fs::File::open(path)
         .map_err(|error| import_error(format!("failed to open {}: {error}", path.display())))?;
@@ -3117,7 +3250,7 @@ fn read_feature_slices_with_base(
             let location = locations[index];
             let feature_bytes =
                 read_exact_range_from_file(&mut file, &path, location.offset, location.length)?;
-            let model = staged::from_feature_slice_with_base(&feature_bytes, metadata_bytes)?;
+            let model = feature_slice_with_indexed_id(&feature_bytes, location, metadata_bytes)?;
             models[index] = Some(model);
         }
     }
@@ -3126,6 +3259,20 @@ fn read_feature_slices_with_base(
         .into_iter()
         .map(|model| model.expect("every input feature should have a decoded model"))
         .collect())
+}
+
+fn feature_slice_with_indexed_id(
+    feature_bytes: &[u8],
+    loc: &FeatureLocation,
+    metadata_bytes: &[u8],
+) -> Result<CityModel> {
+    let mut feature: Value = parse_json_slice(feature_bytes)?;
+    let object = feature
+        .as_object_mut()
+        .ok_or_else(|| import_error("CityJSONFeature root must be a JSON object"))?;
+    object.insert("id".to_owned(), Value::String(loc.feature_id.clone()));
+    let bytes = serde_json::to_vec(&feature).map_err(|error| serde_json_error(&error))?;
+    staged::from_feature_slice_with_base(&bytes, metadata_bytes)
 }
 
 fn read_exact_range_from_file(
@@ -3234,20 +3381,21 @@ fn scan_ndjson_source(path: &Path) -> Result<SourceScan> {
         }
 
         let feature: Value = parse_json_slice(line_bytes)?;
-        let (id, bounds) = parse_ndjson_feature_bounds(&feature, scale, translate)?;
+        let (ids, bounds) = parse_ndjson_feature_bounds(&feature, scale, translate)?;
         let cityobject_count = feature_cityobject_count(&feature, "ndjson feature")?;
-        features.push(ScannedFeature {
+        let length = u64::try_from(line_bytes.len())
+            .map_err(|_| import_error("NDJSON feature line length does not fit in u64"))?;
+        features.extend(ids.into_iter().map(|id| ScannedFeature {
             id,
             path: path.to_path_buf(),
             file_size: source_size,
             file_mtime_ns: source_mtime_ns,
             offset,
-            length: u64::try_from(line_bytes.len())
-                .map_err(|_| import_error("NDJSON feature line length does not fit in u64"))?,
+            length,
             bounds,
             cityobject_count,
             member_ranges: None,
-        });
+        }));
     }
 
     Ok(SourceScan {
@@ -3683,25 +3831,18 @@ fn parse_ndjson_transform(metadata: &Value) -> Result<([f64; 3], [f64; 3])> {
     Ok((scale, translate))
 }
 
-fn feature_identifier(feature: &Value, label: &str) -> Result<String> {
-    if let Some(id) = feature.get("id").and_then(Value::as_str) {
-        return Ok(id.to_owned());
-    }
-
+fn feature_cityobject_keys(feature: &Value, label: &str) -> Result<Vec<String>> {
     let cityobjects = feature
         .get("CityObjects")
-        .and_then(Value::as_object)
-        .ok_or_else(|| import_error(format!("{label} is missing CityObjects")))?;
-    if cityobjects.len() == 1 {
-        return cityobjects
-            .keys()
-            .next()
-            .cloned()
-            .ok_or_else(|| import_error(format!("{label} is missing a CityObject")));
+        .ok_or_else(|| import_error(format!("{label} is missing CityObjects")))?
+        .as_object()
+        .ok_or_else(|| import_error(format!("{label} CityObjects must be an object")))?;
+    if cityobjects.is_empty() {
+        return Err(import_error(format!(
+            "{label} CityObjects must contain at least one CityObject"
+        )));
     }
-    Err(import_error(format!(
-        "{label} is missing a top-level id and contains multiple CityObjects"
-    )))
+    Ok(cityobjects.keys().cloned().collect())
 }
 
 fn collect_feature_vertex_indices(feature: &Value, vertex_count: usize) -> Result<BTreeSet<usize>> {
@@ -3750,15 +3891,15 @@ fn parse_ndjson_feature_bounds(
     feature: &Value,
     scale: [f64; 3],
     translate: [f64; 3],
-) -> Result<(String, FeatureBounds)> {
-    let id = feature_identifier(feature, "NDJSON feature")?;
+) -> Result<(Vec<String>, FeatureBounds)> {
+    let ids = feature_cityobject_keys(feature, "NDJSON feature")?;
     let vertices = feature
         .get("vertices")
         .ok_or_else(|| import_error("NDJSON feature is missing vertices"))?;
     let vertices: Vec<[i64; 3]> = parse_json_value(vertices.clone())?;
     let referenced_vertices = collect_feature_vertex_indices(feature, vertices.len())?;
     let bounds = feature_bounds_from_vertices(&vertices, &referenced_vertices, scale, translate)?;
-    Ok((id, bounds))
+    Ok((ids, bounds))
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -4146,6 +4287,109 @@ mod tests {
             .expect("bbox lookup should collect");
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].source_path, ndjson_path);
+    }
+
+    #[test]
+    fn opening_old_unique_schema_removes_feature_id_uniqueness() {
+        let index_path = write_temp_index_path_with_prefix("old-unique-schema");
+        {
+            let conn = rusqlite::Connection::open(&index_path).expect("old index should open");
+            conn.execute_batch(
+                r"
+                CREATE TABLE sources (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    path TEXT NOT NULL UNIQUE,
+                    metadata TEXT NOT NULL,
+                    vertices_offset INTEGER,
+                    vertices_length INTEGER,
+                    source_size INTEGER,
+                    source_mtime_ns INTEGER
+                );
+                CREATE TABLE features (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    feature_id TEXT NOT NULL UNIQUE,
+                    source_id INTEGER NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+                    path TEXT NOT NULL,
+                    file_size INTEGER,
+                    file_mtime_ns INTEGER,
+                    offset INTEGER NOT NULL,
+                    length INTEGER NOT NULL,
+                    min_z REAL,
+                    max_z REAL,
+                    cityobject_count INTEGER,
+                    member_ranges TEXT
+                );
+                CREATE VIRTUAL TABLE feature_bbox
+                USING rtree(feature_rowid, min_x, max_x, min_y, max_y);
+                CREATE TABLE bbox_map (
+                    feature_rowid INTEGER PRIMARY KEY,
+                    feature_id TEXT NOT NULL UNIQUE REFERENCES features(feature_id) ON DELETE CASCADE
+                );
+                INSERT INTO sources (path, metadata, source_size, source_mtime_ns)
+                VALUES ('metadata.json', '{}', 0, 0);
+                INSERT INTO features (
+                    feature_id,
+                    source_id,
+                    path,
+                    file_size,
+                    file_mtime_ns,
+                    offset,
+                    length,
+                    min_z,
+                    max_z,
+                    cityobject_count,
+                    member_ranges
+                )
+                VALUES ('duplicate', 1, 'feature-a.city.jsonl', 0, 0, 0, 1, 0, 0, 1, NULL);
+                INSERT INTO feature_bbox (feature_rowid, min_x, max_x, min_y, max_y)
+                VALUES (1, 0, 1, 0, 1);
+                INSERT INTO bbox_map (feature_rowid, feature_id) VALUES (1, 'duplicate');
+                ",
+            )
+            .expect("old schema should initialize");
+        }
+
+        let index = Index::open(&index_path).expect("index migration should succeed");
+
+        assert!(
+            !table_sql_contains(&index.conn, "features", "feature_id TEXT NOT NULL UNIQUE",)
+                .expect("features schema should load")
+        );
+        assert!(
+            !table_sql_contains(&index.conn, "bbox_map", "feature_id TEXT NOT NULL UNIQUE",)
+                .expect("bbox_map schema should load")
+        );
+
+        index
+            .conn
+            .execute(
+                r"
+                INSERT INTO features (
+                    feature_id,
+                    source_id,
+                    path,
+                    file_size,
+                    file_mtime_ns,
+                    offset,
+                    length,
+                    min_z,
+                    max_z,
+                    cityobject_count,
+                    member_ranges
+                )
+                VALUES ('duplicate', 1, 'feature-b.city.jsonl', 0, 0, 0, 1, 0, 0, 1, NULL)
+                ",
+                [],
+            )
+            .expect("duplicate feature_id should insert after migration");
+        let row_id = index.conn.last_insert_rowid();
+        index
+            .conn
+            .execute(
+                "INSERT INTO bbox_map (feature_rowid, feature_id) VALUES (?1, 'duplicate')",
+                params![row_id],
+            )
+            .expect("duplicate bbox_map feature_id should insert after migration");
     }
 
     #[test]

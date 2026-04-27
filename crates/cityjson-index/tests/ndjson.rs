@@ -73,6 +73,96 @@ fn ndjson_cityindex_supports_end_to_end_queries() {
     );
 }
 
+#[test]
+fn ndjson_indexes_every_cityobject_key_and_ignores_top_level_id() {
+    let source_root = ndjson_root();
+    let sample = find_first(&source_root, "city.jsonl", true);
+    let fixture = derive_ndjson_fixture(
+        &sample,
+        &[feature_line(
+            "ignored-ndjson-id",
+            &[("ndjson-key-a", 0), ("ndjson-key-b", 10)],
+        )],
+        "ndjson-cityobject-keys",
+    );
+
+    let index_path = temp_index_path("ndjson-cityobject-keys");
+    let mut index = CityIndex::open(
+        StorageLayout::Ndjson {
+            paths: vec![fixture],
+        },
+        &index_path,
+    )
+    .expect("ndjson index should open");
+    index.reindex().expect("ndjson reindex should succeed");
+
+    assert!(
+        index
+            .get("ignored-ndjson-id")
+            .expect("top-level id lookup should succeed")
+            .is_none()
+    );
+
+    for feature_id in ["ndjson-key-a", "ndjson-key-b"] {
+        let model = index
+            .get(feature_id)
+            .expect("cityobject key lookup should succeed")
+            .expect("cityobject key should be indexed");
+        assert!(model_contains_id(&model, "ndjson-key-a"));
+        assert!(model_contains_id(&model, "ndjson-key-b"));
+    }
+}
+
+#[test]
+fn ndjson_allows_duplicate_cityobject_keys() {
+    let source_root = ndjson_root();
+    let sample = find_first(&source_root, "city.jsonl", true);
+    let fixture = derive_ndjson_fixture(
+        &sample,
+        &[
+            feature_line("ignored-first", &[("duplicate-ndjson-key", 0)]),
+            feature_line("ignored-second", &[("duplicate-ndjson-key", 20)]),
+        ],
+        "ndjson-duplicate-keys",
+    );
+
+    let index_path = temp_index_path("ndjson-duplicate-keys");
+    let mut index = CityIndex::open(
+        StorageLayout::Ndjson {
+            paths: vec![fixture],
+        },
+        &index_path,
+    )
+    .expect("ndjson index should open");
+    index
+        .reindex()
+        .expect("duplicate ndjson ids should reindex");
+
+    let refs = index
+        .lookup_feature_refs("duplicate-ndjson-key")
+        .expect("plural lookup should succeed");
+    assert_eq!(refs.len(), 2, "both duplicate aliases should be indexed");
+    assert!(refs[0].row_id < refs[1].row_id);
+
+    let single = index
+        .lookup_feature_ref("duplicate-ndjson-key")
+        .expect("single lookup should succeed")
+        .expect("duplicate key should be indexed");
+    assert_eq!(
+        single.row_id, refs[0].row_id,
+        "single lookup should return the earliest indexed duplicate"
+    );
+
+    let model = index
+        .get("duplicate-ndjson-key")
+        .expect("get should succeed")
+        .expect("duplicate key should return first match");
+    let min_x = bbox_for_model(&model)
+        .expect("bbox should be computable")
+        .min_x;
+    assert!(min_x.abs() < f64::EPSILON);
+}
+
 fn derive_small_ndjson_fixture(source: &Path) -> std::path::PathBuf {
     let contents = fs::read_to_string(source).expect("sample ndjson tile must be readable");
     let mut lines = contents.lines();
@@ -113,4 +203,60 @@ fn derive_small_ndjson_fixture(source: &Path) -> std::path::PathBuf {
     )
     .expect("derived NDJSON fixture must be writable");
     path
+}
+
+fn derive_ndjson_fixture(
+    source: &Path,
+    features: &[serde_json::Value],
+    label: &str,
+) -> std::path::PathBuf {
+    let contents = fs::read_to_string(source).expect("sample ndjson tile must be readable");
+    let metadata = contents
+        .lines()
+        .next()
+        .expect("sample tile must contain metadata");
+    let path = std::env::temp_dir().join(format!(
+        "cityjson-index-{label}-{}.jsonl",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system time must be after the unix epoch")
+            .as_nanos()
+    ));
+    let mut output = String::from(metadata);
+    output.push('\n');
+    for feature in features {
+        output.push_str(&serde_json::to_string(feature).expect("feature JSON"));
+        output.push('\n');
+    }
+    fs::write(&path, output).expect("derived NDJSON fixture must be writable");
+    path
+}
+
+fn feature_line(top_level_id: &str, objects: &[(&str, i64)]) -> serde_json::Value {
+    let mut cityobjects = serde_json::Map::new();
+    let mut vertices = Vec::new();
+    for (index, (id, base)) in objects.iter().enumerate() {
+        let start = index * 3;
+        cityobjects.insert(
+            (*id).to_owned(),
+            serde_json::json!({
+                "type": "Building",
+                "geometry": [{
+                    "type": "MultiSurface",
+                    "lod": "1.0",
+                    "boundaries": [[[start, start + 1, start + 2]]]
+                }]
+            }),
+        );
+        vertices.push(serde_json::json!([base, base, 0]));
+        vertices.push(serde_json::json!([base + 1, base, 0]));
+        vertices.push(serde_json::json!([base, base + 1, 0]));
+    }
+
+    serde_json::json!({
+        "type": "CityJSONFeature",
+        "id": top_level_id,
+        "CityObjects": cityobjects,
+        "vertices": vertices
+    })
 }

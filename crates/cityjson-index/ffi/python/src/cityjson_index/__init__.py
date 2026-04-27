@@ -131,6 +131,9 @@ class OpenedIndex:
     def feature_ref_page(self, offset: int, limit: int) -> list[FeatureRef]:
         return _native.feature_ref_page(self._require_handle(), offset, limit)
 
+    def lookup_feature_refs(self, feature_id: str) -> list[FeatureRef]:
+        return _native.lookup_feature_refs(self._require_handle(), feature_id)
+
     def get_bytes(self, feature_id: str) -> bytes | None:
         return _native.get_bytes(self._require_handle(), feature_id)
 

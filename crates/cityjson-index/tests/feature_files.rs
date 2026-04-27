@@ -22,11 +22,7 @@ fn feature_files_cityindex_supports_end_to_end_queries() {
     );
     let bytes = fs::read(&sample).expect("sample feature file must be readable");
     let value: Value = serde_json::from_slice(&bytes).expect("valid JSON feature");
-    let feature_id = value
-        .get("id")
-        .and_then(Value::as_str)
-        .expect("feature file must carry a top-level id")
-        .to_owned();
+    let feature_id = first_cityobject_id(&value);
 
     let index_path = temp_index_path("feature-files");
     let mut index = CityIndex::open(
@@ -81,6 +77,82 @@ fn feature_files_cityindex_supports_end_to_end_queries() {
             .any(|entry| entry.get("transform").is_some()),
         "feature-files metadata should include at least one transform"
     );
+}
+
+#[test]
+fn feature_files_index_every_cityobject_key_and_ignore_top_level_id() {
+    let root = temp_parallel_fixture_root("feature-files-cityobject-keys");
+    materialize_feature_files_metadata(&root);
+    let feature_path = root.join("features/a/multi.city.jsonl");
+    write_feature_file(
+        &feature_path,
+        "ignored-feature-id",
+        &[("feature-key-a", 0), ("feature-key-b", 10)],
+    );
+
+    let index_path = temp_index_path("feature-files-cityobject-keys");
+    let mut index =
+        build_feature_files_index(&root, &index_path).expect("feature-files reindex should work");
+
+    assert!(
+        index
+            .get("ignored-feature-id")
+            .expect("top-level id lookup should succeed")
+            .is_none()
+    );
+
+    for feature_id in ["feature-key-a", "feature-key-b"] {
+        let model = index
+            .get(feature_id)
+            .expect("cityobject key lookup should succeed")
+            .expect("cityobject key should be indexed");
+        assert!(model_contains_id(&model, "feature-key-a"));
+        assert!(model_contains_id(&model, "feature-key-b"));
+    }
+
+    index
+        .reindex()
+        .expect("reindexing aliases should remain stable");
+}
+
+#[test]
+fn feature_files_allow_duplicate_cityobject_keys() {
+    let root = temp_parallel_fixture_root("feature-files-duplicate-keys");
+    materialize_feature_files_metadata(&root);
+    let first_path = root.join("features/a/first.city.jsonl");
+    let second_path = root.join("features/a/second.city.jsonl");
+    write_feature_file(&first_path, "ignored-first", &[("duplicate-key", 0)]);
+    write_feature_file(&second_path, "ignored-second", &[("duplicate-key", 20)]);
+
+    let index_path = temp_index_path("feature-files-duplicate-keys");
+    let index =
+        build_feature_files_index(&root, &index_path).expect("duplicate ids should reindex");
+
+    let refs = index
+        .lookup_feature_refs("duplicate-key")
+        .expect("plural lookup should succeed");
+    assert_eq!(refs.len(), 2, "both duplicate aliases should be indexed");
+    assert!(refs[0].row_id < refs[1].row_id);
+    assert_eq!(refs[0].source_path, first_path);
+    assert_eq!(refs[1].source_path, second_path);
+
+    let single = index
+        .lookup_feature_ref("duplicate-key")
+        .expect("single lookup should succeed")
+        .expect("duplicate key should be indexed");
+    assert_eq!(
+        single.row_id, refs[0].row_id,
+        "single lookup should return the earliest indexed duplicate"
+    );
+
+    let model = index
+        .get("duplicate-key")
+        .expect("get should succeed")
+        .expect("duplicate key should return first match");
+    let min_x = bbox_for_model(&model)
+        .expect("bbox should be computable")
+        .min_x;
+    assert!(min_x.abs() < f64::EPSILON);
 }
 
 #[test]
@@ -386,6 +458,62 @@ fn rewrite_feature_file(bytes: &[u8], source_index: usize) -> Vec<u8> {
     }
 
     serde_json::to_vec(&feature).expect("rewritten feature should serialize")
+}
+
+fn first_cityobject_id(value: &Value) -> String {
+    value["CityObjects"]
+        .as_object()
+        .expect("feature file must contain CityObjects")
+        .keys()
+        .next()
+        .expect("feature file must contain at least one CityObject")
+        .to_owned()
+}
+
+fn materialize_feature_files_metadata(root: &Path) {
+    let source_root = feature_files_root();
+    fs::copy(
+        source_root.join("metadata.json"),
+        root.join("metadata.json"),
+    )
+    .expect("metadata file should copy");
+}
+
+fn write_feature_file(path: &Path, top_level_id: &str, objects: &[(&str, i64)]) {
+    let parent = path.parent().expect("feature path should have a parent");
+    fs::create_dir_all(parent).expect("feature directory should be creatable");
+
+    let mut cityobjects = Map::new();
+    let mut vertices = Vec::new();
+    for (index, (id, base)) in objects.iter().enumerate() {
+        let start = index * 3;
+        cityobjects.insert(
+            (*id).to_owned(),
+            serde_json::json!({
+                "type": "Building",
+                "geometry": [{
+                    "type": "MultiSurface",
+                    "lod": "1.0",
+                    "boundaries": [[[start, start + 1, start + 2]]]
+                }]
+            }),
+        );
+        vertices.push(serde_json::json!([base, base, 0]));
+        vertices.push(serde_json::json!([base + 1, base, 0]));
+        vertices.push(serde_json::json!([base, base + 1, 0]));
+    }
+
+    let feature = serde_json::json!({
+        "type": "CityJSONFeature",
+        "id": top_level_id,
+        "CityObjects": cityobjects,
+        "vertices": vertices
+    });
+    fs::write(
+        path,
+        serde_json::to_vec(&feature).expect("feature should serialize"),
+    )
+    .expect("feature file should write");
 }
 
 fn temp_parallel_fixture_root(label: &str) -> PathBuf {

@@ -139,6 +139,13 @@ impl OpenedIndex {
             .map_err(AbiError::from)
     }
 
+    fn lookup_feature_refs(&self, feature_id: &str) -> Result<Vec<cjx_feature_ref_t>, AbiError> {
+        self.index
+            .lookup_feature_refs(feature_id)
+            .map(|refs| refs.into_iter().map(Into::into).collect())
+            .map_err(AbiError::from)
+    }
+
     fn get_bytes(&self, feature_id: &str) -> Result<Option<Vec<u8>>, AbiError> {
         self.index.get_bytes(feature_id).map_err(AbiError::from)
     }
@@ -444,6 +451,41 @@ pub extern "C" fn cjx_index_feature_ref_page(
     match run_ffi(|| {
         let handle = required_handle(handle)?;
         let refs = handle.feature_ref_page(offset, limit)?;
+        let count = refs.len();
+
+        write_value(out_count, "out_count", count)?;
+
+        if count == 0 {
+            let out_refs = NonNull::new(out_refs)
+                .ok_or_else(|| AbiError::invalid_argument("out_refs must not be null"))?;
+            // SAFETY: `out_refs` is validated to be non-null and points to writable storage.
+            unsafe {
+                ptr::write(out_refs.as_ptr(), ptr::null_mut());
+            }
+            return Ok(());
+        }
+
+        let boxed = refs.into_boxed_slice();
+        let ptr = Box::into_raw(boxed).cast::<cjx_feature_ref_t>();
+        write_value(out_refs, "out_refs", ptr)
+    }) {
+        Ok(()) => cj_status_t::CJ_STATUS_SUCCESS,
+        Err(status) => status,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cjx_index_lookup_feature_refs(
+    handle: *const cjx_index_t,
+    feature_id: *const c_char,
+    feature_id_len: usize,
+    out_refs: *mut *mut cjx_feature_ref_t,
+    out_count: *mut usize,
+) -> cj_status_t {
+    match run_ffi(|| {
+        let handle = required_handle(handle)?;
+        let feature_id = required_string(feature_id, feature_id_len, "feature_id")?;
+        let refs = handle.lookup_feature_refs(&feature_id)?;
         let count = refs.len();
 
         write_value(out_count, "out_count", count)?;

@@ -15,9 +15,19 @@
   SQLite feature row ids instead of feature-id strings.
 - Added `CityIndex::feature_bounds_summary()` to return whole-index 3D bounds
   and feature count in one aggregate query, with `None` for empty indexes.
+- Added `CityIndex::lookup_feature_refs()` plus matching C FFI and Python
+  bindings for callers that need every indexed row for a duplicate feature id.
 
 ### Changed
 
+- Feature-file and NDJSON indexing now derives feature ids from every key in a
+  feature package's `CityObjects` object and ignores the package's top-level
+  `id` during indexing.
+- SQLite sidecars now allow duplicate `feature_id` values. Existing sidecars
+  with the old unique constraints are migrated on open by recreating the
+  affected index tables.
+- Single-id lookup APIs continue to return one result for duplicate ids, using
+  the earliest indexed feature row deterministically.
 - Optimized ordered full-index page scans by using separate first-page and
   later-page SQL paths. Later pages now page with `WHERE f.id > ?`, preserving
   result order and page semantics while allowing SQLite to use the integer
