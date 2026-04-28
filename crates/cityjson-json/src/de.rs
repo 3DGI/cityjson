@@ -1,10 +1,10 @@
-mod attributes;
-mod build;
+pub(crate) mod attributes;
+pub(crate) mod build;
 mod cityobjects;
 mod geometry;
 mod parse;
 mod profiling;
-mod root;
+pub(crate) mod root;
 mod sections;
 mod validation;
 

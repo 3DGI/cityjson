@@ -13,14 +13,19 @@ use crate::v2_0::{
 };
 
 pub mod staged {
+    use std::borrow::Cow;
+    use std::collections::HashMap;
     use std::io::Write;
     use std::path::Path;
 
     use cityjson::CityModelType;
+    use cityjson::prelude::OwnedStringStorage;
     use cityjson::v2_0::OwnedCityModel;
     use serde_json::value::RawValue;
-    use serde_json::{Map, Value};
 
+    use crate::de::attributes::RawAttribute;
+    use crate::de::build::build_model;
+    use crate::de::root::{PreparedRoot, parse_root};
     use crate::errors::{Error, Result};
     use crate::v2_0::{ReadOptions, WriteOptions, read_feature_with_base, read_model, write_model};
 
@@ -65,22 +70,54 @@ pub mod staged {
         assembly: FeatureAssembly<'_>,
         base_document_bytes: &[u8],
     ) -> Result<OwnedCityModel> {
-        let mut cityobjects = Map::with_capacity(assembly.cityobjects.len());
-        for cityobject in assembly.cityobjects {
-            cityobjects.insert(
-                cityobject.id.to_owned(),
-                serde_json::from_str::<Value>(cityobject.object.get())?,
-            );
-        }
+        from_feature_assembly_with_base_direct(assembly, base_document_bytes)
+    }
 
-        let feature = serde_json::json!({
-            "type": "CityJSONFeature",
-            "id": assembly.id,
-            "CityObjects": cityobjects,
-            "vertices": assembly.vertices,
-        });
-        let bytes = serde_json::to_vec(&feature)?;
-        from_feature_slice_with_base(&bytes, base_document_bytes)
+    /// # Errors
+    ///
+    /// Returns an error if JSON parsing fails or the input is not a valid `CityJSONFeature`.
+    pub fn from_feature_slice_with_indexed_id_and_base(
+        feature_bytes: &[u8],
+        indexed_id: &str,
+        base_document_bytes: &[u8],
+    ) -> Result<OwnedCityModel> {
+        let base_input = std::str::from_utf8(base_document_bytes)?;
+        let feature_input = std::str::from_utf8(feature_bytes)?;
+        let base = parse_base_root(base_input)?;
+        let feature = parse_feature_root(feature_input)?;
+        let root = merge_base_and_feature_roots(base, feature, indexed_id);
+        build_model::<OwnedStringStorage>(root)
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error if JSON parsing fails or the assembled feature is not valid.
+    pub fn from_feature_assembly_with_base_direct(
+        assembly: FeatureAssembly<'_>,
+        base_document_bytes: &[u8],
+    ) -> Result<OwnedCityModel> {
+        let base_input = std::str::from_utf8(base_document_bytes)?;
+        let base = parse_base_root(base_input)?;
+        let cityobjects = cityobjects_raw_from_fragments(assembly.cityobjects)?;
+        let vertices = assembly
+            .vertices
+            .iter()
+            .map(|vertex| [vertex[0] as f64, vertex[1] as f64, vertex[2] as f64])
+            .collect();
+        let root = PreparedRoot {
+            type_name: "CityJSONFeature",
+            version: base.version,
+            transform: base.transform,
+            vertices,
+            metadata: base.metadata,
+            extensions: base.extensions,
+            cityobjects: cityobjects.as_ref(),
+            appearance: base.appearance,
+            geometry_templates: base.geometry_templates,
+            id: Some(RawAttribute::String(Cow::Borrowed(assembly.id))),
+            extra: base.extra,
+        };
+        build_model::<OwnedStringStorage>(root)
     }
 
     /// # Errors
@@ -103,6 +140,68 @@ pub mod staged {
             CityModelType::CityJSONFeature => write_model(writer, model, &WriteOptions::default()),
             other => Err(Error::UnsupportedType(other.to_string())),
         }
+    }
+
+    fn parse_base_root(input: &str) -> Result<PreparedRoot<'_>> {
+        let root = parse_root(input)?;
+        if root.type_name != "CityJSON" {
+            return Err(Error::MalformedRootObject(
+                "base document must be a CityJSON root",
+            ));
+        }
+        Ok(root)
+    }
+
+    fn parse_feature_root(input: &str) -> Result<PreparedRoot<'_>> {
+        let root = parse_root(input)?;
+        if root.type_name != "CityJSONFeature" {
+            return Err(Error::MalformedRootObject(
+                "feature document must be a CityJSONFeature root",
+            ));
+        }
+        Ok(root)
+    }
+
+    fn merge_base_and_feature_roots<'a>(
+        base: PreparedRoot<'a>,
+        feature: PreparedRoot<'a>,
+        indexed_id: &'a str,
+    ) -> PreparedRoot<'a> {
+        let mut extra: HashMap<&'a str, RawAttribute<'a>> = base.extra;
+        extra.extend(feature.extra);
+        PreparedRoot {
+            type_name: "CityJSONFeature",
+            version: base.version,
+            transform: feature.transform.or(base.transform),
+            vertices: feature.vertices,
+            metadata: feature.metadata.or(base.metadata),
+            extensions: feature.extensions.or(base.extensions),
+            cityobjects: feature.cityobjects,
+            appearance: feature.appearance.or(base.appearance),
+            geometry_templates: feature.geometry_templates.or(base.geometry_templates),
+            id: Some(RawAttribute::String(Cow::Borrowed(indexed_id))),
+            extra,
+        }
+    }
+
+    fn cityobjects_raw_from_fragments(
+        cityobjects: &[FeatureObjectFragment<'_>],
+    ) -> Result<Box<RawValue>> {
+        let capacity = cityobjects.iter().fold(2, |capacity, cityobject| {
+            capacity + cityobject.id.len() + cityobject.object.get().len() + 4
+        });
+        let mut output = String::with_capacity(capacity);
+        output.push('{');
+        for (index, cityobject) in cityobjects.iter().enumerate() {
+            if index != 0 {
+                output.push(',');
+            }
+            output.push_str(&serde_json::to_string(cityobject.id)?);
+            output.push(':');
+            output.push_str(cityobject.object.get());
+        }
+        output.push('}');
+        RawValue::from_string(output).map_err(Error::from)
     }
 }
 

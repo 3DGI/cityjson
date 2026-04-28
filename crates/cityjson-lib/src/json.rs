@@ -38,6 +38,20 @@ pub mod staged {
         from_feature_slice_with_base(feature_bytes, base_document_bytes)
     }
 
+    pub fn from_feature_slice_with_indexed_id_and_base(
+        feature_bytes: &[u8],
+        indexed_id: &str,
+        base_document_bytes: &[u8],
+    ) -> Result<CityModel> {
+        cityjson_json::staged::from_feature_slice_with_indexed_id_and_base(
+            feature_bytes,
+            indexed_id,
+            base_document_bytes,
+        )
+        .map(CityModel::from)
+        .map_err(Error::from)
+    }
+
     pub fn from_feature_assembly_with_base(
         assembly: FeatureAssembly<'_>,
         base_document_bytes: &[u8],

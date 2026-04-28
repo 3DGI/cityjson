@@ -3266,13 +3266,12 @@ fn feature_slice_with_indexed_id(
     loc: &FeatureLocation,
     metadata_bytes: &[u8],
 ) -> Result<CityModel> {
-    let mut feature: Value = parse_json_slice(feature_bytes)?;
-    let object = feature
-        .as_object_mut()
-        .ok_or_else(|| import_error("CityJSONFeature root must be a JSON object"))?;
-    object.insert("id".to_owned(), Value::String(loc.feature_id.clone()));
-    let bytes = serde_json::to_vec(&feature).map_err(|error| serde_json_error(&error))?;
-    staged::from_feature_slice_with_base(&bytes, metadata_bytes)
+    staged::from_feature_slice_with_indexed_id_and_base(
+        feature_bytes,
+        loc.feature_id.as_str(),
+        metadata_bytes,
+    )
+    .map_err(Error::from)
 }
 
 fn read_exact_range_from_file(
