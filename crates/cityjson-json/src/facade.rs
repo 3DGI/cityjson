@@ -360,6 +360,71 @@ fn apply_transform_state(root: &mut Map<String, Value>, state: &TransformMergeSt
     }
 }
 
+fn number_value(value: &Value, context: &str) -> Result<f64> {
+    value
+        .as_f64()
+        .ok_or_else(|| import_error(format!("expected numeric {context}")))
+}
+
+fn parse_transform(root: &Map<String, Value>) -> Result<Option<([f64; 3], [f64; 3])>> {
+    let Some(transform) = root.get("transform") else {
+        return Ok(None);
+    };
+    let transform = transform
+        .as_object()
+        .ok_or_else(|| import_error("transform is not an object"))?;
+    let scale = transform
+        .get("scale")
+        .and_then(Value::as_array)
+        .ok_or_else(|| import_error("transform.scale is missing or not an array"))?;
+    let translate = transform
+        .get("translate")
+        .and_then(Value::as_array)
+        .ok_or_else(|| import_error("transform.translate is missing or not an array"))?;
+    if scale.len() != 3 || translate.len() != 3 {
+        return Err(import_error(
+            "transform.scale and transform.translate must have three values",
+        ));
+    }
+
+    Ok(Some((
+        [
+            number_value(&scale[0], "transform scale")?,
+            number_value(&scale[1], "transform scale")?,
+            number_value(&scale[2], "transform scale")?,
+        ],
+        [
+            number_value(&translate[0], "transform translate")?,
+            number_value(&translate[1], "transform translate")?,
+            number_value(&translate[2], "transform translate")?,
+        ],
+    )))
+}
+
+fn normalize_root_vertices_to_world(root: &mut Map<String, Value>) -> Result<()> {
+    let Some((scale, translate)) = parse_transform(root)? else {
+        return Ok(());
+    };
+
+    let vertices = get_array_mut(root, "vertices")
+        .ok_or_else(|| import_error("model with transform is missing its vertices array"))?;
+    for vertex in vertices {
+        let vertex = vertex
+            .as_array_mut()
+            .ok_or_else(|| import_error("vertex entry is not an array"))?;
+        if vertex.len() != 3 {
+            return Err(import_error("vertex entry must have three coordinates"));
+        }
+        for index in 0..3 {
+            let coordinate = number_value(&vertex[index], "vertex coordinate")?;
+            vertex[index] = Value::from(coordinate * scale[index] + translate[index]);
+        }
+    }
+
+    root.remove("transform");
+    Ok(())
+}
+
 fn append_kind_compatible(target_kind: &str, source_kind: &str) -> bool {
     target_kind == source_kind || (target_kind == "CityJSON" && source_kind == "CityJSONFeature")
 }
@@ -503,23 +568,32 @@ fn merge_one(
         ));
     }
 
-    *transform_state =
-        reconcile_transform_state(transform_state.clone(), source_root.get("transform"));
+    let mut source_root = source_root.clone();
+    if matches!(transform_state, TransformMergeState::Cleared)
+        || target_root.get("transform") != source_root.get("transform")
+    {
+        normalize_root_vertices_to_world(target_root)?;
+        normalize_root_vertices_to_world(&mut source_root)?;
+        *transform_state = TransformMergeState::Cleared;
+    } else {
+        *transform_state =
+            reconcile_transform_state(transform_state.clone(), source_root.get("transform"));
+    }
 
     let vertex_offset = get_array(target_root, "vertices").map_or(0_u64, |vertices| {
         u64::try_from(vertices.len()).unwrap_or(u64::MAX)
     });
 
-    let source_vertices = get_array(source_root, "vertices")
+    let source_vertices = get_array(&source_root, "vertices")
         .cloned()
         .ok_or_else(|| import_error("source model is missing its vertices array"))?;
     let target_vertices = get_array_mut(target_root, "vertices")
         .ok_or_else(|| import_error("target model is missing its vertices array"))?;
     target_vertices.extend(source_vertices);
 
-    merge_root_object_field(target_root, source_root, "extensions")?;
+    merge_root_object_field(target_root, &source_root, "extensions")?;
 
-    let source_cityobjects = get_object(source_root, "CityObjects")
+    let source_cityobjects = get_object(&source_root, "CityObjects")
         .ok_or_else(|| import_error("source model is missing its CityObjects map"))?;
     let target_cityobjects = get_object_mut(target_root, "CityObjects")
         .ok_or_else(|| import_error("target model is missing its CityObjects map"))?;
@@ -629,4 +703,56 @@ pub fn merge_feature_stream_slice(bytes: &[u8]) -> Result<OwnedCityModel> {
 /// Returns an error if the input is not a valid `CityJSONSeq` stream or merging fails.
 pub fn merge_cityjsonseq_slice(bytes: &[u8]) -> Result<OwnedCityModel> {
     merge_feature_stream_slice(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn transformed_feature(id: &str, translate_x: f64) -> OwnedCityModel {
+        let bytes = format!(
+            r#"{{
+                "type":"CityJSONFeature",
+                "id":"{id}",
+                "transform":{{"scale":[1.0,1.0,1.0],"translate":[{translate_x},0.0,0.0]}},
+                "CityObjects":{{
+                    "{id}":{{
+                        "type":"Building",
+                        "geometry":[{{"type":"MultiSurface","lod":"1","boundaries":[[[0,1,2]]]}}]
+                    }}
+                }},
+                "vertices":[[0,0,0],[1,0,0],[0,1,0]]
+            }}"#
+        );
+        read_feature(bytes.as_bytes(), &ReadOptions::default()).expect("feature should parse")
+    }
+
+    #[test]
+    fn merge_preserves_world_coordinates_when_transforms_differ() {
+        let merged = merge([
+            transformed_feature("first", 100.0),
+            transformed_feature("second", 200.0),
+        ])
+        .expect("features should merge");
+        let root: Value =
+            serde_json::from_slice(&to_vec(&merged, &WriteOptions::default()).expect("serialize"))
+                .expect("parse serialized root");
+
+        assert!(root.get("transform").is_none());
+        let world_xs = root
+            .get("vertices")
+            .and_then(Value::as_array)
+            .expect("vertices should exist")
+            .iter()
+            .map(|vertex| {
+                vertex
+                    .get(0)
+                    .and_then(Value::as_f64)
+                    .expect("x vertex should be numeric")
+            })
+            .collect::<Vec<_>>();
+
+        assert!(world_xs.iter().any(|x| (*x - 100.0).abs() < 1e-9));
+        assert!(world_xs.iter().any(|x| (*x - 200.0).abs() < 1e-9));
+    }
 }

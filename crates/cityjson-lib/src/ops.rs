@@ -259,7 +259,11 @@ fn reconcile_transform_state(
 }
 
 fn strip_transform(model: &CityModel) -> Result<CityModel> {
-    let mut root = serde_json::from_slice::<Value>(&json::to_vec(model)?)
+    let mut untransformed = model.clone();
+    untransformed.transform_mut().set_scale([1.0, 1.0, 1.0]);
+    untransformed.transform_mut().set_translate([0.0, 0.0, 0.0]);
+
+    let mut root = serde_json::from_slice::<Value>(&json::to_vec(&untransformed)?)
         .map_err(|error| import_error(error.to_string()))?;
     let Value::Object(root) = &mut root else {
         return Err(import_error("serialized CityJSON root is not an object"));
@@ -1372,4 +1376,47 @@ where
     apply_transform_state(&mut merged, &transform_state)?;
 
     Ok(merged)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn transformed_feature(id: &str, translate_x: f64) -> CityModel {
+        let bytes = format!(
+            r#"{{
+                "type":"CityJSONFeature",
+                "id":"{id}",
+                "transform":{{"scale":[1.0,1.0,1.0],"translate":[{translate_x},0.0,0.0]}},
+                "CityObjects":{{
+                    "{id}":{{
+                        "type":"Building",
+                        "geometry":[{{"type":"MultiSurface","lod":"1","boundaries":[[[0,1,2]]]}}]
+                    }}
+                }},
+                "vertices":[[0,0,0],[1,0,0],[0,1,0]]
+            }}"#
+        );
+        json::from_feature_slice(bytes.as_bytes()).expect("feature should parse")
+    }
+
+    #[test]
+    fn merge_preserves_world_coordinates_when_transforms_differ() {
+        let merged = merge([
+            transformed_feature("first", 100.0),
+            transformed_feature("second", 200.0),
+        ])
+        .expect("features should merge");
+
+        assert!(merged.transform().is_none());
+        let world_xs = merged
+            .vertices()
+            .as_slice()
+            .iter()
+            .map(|vertex| vertex.x())
+            .collect::<Vec<_>>();
+
+        assert!(world_xs.iter().any(|x| (*x - 100.0).abs() < 1e-9));
+        assert!(world_xs.iter().any(|x| (*x - 200.0).abs() < 1e-9));
+    }
 }
