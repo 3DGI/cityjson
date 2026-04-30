@@ -92,6 +92,8 @@ pub mod staged {
     /// # Errors
     ///
     /// Returns an error if JSON parsing fails or the assembled feature is not valid.
+    // CityJSON vertices are serialized as JSON numbers, so this widening is intentional here.
+    #[allow(clippy::cast_precision_loss)]
     pub fn from_feature_assembly_with_base_direct(
         assembly: FeatureAssembly<'_>,
         base_document_bytes: &[u8],

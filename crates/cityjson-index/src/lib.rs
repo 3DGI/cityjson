@@ -3271,7 +3271,6 @@ fn feature_slice_with_indexed_id(
         loc.feature_id.as_str(),
         metadata_bytes,
     )
-    .map_err(Error::from)
 }
 
 fn read_exact_range_from_file(
