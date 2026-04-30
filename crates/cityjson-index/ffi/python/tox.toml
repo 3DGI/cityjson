@@ -4,7 +4,7 @@ env_list = ["wheel"]
 [env_run_base]
 description = "run the Python smoke tests against an installed package"
 pass_env = ["RUSTFLAGS", "UV_FIND_LINKS"]
-set_env = { UV_FIND_LINKS = "{tox_root}/../../../cityjson-lib/ffi/python/dist" }
+set_env = { UV_FIND_LINKS = "{env:UV_FIND_LINKS:{tox_root}/../../../cityjson-lib/ffi/python/dist}" }
 commands = [["python", "-m", "unittest", "tests.test_api"]]
 
 [env.wheel]
