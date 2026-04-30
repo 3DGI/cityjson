@@ -82,6 +82,57 @@ pub struct IndexedFeature {
     pub model: CityModel,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum LodSelection {
+    #[default]
+    All,
+    Highest,
+    Exact(String),
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FeatureFilter {
+    pub cityobject_types: Option<BTreeSet<String>>,
+    pub default_lod: LodSelection,
+    pub lods_by_type: BTreeMap<String, LodSelection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MissingLodSelection {
+    pub cityobject_type: String,
+    pub requested_lod: String,
+    pub available_lods: BTreeSet<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FeatureFilterDiagnostics {
+    pub available_types: BTreeSet<String>,
+    pub retained_types: BTreeSet<String>,
+    pub ignored_types: BTreeSet<String>,
+    pub available_lods: BTreeMap<String, BTreeSet<String>>,
+    pub retained_lods: BTreeMap<String, BTreeSet<String>>,
+    pub missing_lods: Vec<MissingLodSelection>,
+    pub retained_geometry_count: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct FilteredFeature {
+    pub model: CityModel,
+    pub diagnostics: FeatureFilterDiagnostics,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FeatureFilterSummary {
+    pub available_types: BTreeSet<String>,
+    pub retained_types: BTreeSet<String>,
+    pub ignored_types: BTreeSet<String>,
+    pub available_lods: BTreeMap<String, BTreeSet<String>>,
+    pub retained_lods: BTreeMap<String, BTreeSet<String>>,
+    pub missing_lods: BTreeMap<String, MissingLodSelection>,
+    pub retained_feature_count: usize,
+    pub ignored_feature_count: usize,
+}
+
 impl IndexedFeatureRef {
     fn to_location(&self) -> FeatureLocation {
         FeatureLocation {
@@ -95,6 +146,396 @@ impl IndexedFeatureRef {
             member_ranges_json: self.member_ranges_json.clone(),
         }
     }
+}
+
+impl FeatureFilter {
+    #[must_use]
+    pub fn is_active(&self) -> bool {
+        self.cityobject_types.is_some()
+            || self.default_lod != LodSelection::All
+            || self
+                .lods_by_type
+                .values()
+                .any(|selection| *selection != LodSelection::All)
+    }
+
+    /// Applies this filter to a single decoded `CityJSON` feature.
+    ///
+    /// Object-type selection keeps descendants of selected `CityObjects`. This
+    /// preserves common `CityJSON` features where a selected parent object, such
+    /// as `Building`, carries its renderable geometry on child objects.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the source model contains invalid references or
+    /// `cityjson-lib` extraction fails.
+    pub fn apply(&self, model: &CityModel) -> Result<FilteredFeature> {
+        let retained_handles = retained_cityobject_handles(model, self)?;
+        let diagnostics = filter_diagnostics(model, &retained_handles, self);
+
+        if !self.is_active() {
+            return Ok(FilteredFeature {
+                model: model.clone(),
+                diagnostics,
+            });
+        }
+
+        let type_selection = self
+            .cityobject_types
+            .as_ref()
+            .map(|_| {
+                cityjson_lib::ops::select_cityobjects(model, |ctx| {
+                    retained_handles.contains(&ctx.handle())
+                })
+            })
+            .transpose()?;
+
+        let lod_selection = lod_selection(model, &retained_handles, self)?;
+        let selection = match (type_selection, lod_selection) {
+            (Some(types), Some(lods)) => types.intersection(&lods),
+            (Some(types), None) => types,
+            (None, Some(lods)) => lods,
+            (None, None) => {
+                return Ok(FilteredFeature {
+                    model: model.clone(),
+                    diagnostics,
+                });
+            }
+        };
+
+        let filtered = extract_or_empty_feature(model, &selection)?;
+        Ok(FilteredFeature {
+            model: filtered,
+            diagnostics,
+        })
+    }
+}
+
+impl FeatureFilterSummary {
+    pub fn add(&mut self, diagnostics: &FeatureFilterDiagnostics) {
+        self.available_types
+            .extend(diagnostics.available_types.iter().cloned());
+        self.retained_types
+            .extend(diagnostics.retained_types.iter().cloned());
+        self.ignored_types
+            .extend(diagnostics.ignored_types.iter().cloned());
+        merge_lod_sets(&mut self.available_lods, &diagnostics.available_lods);
+        merge_lod_sets(&mut self.retained_lods, &diagnostics.retained_lods);
+        for missing in &diagnostics.missing_lods {
+            self.missing_lods
+                .entry(missing.cityobject_type.clone())
+                .or_insert_with(|| missing.clone());
+        }
+        if diagnostics.retained_geometry_count == 0 {
+            self.ignored_feature_count += 1;
+        } else {
+            self.retained_feature_count += 1;
+        }
+    }
+
+    #[must_use]
+    pub fn requested_lod_failures(&self, filter: &FeatureFilter) -> Vec<MissingLodSelection> {
+        filter
+            .lods_by_type
+            .iter()
+            .filter_map(|(cityobject_type, selection)| {
+                let LodSelection::Exact(requested_lod) = selection else {
+                    return None;
+                };
+                let eligible = self.available_lods.contains_key(cityobject_type)
+                    || self.retained_types.contains(cityobject_type)
+                    || filter
+                        .cityobject_types
+                        .as_ref()
+                        .is_none_or(|types| types.contains(cityobject_type));
+                if !eligible {
+                    return None;
+                }
+                let available_lods = self
+                    .available_lods
+                    .get(cityobject_type)
+                    .cloned()
+                    .unwrap_or_default();
+                if available_lods.contains(requested_lod) {
+                    return None;
+                }
+                Some(MissingLodSelection {
+                    cityobject_type: cityobject_type.clone(),
+                    requested_lod: requested_lod.clone(),
+                    available_lods,
+                })
+            })
+            .collect()
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when any explicit `LoD` selector did not match the
+    /// scanned filtered dataset.
+    pub fn ensure_requested_lods_available(&self, filter: &FeatureFilter) -> Result<()> {
+        let failures = self.requested_lod_failures(filter);
+        if failures.is_empty() {
+            return Ok(());
+        }
+
+        let details = failures
+            .iter()
+            .map(|missing| {
+                let available = if missing.available_lods.is_empty() {
+                    "none".to_owned()
+                } else {
+                    missing
+                        .available_lods
+                        .iter()
+                        .cloned()
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                };
+                format!(
+                    "{} requested LoD '{}' but available LoDs are: {}",
+                    missing.cityobject_type, missing.requested_lod, available
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        Err(import_error(format!(
+            "requested LoD selector matched no geometry: {details}"
+        )))
+    }
+}
+
+fn merge_lod_sets(
+    target: &mut BTreeMap<String, BTreeSet<String>>,
+    source: &BTreeMap<String, BTreeSet<String>>,
+) {
+    for (cityobject_type, lods) in source {
+        target
+            .entry(cityobject_type.clone())
+            .or_default()
+            .extend(lods.iter().cloned());
+    }
+}
+
+type CityObjectHandle = cityjson_lib::cityjson::prelude::CityObjectHandle;
+type GeometryHandle = cityjson_lib::cityjson::prelude::GeometryHandle;
+
+fn retained_cityobject_handles(
+    model: &CityModel,
+    filter: &FeatureFilter,
+) -> Result<BTreeSet<CityObjectHandle>> {
+    let Some(selected_types) = filter.cityobject_types.as_ref() else {
+        return Ok(model
+            .cityobjects()
+            .iter()
+            .map(|(handle, _)| handle)
+            .collect());
+    };
+
+    let mut retained = BTreeSet::new();
+    for (handle, cityobject) in model.cityobjects().iter() {
+        if selected_types.contains(&cityobject.type_cityobject().to_string()) {
+            collect_cityobject_descendants(model, handle, &mut retained)?;
+        }
+    }
+    Ok(retained)
+}
+
+fn collect_cityobject_descendants(
+    model: &CityModel,
+    handle: CityObjectHandle,
+    retained: &mut BTreeSet<CityObjectHandle>,
+) -> Result<()> {
+    if !retained.insert(handle) {
+        return Ok(());
+    }
+    let cityobject = model.cityobjects().get(handle).ok_or_else(|| {
+        import_error(format!(
+            "missing CityObject handle in filter traversal: {handle:?}"
+        ))
+    })?;
+    if let Some(children) = cityobject.children() {
+        for child in children {
+            collect_cityobject_descendants(model, *child, retained)?;
+        }
+    }
+    Ok(())
+}
+
+fn lod_selection(
+    model: &CityModel,
+    retained_handles: &BTreeSet<CityObjectHandle>,
+    filter: &FeatureFilter,
+) -> Result<Option<cityjson_lib::ops::ModelSelection>> {
+    if filter.default_lod == LodSelection::All
+        && filter
+            .lods_by_type
+            .values()
+            .all(|selection| *selection == LodSelection::All)
+    {
+        return Ok(None);
+    }
+
+    let highest_lods = highest_lods_by_cityobject(model, retained_handles);
+    cityjson_lib::ops::select_geometries(model, |ctx| {
+        if !retained_handles.contains(&ctx.cityobject_handle()) {
+            return false;
+        }
+        let cityobject_type = ctx.cityobject().type_cityobject().to_string();
+        let selection = filter
+            .lods_by_type
+            .get(&cityobject_type)
+            .unwrap_or(&filter.default_lod);
+        geometry_matches_lod_selection(
+            ctx.geometry().lod(),
+            highest_lods.get(&ctx.cityobject_handle()),
+            selection,
+        )
+    })
+    .map(Some)
+}
+
+fn geometry_matches_lod_selection(
+    geometry_lod: Option<&cityjson_lib::cityjson::v2_0::LoD>,
+    highest_lod: Option<&String>,
+    selection: &LodSelection,
+) -> bool {
+    match selection {
+        LodSelection::All => true,
+        LodSelection::Highest => geometry_lod
+            .is_some_and(|lod| highest_lod.is_some_and(|highest| lod.to_string() == *highest)),
+        LodSelection::Exact(selected_lod) => {
+            geometry_lod.is_some_and(|lod| lod.to_string() == *selected_lod)
+        }
+    }
+}
+
+fn highest_lods_by_cityobject(
+    model: &CityModel,
+    retained_handles: &BTreeSet<CityObjectHandle>,
+) -> BTreeMap<CityObjectHandle, String> {
+    let mut highest = BTreeMap::new();
+    for handle in retained_handles {
+        let Some(cityobject) = model.cityobjects().get(*handle) else {
+            continue;
+        };
+        let Some(geometry_handles) = cityobject.geometry() else {
+            continue;
+        };
+        if let Some(lod) = highest_lod(model, geometry_handles) {
+            highest.insert(*handle, lod);
+        }
+    }
+    highest
+}
+
+fn highest_lod(model: &CityModel, geometries: &[GeometryHandle]) -> Option<String> {
+    geometries
+        .iter()
+        .filter_map(|geometry_handle| {
+            model
+                .get_geometry(*geometry_handle)
+                .and_then(|geometry| geometry.lod())
+                .map(std::string::ToString::to_string)
+        })
+        .max_by(|lhs, rhs| compare_lod_strings(lhs, rhs))
+}
+
+fn compare_lod_strings(lhs: &str, rhs: &str) -> std::cmp::Ordering {
+    match (lhs.parse::<f64>(), rhs.parse::<f64>()) {
+        (Ok(lhs), Ok(rhs)) => lhs.partial_cmp(&rhs).unwrap_or(std::cmp::Ordering::Equal),
+        _ => lhs.cmp(rhs),
+    }
+}
+
+fn filter_diagnostics(
+    model: &CityModel,
+    retained_handles: &BTreeSet<CityObjectHandle>,
+    filter: &FeatureFilter,
+) -> FeatureFilterDiagnostics {
+    let highest_lods = highest_lods_by_cityobject(model, retained_handles);
+    let mut diagnostics = FeatureFilterDiagnostics::default();
+
+    for (handle, cityobject) in model.cityobjects().iter() {
+        let cityobject_type = cityobject.type_cityobject().to_string();
+        diagnostics.available_types.insert(cityobject_type.clone());
+        if retained_handles.contains(&handle) {
+            diagnostics.retained_types.insert(cityobject_type.clone());
+        } else {
+            diagnostics.ignored_types.insert(cityobject_type.clone());
+            continue;
+        }
+
+        let Some(geometry_handles) = cityobject.geometry() else {
+            continue;
+        };
+        let selection = filter
+            .lods_by_type
+            .get(&cityobject_type)
+            .unwrap_or(&filter.default_lod);
+        for geometry_handle in geometry_handles {
+            let Some(geometry_lod) = model
+                .get_geometry(*geometry_handle)
+                .and_then(|geometry| geometry.lod())
+            else {
+                continue;
+            };
+            let lod = geometry_lod.to_string();
+            diagnostics
+                .available_lods
+                .entry(cityobject_type.clone())
+                .or_default()
+                .insert(lod.clone());
+            if geometry_matches_lod_selection(
+                Some(geometry_lod),
+                highest_lods.get(&handle),
+                selection,
+            ) {
+                diagnostics
+                    .retained_lods
+                    .entry(cityobject_type.clone())
+                    .or_default()
+                    .insert(lod);
+                diagnostics.retained_geometry_count += 1;
+            }
+        }
+    }
+
+    for (cityobject_type, selection) in &filter.lods_by_type {
+        let LodSelection::Exact(requested_lod) = selection else {
+            continue;
+        };
+        if !diagnostics.retained_types.contains(cityobject_type) {
+            continue;
+        }
+        let available_lods = diagnostics
+            .available_lods
+            .get(cityobject_type)
+            .cloned()
+            .unwrap_or_default();
+        if !available_lods.contains(requested_lod) {
+            diagnostics.missing_lods.push(MissingLodSelection {
+                cityobject_type: cityobject_type.clone(),
+                requested_lod: requested_lod.clone(),
+                available_lods,
+            });
+        }
+    }
+
+    diagnostics
+}
+
+fn extract_or_empty_feature(
+    model: &CityModel,
+    selection: &cityjson_lib::ops::ModelSelection,
+) -> Result<CityModel> {
+    if !selection.is_empty() {
+        return cityjson_lib::ops::extract(model, selection);
+    }
+
+    let mut empty = model.clone();
+    empty.clear_cityobjects();
+    empty.set_id(None);
+    Ok(empty)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -965,6 +1406,23 @@ impl CityIndex {
     /// Returns an error if any feature cannot be reconstructed.
     pub fn read_features(&self, features: &[IndexedFeatureRef]) -> Result<Vec<CityModel>> {
         self.read_feature_models(features)
+    }
+
+    /// Reconstructs and filters multiple indexed features while preserving the
+    /// input order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any feature cannot be reconstructed or filtered.
+    pub fn read_filtered_features(
+        &self,
+        features: &[IndexedFeatureRef],
+        filter: &FeatureFilter,
+    ) -> Result<Vec<FilteredFeature>> {
+        self.read_feature_models(features)?
+            .iter()
+            .map(|model| filter.apply(model))
+            .collect()
     }
 
     /// Reconstructs multiple indexed features with their references.
@@ -3999,6 +4457,98 @@ fn i64_to_u64(value: i64) -> rusqlite::Result<u64> {
 mod tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn parent_child_lod_fixture() -> CityModel {
+        cityjson_lib::json::from_feature_slice(
+            br#"{
+                "type":"CityJSONFeature",
+                "id":"building",
+                "CityObjects":{
+                    "building":{
+                        "type":"Building",
+                        "children":["building-part"]
+                    },
+                    "building-part":{
+                        "type":"BuildingPart",
+                        "parents":["building"],
+                        "geometry":[
+                            {"type":"MultiSurface","lod":"1","boundaries":[[[0,1,2]]]},
+                            {"type":"MultiSurface","lod":"2","boundaries":[[[0,2,3]]]}
+                        ]
+                    },
+                    "road":{
+                        "type":"Road",
+                        "geometry":[{"type":"MultiSurface","lod":"1","boundaries":[[[4,5,6]]]}]
+                    }
+                },
+                "vertices":[[0,0,0],[1,0,0],[1,1,0],[0,1,0],[10,0,0],[11,0,0],[10,1,0]]
+            }"#,
+        )
+        .expect("parent-child fixture should parse")
+    }
+
+    #[test]
+    fn feature_filter_selecting_parent_type_retains_child_geometry() {
+        let filter = FeatureFilter {
+            cityobject_types: Some(BTreeSet::from(["Building".to_owned()])),
+            default_lod: LodSelection::Highest,
+            lods_by_type: BTreeMap::new(),
+        };
+
+        let filtered = filter
+            .apply(&parent_child_lod_fixture())
+            .expect("filter should succeed");
+
+        assert_eq!(
+            filtered.diagnostics.retained_types,
+            BTreeSet::from(["Building".to_owned(), "BuildingPart".to_owned()])
+        );
+        assert_eq!(
+            filtered.diagnostics.retained_lods.get("BuildingPart"),
+            Some(&BTreeSet::from(["2".to_owned()]))
+        );
+        assert!(filtered.model.cityobjects().iter().any(|(_, cityobject)| {
+            cityobject.id() == "building-part"
+                && cityobject
+                    .geometry()
+                    .is_some_and(|geometries| !geometries.is_empty())
+        }));
+        assert!(
+            !filtered
+                .model
+                .cityobjects()
+                .iter()
+                .any(|(_, cityobject)| cityobject.id() == "road")
+        );
+    }
+
+    #[test]
+    fn feature_filter_summary_reports_missing_explicit_lod() {
+        let filter = FeatureFilter {
+            cityobject_types: None,
+            default_lod: LodSelection::Highest,
+            lods_by_type: BTreeMap::from([(
+                "BuildingPart".to_owned(),
+                LodSelection::Exact("3".to_owned()),
+            )]),
+        };
+        let filtered = filter
+            .apply(&parent_child_lod_fixture())
+            .expect("filter should succeed");
+        let mut summary = FeatureFilterSummary::default();
+        summary.add(&filtered.diagnostics);
+
+        let failures = summary.requested_lod_failures(&filter);
+
+        assert_eq!(
+            failures,
+            vec![MissingLodSelection {
+                cityobject_type: "BuildingPart".to_owned(),
+                requested_lod: "3".to_owned(),
+                available_lods: BTreeSet::from(["1".to_owned(), "2".to_owned()]),
+            }]
+        );
+    }
 
     #[test]
     fn cityjson_read_one_localizes_vertices_and_preserves_base_root_members() {

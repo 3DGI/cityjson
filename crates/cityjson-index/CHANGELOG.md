@@ -17,6 +17,9 @@
   and feature count in one aggregate query, with `None` for empty indexes.
 - Added `CityIndex::lookup_feature_refs()` plus matching C FFI and Python
   bindings for callers that need every indexed row for a duplicate feature id.
+- Added `FeatureFilter` and `CityIndex::read_filtered_features()` so callers can
+  apply explicit CityObject type and LoD selections with shared diagnostics
+  before computing extents, grid assignments, or exported tile content.
 
 ### Changed
 
@@ -35,6 +38,9 @@
 - Optimized batch feature reconstruction so source metadata is loaded once per
   source and backend reads are grouped by source file while preserving input
   order.
+- Filtered feature reads now use `cityjson_lib::ops` selections for object-type,
+  exact LoD, and explicit highest-LoD policies, while leaving unfiltered reads
+  policy-neutral.
 
 ## 0.4.2
 
