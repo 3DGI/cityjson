@@ -7,6 +7,7 @@ import subprocess
 import sys
 
 from setuptools import setup
+from setuptools import Distribution
 from setuptools.command.bdist_wheel import bdist_wheel as _bdist_wheel
 from setuptools.command.build_py import build_py as _build_py
 
@@ -79,7 +80,13 @@ class bdist_wheel(_bdist_wheel):
         return ("py3", "none", plat)
 
 
+class BinaryDistribution(Distribution):
+    def has_ext_modules(self) -> bool:
+        return True
+
+
 setup(
     cmdclass={"build_py": build_py, "bdist_wheel": bdist_wheel},
+    distclass=BinaryDistribution,
     package_data={"cityjson_lib": ["*.so", "*.dylib", "*.dll"]},
 )

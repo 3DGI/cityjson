@@ -65,7 +65,7 @@ jobs:
           path: wheelhouse/*.whl
 
   wheels-index:
-    needs: verify
+    needs: publish-lib
     strategy:
       fail-fast: false
       matrix:
@@ -111,7 +111,7 @@ jobs:
           packages-dir: dist
 
   publish-index:
-    needs: [publish-lib, wheels-index]
+    needs: wheels-index
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
