@@ -57,9 +57,10 @@ build-python:
     cd crates/cityjson-lib/ffi/python && uv build --wheel
     cd crates/cityjson-index/ffi/python && uv build --wheel
 
-# Delegate to the cityjson-lib ffi helper (build/headers/etc)
+# Delegate to the FFI helpers in the workspace crates.
 ffi *args:
     cd crates/cityjson-lib && ./tools/ffi.sh {{args}}
+    cd crates/cityjson-index && ./tools/ffi.sh {{args}}
 
 # Full local CI (fmt + lint + check + test + doc)
 ci: fmt-check lint check test doc

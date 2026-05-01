@@ -5,16 +5,15 @@ _default:
 
 # Build the shared FFI core crate.
 ffi-build:
-    cargo build --manifest-path ffi/core/Cargo.toml --release --lib --target-dir target
+    ./tools/ffi.sh build core
 
 # Run the shared FFI core crate tests.
 ffi-test:
-    cargo test --manifest-path ffi/core/Cargo.toml --all-features --target-dir target
+    ./tools/ffi.sh test
 
 # Run the shared FFI validation pipeline.
 ffi:
-    just ffi-build
-    just ffi-test
+    ./tools/ffi.sh test
 
 # Fast compile-time validation for library, binary, and test targets.
 check:
@@ -25,9 +24,7 @@ build *args:
     cargo build -p cityjson-index --bin cjindex --target-dir target {{args}}
 
 clean:
-    cargo clean --target-dir target
-    rm -rf ffi/python/dist ffi/python/build
-    
+    ./tools/ffi.sh clean
 
 # Run clippy with the project's strict lint settings.
 lint:
@@ -55,8 +52,7 @@ bench-index-json:
 
 # Build the shared library and run the Python install smoke tests through tox and tox-uv.
 test-python:
-    cargo build --manifest-path ffi/core/Cargo.toml --release --lib --target-dir target
-    sh -ec 'set -eu; tmp_root=$(mktemp -d); out_dir="$tmp_root/dist"; cache_dir="$tmp_root/uv-cache"; mkdir -p "$out_dir" "$cache_dir"; cp ../cityjson-lib/ffi/python/dist/*.whl "$out_dir"; cd ffi/python && UV_CACHE_DIR="$cache_dir" UV_FIND_LINKS="$out_dir" uv run tox run'
+    ./tools/ffi.sh test python
 
 # Build API docs for all features without pulling in dependencies.
 doc:
@@ -64,7 +60,7 @@ doc:
 
 # Build the Python bindings wheel.
 build-python:
-    uv build ffi/python/ --wheel --out-dir ffi/python/dist
+    ./tools/ffi.sh build python
 
 # Run the release-quality validation pipeline.
 ci:
