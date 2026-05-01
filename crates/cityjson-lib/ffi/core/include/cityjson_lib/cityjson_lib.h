@@ -550,15 +550,21 @@ enum cj_status_t cj_model_parse_feature_with_base_bytes(const uint8_t *feature_d
                                                         uintptr_t base_len,
                                                         struct cj_model_t **out_model);
 
+#if defined(CITYJSON_LIB_NATIVE_FORMATS)
 enum cj_status_t cj_model_parse_arrow_bytes(const uint8_t *data,
                                             uintptr_t len,
                                             struct cj_model_t **out_model);
+#endif
 
+#if defined(CITYJSON_LIB_NATIVE_FORMATS)
 enum cj_status_t cj_model_parse_parquet_file(struct cj_string_view_t path,
                                              struct cj_model_t **out_model);
+#endif
 
+#if defined(CITYJSON_LIB_NATIVE_FORMATS)
 enum cj_status_t cj_model_parse_parquet_dataset_dir(struct cj_string_view_t path,
                                                     struct cj_model_t **out_model);
+#endif
 
 enum cj_status_t cj_model_serialize_document(const struct cj_model_t *model,
                                              struct cj_bytes_t *out_bytes);
@@ -566,14 +572,20 @@ enum cj_status_t cj_model_serialize_document(const struct cj_model_t *model,
 enum cj_status_t cj_model_serialize_feature(const struct cj_model_t *model,
                                             struct cj_bytes_t *out_bytes);
 
+#if defined(CITYJSON_LIB_NATIVE_FORMATS)
 enum cj_status_t cj_model_serialize_arrow_bytes(const struct cj_model_t *model,
                                                 struct cj_bytes_t *out_bytes);
+#endif
 
+#if defined(CITYJSON_LIB_NATIVE_FORMATS)
 enum cj_status_t cj_model_serialize_parquet_file(const struct cj_model_t *model,
                                                  struct cj_string_view_t path);
+#endif
 
+#if defined(CITYJSON_LIB_NATIVE_FORMATS)
 enum cj_status_t cj_model_serialize_parquet_dataset_dir(const struct cj_model_t *model,
                                                         struct cj_string_view_t path);
+#endif
 
 enum cj_status_t cj_model_get_summary(const struct cj_model_t *model,
                                       struct cj_model_summary_t *out_summary);

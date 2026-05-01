@@ -5,3 +5,6 @@ cpp_compat = true
 documentation = true
 line_length = 100
 pragma_once = true
+
+[defines]
+"feature = native-formats" = "CITYJSON_LIB_NATIVE_FORMATS"
