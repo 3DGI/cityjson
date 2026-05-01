@@ -41,6 +41,43 @@ print(summary.model_type, summary.cityobject_count)
 For an end-to-end authoring example that exercises the full public Python
 API, see [`examples/fake_complete.py`](examples/fake_complete.py).
 
+## Selection and merge workflows
+
+`CityModel.subset_cityobjects(...)` remains the simple helper for extracting
+whole CityObjects by id. For workflows that need relationship expansion,
+geometry-level selection, or set operations, use `ModelSelection` and then
+materialize the result with `CityModel.extract_selection(...)`.
+
+```python
+from cityjson_lib import CityModel, GeometrySelectionSpec, ModelSelection, merge_models
+
+model = CityModel.parse_document_bytes(open("model.city.json", "rb").read())
+
+selection = ModelSelection.select_cityobjects_by_id(model, ["building-part-1"])
+with_relatives = selection.include_relatives(model)
+extracted = model.extract_selection(with_relatives)
+
+first_geometry = ModelSelection.select_geometries_by_cityobject_id_and_index(
+    model,
+    [GeometrySelectionSpec("building-1", 0)],
+)
+second_geometry = ModelSelection.select_geometries_by_cityobject_id_and_index(
+    model,
+    [("building-1", 1)],
+)
+
+combined = first_geometry.union(second_geometry)
+overlap = first_geometry.intersection(second_geometry)
+assert overlap.is_empty()
+
+geometry_extract = model.extract_selection(combined)
+merged = merge_models([extracted, geometry_extract])
+```
+
+Selection handles own native resources. They can be used as context managers or
+closed explicitly when deterministic release is useful in long-running
+processes.
+
 ## Links
 
 - Rust workspace and docs: <https://github.com/3DGI/cityjson>
