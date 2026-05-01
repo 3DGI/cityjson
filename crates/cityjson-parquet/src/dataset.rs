@@ -4,7 +4,6 @@ use arrow_array::{
     builder::{Float64Builder, ListBuilder},
 };
 use arrow_schema::{DataType, Field, FieldRef, Schema, SchemaRef};
-use cityjson::v2_0::OwnedCityModel;
 use cityjson_arrow::error::{Error, Result};
 use cityjson_arrow::internal::{
     CanonicalTable, CanonicalTableSink, IncrementalDecoder, canonical_table_order,
@@ -13,6 +12,7 @@ use cityjson_arrow::internal::{
 use cityjson_arrow::schema::{
     CityArrowHeader, CityArrowPackageVersion, ProjectionLayout, canonical_schema_set,
 };
+use cityjson_types::v2_0::OwnedCityModel;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::arrow_writer::ArrowWriter;
 use serde::{Deserialize, Serialize};

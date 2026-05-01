@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/cityjson",
+    "crates/cityjson-types",
     "crates/cityjson-json",
     "crates/cityjson-arrow",
     "crates/cityjson-parquet",
@@ -22,7 +22,7 @@ repository = "https://github.com/3DGI/cityjson"
 authors = ["Balázs Dukai <balazs.dukai@3dgi.nl>"]
 
 [workspace.dependencies]
-cityjson                = { version = "0.8.0", path = "crates/cityjson" }
+cityjson-types          = { version = "0.8.0", path = "crates/cityjson-types" }
 cityjson-json           = { version = "0.8.0", path = "crates/cityjson-json" }
 cityjson-arrow          = { version = "0.8.0", path = "crates/cityjson-arrow" }
 cityjson-parquet        = { version = "0.8.0", path = "crates/cityjson-parquet" }

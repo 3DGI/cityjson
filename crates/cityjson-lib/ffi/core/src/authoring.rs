@@ -1,21 +1,21 @@
-use cityjson_lib::cityjson::resources::handles::{
+use cityjson_lib::cityjson_types::resources::handles::{
     GeometryTemplateHandle, MaterialHandle, SemanticHandle, TextureHandle,
 };
-use cityjson_lib::cityjson::resources::storage::OwnedStringStorage;
-use cityjson_lib::cityjson::v2_0::ThemeName;
-use cityjson_lib::cityjson::v2_0::appearance::material::Material;
-use cityjson_lib::cityjson::v2_0::appearance::texture::Texture;
-use cityjson_lib::cityjson::v2_0::attributes::AttributeValue;
-use cityjson_lib::cityjson::v2_0::coordinate::{RealWorldCoordinate, UVCoordinate};
-use cityjson_lib::cityjson::v2_0::geometry::semantic::Semantic;
-use cityjson_lib::cityjson::v2_0::geometry::{AffineTransform3D, LoD};
-use cityjson_lib::cityjson::v2_0::geometry_draft::{
+use cityjson_lib::cityjson_types::resources::storage::OwnedStringStorage;
+use cityjson_lib::cityjson_types::v2_0::ThemeName;
+use cityjson_lib::cityjson_types::v2_0::appearance::material::Material;
+use cityjson_lib::cityjson_types::v2_0::appearance::texture::Texture;
+use cityjson_lib::cityjson_types::v2_0::attributes::AttributeValue;
+use cityjson_lib::cityjson_types::v2_0::coordinate::{RealWorldCoordinate, UVCoordinate};
+use cityjson_lib::cityjson_types::v2_0::geometry::semantic::Semantic;
+use cityjson_lib::cityjson_types::v2_0::geometry::{AffineTransform3D, LoD};
+use cityjson_lib::cityjson_types::v2_0::geometry_draft::{
     GeometryDraft, LineStringDraft, PointDraft, RingDraft, ShellDraft, SolidDraft, SurfaceDraft,
     UvDraft, VertexDraft,
 };
-use cityjson_lib::cityjson::v2_0::metadata::Contact;
-use cityjson_lib::cityjson::v2_0::vertex::VertexIndex;
-use cityjson_lib::cityjson::v2_0::{CityObject, GeometryType};
+use cityjson_lib::cityjson_types::v2_0::metadata::Contact;
+use cityjson_lib::cityjson_types::v2_0::vertex::VertexIndex;
+use cityjson_lib::cityjson_types::v2_0::{CityObject, GeometryType};
 
 /// cbindgen:ignore
 pub type OwnedValue = AttributeValue<OwnedStringStorage>;

@@ -1,6 +1,6 @@
 use cityjson_lib::{
     CityJSONVersion,
-    cityjson::{CityModelType, v2_0::GeometryType},
+    cityjson_types::{CityModelType, v2_0::GeometryType},
     json::RootKind,
 };
 
@@ -812,8 +812,8 @@ impl From<Option<CityJSONVersion>> for cj_version_t {
     }
 }
 
-impl From<cityjson_lib::cityjson::v2_0::RealWorldCoordinate> for cj_vertex_t {
-    fn from(value: cityjson_lib::cityjson::v2_0::RealWorldCoordinate) -> Self {
+impl From<cityjson_lib::cityjson_types::v2_0::RealWorldCoordinate> for cj_vertex_t {
+    fn from(value: cityjson_lib::cityjson_types::v2_0::RealWorldCoordinate) -> Self {
         Self {
             x: value.x(),
             y: value.y(),
@@ -822,14 +822,14 @@ impl From<cityjson_lib::cityjson::v2_0::RealWorldCoordinate> for cj_vertex_t {
     }
 }
 
-impl From<cj_vertex_t> for cityjson_lib::cityjson::v2_0::RealWorldCoordinate {
+impl From<cj_vertex_t> for cityjson_lib::cityjson_types::v2_0::RealWorldCoordinate {
     fn from(value: cj_vertex_t) -> Self {
         Self::new(value.x, value.y, value.z)
     }
 }
 
-impl From<cityjson_lib::cityjson::v2_0::UVCoordinate> for cj_uv_t {
-    fn from(value: cityjson_lib::cityjson::v2_0::UVCoordinate) -> Self {
+impl From<cityjson_lib::cityjson_types::v2_0::UVCoordinate> for cj_uv_t {
+    fn from(value: cityjson_lib::cityjson_types::v2_0::UVCoordinate) -> Self {
         Self {
             u: value.u(),
             v: value.v(),
@@ -837,13 +837,13 @@ impl From<cityjson_lib::cityjson::v2_0::UVCoordinate> for cj_uv_t {
     }
 }
 
-impl From<cj_uv_t> for cityjson_lib::cityjson::v2_0::UVCoordinate {
+impl From<cj_uv_t> for cityjson_lib::cityjson_types::v2_0::UVCoordinate {
     fn from(value: cj_uv_t) -> Self {
         Self::new(value.u, value.v)
     }
 }
 
-impl From<cj_model_capacities_t> for cityjson_lib::cityjson::v2_0::CityModelCapacities {
+impl From<cj_model_capacities_t> for cityjson_lib::cityjson_types::v2_0::CityModelCapacities {
     fn from(value: cj_model_capacities_t) -> Self {
         Self {
             cityobjects: value.cityobjects,

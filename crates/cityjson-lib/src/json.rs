@@ -206,7 +206,7 @@ pub fn write_cityjsonseq<I, W>(
     writer: W,
     base_root: &CityModel,
     features: I,
-    transform: &cityjson::v2_0::Transform,
+    transform: &cityjson_types::v2_0::Transform,
 ) -> Result<CityJsonSeqWriteReport>
 where
     I: IntoIterator<Item = CityModel>,
@@ -220,7 +220,7 @@ pub fn write_cityjsonseq_refs<'a, I, W>(
     writer: W,
     _base_root: &CityModel,
     features: I,
-    transform: &cityjson::v2_0::Transform,
+    transform: &cityjson_types::v2_0::Transform,
 ) -> Result<CityJsonSeqWriteReport>
 where
     I: IntoIterator<Item = &'a CityModel>,
@@ -306,7 +306,7 @@ pub fn to_feature_vec_with_options(model: &CityModel, options: WriteOptions) -> 
 
 pub fn to_feature_string_with_options(model: &CityModel, options: WriteOptions) -> Result<String> {
     match model.type_citymodel() {
-        cityjson::CityModelType::CityJSONFeature => to_string_with_options(model, options),
+        cityjson_types::CityModelType::CityJSONFeature => to_string_with_options(model, options),
         other => Err(Error::UnsupportedType(other.to_string())),
     }
 }

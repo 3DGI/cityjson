@@ -7,14 +7,16 @@ use std::ptr::{self, NonNull};
 use std::slice;
 use std::str::FromStr;
 
-use cityjson_lib::cityjson::v2_0::{
+use cityjson_lib::cityjson_types::v2_0::{
     Boundary, BoundaryNestedMultiLineString, BoundaryNestedMultiOrCompositeSolid,
     BoundaryNestedMultiOrCompositeSurface, BoundaryNestedMultiPoint, BoundaryNestedSolid,
     CityModelIdentifier, CityObject, CityObjectIdentifier, CityObjectType, Contact, ContactRole,
     ContactType, Extension, Geometry, GeometryType, ImageType, LoD, Material, RGB, RGBA, Semantic,
     SemanticType, StoredGeometryParts, Texture, TextureType, Transform, WrapMode,
 };
-use cityjson_lib::{CityJSONVersion, CityModel, Error, cityjson::CityModelType, json::RootKind};
+use cityjson_lib::{
+    CityJSONVersion, CityModel, Error, cityjson_types::CityModelType, json::RootKind,
+};
 
 use crate::abi::{
     cj_affine_transform_4x4_t, cj_bbox_t, cj_bytes_list_t, cj_bytes_t,
@@ -55,9 +57,9 @@ use crate::handle::{
 };
 
 /// cbindgen:ignore
-type OwnedGeometry = cityjson_lib::cityjson::v2_0::Geometry<
+type OwnedGeometry = cityjson_lib::cityjson_types::v2_0::Geometry<
     u32,
-    cityjson_lib::cityjson::resources::storage::OwnedStringStorage,
+    cityjson_lib::cityjson_types::resources::storage::OwnedStringStorage,
 >;
 
 fn invalid_argument(message: impl Into<String>) -> AbiError {
@@ -336,51 +338,51 @@ fn transform_from_abi(transform: cj_transform_t) -> Transform {
     value
 }
 
-fn bbox_from_abi(bbox: cj_bbox_t) -> cityjson_lib::cityjson::v2_0::BBox {
-    cityjson_lib::cityjson::v2_0::BBox::new(
+fn bbox_from_abi(bbox: cj_bbox_t) -> cityjson_lib::cityjson_types::v2_0::BBox {
+    cityjson_lib::cityjson_types::v2_0::BBox::new(
         bbox.min_x, bbox.min_y, bbox.min_z, bbox.max_x, bbox.max_y, bbox.max_z,
     )
 }
 
 fn affine_transform_from_abi(
     value: cj_affine_transform_4x4_t,
-) -> cityjson_lib::cityjson::v2_0::AffineTransform3D {
-    cityjson_lib::cityjson::v2_0::AffineTransform3D::new(value.elements)
+) -> cityjson_lib::cityjson_types::v2_0::AffineTransform3D {
+    cityjson_lib::cityjson_types::v2_0::AffineTransform3D::new(value.elements)
 }
 
 fn semantic_from_abi(
     value: cj_semantic_id_t,
-) -> cityjson_lib::cityjson::resources::handles::SemanticHandle {
+) -> cityjson_lib::cityjson_types::resources::handles::SemanticHandle {
     value.into()
 }
 
 fn material_from_abi(
     value: cj_material_id_t,
-) -> cityjson_lib::cityjson::resources::handles::MaterialHandle {
+) -> cityjson_lib::cityjson_types::resources::handles::MaterialHandle {
     value.into()
 }
 
 fn texture_from_abi(
     value: cj_texture_id_t,
-) -> cityjson_lib::cityjson::resources::handles::TextureHandle {
+) -> cityjson_lib::cityjson_types::resources::handles::TextureHandle {
     value.into()
 }
 
 fn geometry_from_abi(
     value: cj_geometry_id_t,
-) -> cityjson_lib::cityjson::resources::handles::GeometryHandle {
+) -> cityjson_lib::cityjson_types::resources::handles::GeometryHandle {
     value.into()
 }
 
 fn geometry_template_from_abi(
     value: cj_geometry_template_id_t,
-) -> cityjson_lib::cityjson::resources::handles::GeometryTemplateHandle {
+) -> cityjson_lib::cityjson_types::resources::handles::GeometryTemplateHandle {
     value.into()
 }
 
 fn cityobject_from_abi(
     value: cj_cityobject_id_t,
-) -> cityjson_lib::cityjson::resources::handles::CityObjectHandle {
+) -> cityjson_lib::cityjson_types::resources::handles::CityObjectHandle {
     value.into()
 }
 
@@ -441,7 +443,7 @@ fn texture_type_from_abi(value: cj_texture_type_t) -> TextureType {
 /// cbindgen:ignore
 fn semantic_type_from_string(
     value: String,
-) -> SemanticType<cityjson_lib::cityjson::resources::storage::OwnedStringStorage> {
+) -> SemanticType<cityjson_lib::cityjson_types::resources::storage::OwnedStringStorage> {
     match value.as_str() {
         "Default" => SemanticType::Default,
         "RoofSurface" => SemanticType::RoofSurface,
@@ -494,7 +496,7 @@ fn geometry_types_from_model(model: &CityModel) -> Vec<cj_geometry_type_t> {
         .collect()
 }
 
-fn index_values(indices: &[cityjson_lib::cityjson::v2_0::VertexIndex<u32>]) -> Vec<usize> {
+fn index_values(indices: &[cityjson_lib::cityjson_types::v2_0::VertexIndex<u32>]) -> Vec<usize> {
     indices.iter().map(|index| index.to_usize()).collect()
 }
 
@@ -553,7 +555,7 @@ fn find_cityobject_mut<'a>(
     model: &'a mut CityModel,
     id: &str,
 ) -> Result<
-    &'a mut CityObject<cityjson_lib::cityjson::resources::storage::OwnedStringStorage>,
+    &'a mut CityObject<cityjson_lib::cityjson_types::resources::storage::OwnedStringStorage>,
     AbiError,
 > {
     model
@@ -566,7 +568,7 @@ fn find_cityobject_mut<'a>(
 fn find_geometry_handle(
     model: &CityModel,
     index: usize,
-) -> Result<cityjson_lib::cityjson::resources::handles::GeometryHandle, AbiError> {
+) -> Result<cityjson_lib::cityjson_types::resources::handles::GeometryHandle, AbiError> {
     model
         .iter_geometries()
         .nth(index)
@@ -878,8 +880,10 @@ fn boundary_from_view(
 fn geometry_from_boundary_view(
     view: cj_geometry_boundary_view_t,
     lod: Option<LoD>,
-) -> Result<Geometry<u32, cityjson_lib::cityjson::resources::storage::OwnedStringStorage>, AbiError>
-{
+) -> Result<
+    Geometry<u32, cityjson_lib::cityjson_types::resources::storage::OwnedStringStorage>,
+    AbiError,
+> {
     let boundary = boundary_from_view(view)?;
     Ok(Geometry::from_stored_parts(StoredGeometryParts {
         type_geometry: geometry_type_from_abi(view.geometry_type),
@@ -2374,7 +2378,7 @@ pub extern "C" fn cj_model_set_metadata_reference_date(
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         required_model_mut(model)?
             .metadata_mut()
-            .set_reference_date(cityjson_lib::cityjson::v2_0::Date::new(view_utf8(
+            .set_reference_date(cityjson_lib::cityjson_types::v2_0::Date::new(view_utf8(
                 value, "value",
             )?));
         Ok(())
@@ -2389,7 +2393,7 @@ pub extern "C" fn cj_model_set_metadata_reference_system(
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         required_model_mut(model)?
             .metadata_mut()
-            .set_reference_system(cityjson_lib::cityjson::v2_0::CRS::new(view_utf8(
+            .set_reference_system(cityjson_lib::cityjson_types::v2_0::CRS::new(view_utf8(
                 value, "value",
             )?));
         Ok(())
@@ -2686,7 +2690,7 @@ pub extern "C" fn cj_model_set_default_material_theme(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         required_model_mut(model)?.set_default_material_theme(Some(
-            cityjson_lib::cityjson::v2_0::ThemeName::new(view_utf8(theme, "theme")?),
+            cityjson_lib::cityjson_types::v2_0::ThemeName::new(view_utf8(theme, "theme")?),
         ));
         Ok(())
     }))
@@ -2699,7 +2703,7 @@ pub extern "C" fn cj_model_set_default_texture_theme(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         required_model_mut(model)?.set_default_texture_theme(Some(
-            cityjson_lib::cityjson::v2_0::ThemeName::new(view_utf8(theme, "theme")?),
+            cityjson_lib::cityjson_types::v2_0::ThemeName::new(view_utf8(theme, "theme")?),
         ));
         Ok(())
     }))

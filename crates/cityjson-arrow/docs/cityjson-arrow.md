@@ -12,11 +12,11 @@
 | `ModelBatchDecoder` | Decode canonical table batches incrementally |
 | `import_batches(header, projection, batches, &ImportOptions)` | Reconstruct a model from batches |
 
-The input and output type is always `cityjson::v2_0::OwnedCityModel`.
+The input and output type is always `cityjson_types::v2_0::OwnedCityModel`.
 
 ## How it works
 
-- Export reads the model through `cityjson::relational::ModelRelationalView` and
+- Export reads the model through `cityjson_types::relational::ModelRelationalView` and
   writes canonical Arrow table batches in a fixed order.
 - Stream write emits each batch directly as an Arrow IPC frame; no intermediate
   aggregate is built.

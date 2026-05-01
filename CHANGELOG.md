@@ -16,6 +16,10 @@ crate in the workspace to the same version.
   and reconstruction helpers.
 
 ### Changed
+- Renamed the core Rust crate from `cityjson` to `cityjson-types`, moved it to
+  `crates/cityjson-types`, and updated workspace consumers to import
+  `cityjson_types::...` directly. No compatibility alias remains in
+  `cityjson-lib`.
 - `cityjson-lib::ops::append` and `merge` now reconcile differing input
   transforms instead of rejecting them. Identical transforms are preserved,
   mixed transforms clear the merged model transform, and transform-free

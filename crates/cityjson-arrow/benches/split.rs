@@ -1,28 +1,28 @@
 use std::collections::HashMap;
 
-use cityjson::CityModelType;
-use cityjson::v2_0::{
+use cityjson_arrow::internal::{decode_parts, encode_parts, read_stream_parts, write_stream_parts};
+use cityjson_arrow::{ExportOptions, ImportOptions, read_stream, write_stream};
+use cityjson_types::CityModelType;
+use cityjson_types::v2_0::{
     AttributeValue, Boundary, CityObject, CityObjectIdentifier, CityObjectType, Geometry, LoD,
     OwnedCityModel, OwnedSemantic, SemanticMap, SemanticType, StoredGeometryParts,
 };
-use cityjson_arrow::internal::{decode_parts, encode_parts, read_stream_parts, write_stream_parts};
-use cityjson_arrow::{ExportOptions, ImportOptions, read_stream, write_stream};
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 
 const LARGE_BENCHMARK_BUILDINGS: usize = 4_096;
 const ATTRIBUTE_HEAVY_BENCHMARK_BUILDINGS: usize = 1_024;
 
-fn benchmark_vertices(building_index: usize) -> [cityjson::v2_0::RealWorldCoordinate; 5] {
+fn benchmark_vertices(building_index: usize) -> [cityjson_types::v2_0::RealWorldCoordinate; 5] {
     let grid_x = f64::from(u32::try_from(building_index % 64).expect("grid x fits into u32")) * 2.0;
     let grid_y = f64::from(u32::try_from(building_index / 64).expect("grid y fits into u32")) * 2.0;
     let apex_height = 1.0
         + f64::from(u32::try_from(building_index % 5).expect("apex height fits into u32")) * 0.1;
     [
-        cityjson::v2_0::RealWorldCoordinate::new(grid_x, grid_y, 0.0),
-        cityjson::v2_0::RealWorldCoordinate::new(grid_x + 1.0, grid_y, 0.0),
-        cityjson::v2_0::RealWorldCoordinate::new(grid_x + 1.0, grid_y + 1.0, 0.0),
-        cityjson::v2_0::RealWorldCoordinate::new(grid_x, grid_y + 1.0, 0.0),
-        cityjson::v2_0::RealWorldCoordinate::new(grid_x + 0.5, grid_y + 0.5, apex_height),
+        cityjson_types::v2_0::RealWorldCoordinate::new(grid_x, grid_y, 0.0),
+        cityjson_types::v2_0::RealWorldCoordinate::new(grid_x + 1.0, grid_y, 0.0),
+        cityjson_types::v2_0::RealWorldCoordinate::new(grid_x + 1.0, grid_y + 1.0, 0.0),
+        cityjson_types::v2_0::RealWorldCoordinate::new(grid_x, grid_y + 1.0, 0.0),
+        cityjson_types::v2_0::RealWorldCoordinate::new(grid_x + 0.5, grid_y + 0.5, apex_height),
     ]
 }
 
@@ -66,9 +66,9 @@ fn benchmark_boundary(vertex_start: u32) -> Boundary<u32> {
 
 fn benchmark_geometry(
     vertex_start: u32,
-    roof: cityjson::prelude::SemanticHandle,
-    wall: cityjson::prelude::SemanticHandle,
-) -> Geometry<u32, cityjson::prelude::OwnedStringStorage> {
+    roof: cityjson_types::prelude::SemanticHandle,
+    wall: cityjson_types::prelude::SemanticHandle,
+) -> Geometry<u32, cityjson_types::prelude::OwnedStringStorage> {
     let mut semantics = SemanticMap::new();
     semantics.add_surface(Some(wall));
     semantics.add_surface(Some(wall));
@@ -76,7 +76,7 @@ fn benchmark_geometry(
     semantics.add_surface(Some(wall));
     semantics.add_surface(Some(roof));
     Geometry::from_stored_parts(StoredGeometryParts {
-        type_geometry: cityjson::v2_0::GeometryType::MultiSurface,
+        type_geometry: cityjson_types::v2_0::GeometryType::MultiSurface,
         lod: Some(LoD::LoD2_2),
         boundaries: Some(benchmark_boundary(vertex_start)),
         semantics: Some(semantics),
@@ -88,8 +88,8 @@ fn benchmark_geometry(
 
 fn benchmark_building(
     building_index: usize,
-    geometry_handle: cityjson::prelude::GeometryHandle,
-) -> CityObject<cityjson::prelude::OwnedStringStorage> {
+    geometry_handle: cityjson_types::prelude::GeometryHandle,
+) -> CityObject<cityjson_types::prelude::OwnedStringStorage> {
     let mut building = CityObject::new(
         CityObjectIdentifier::new(format!("building-{building_index}")),
         CityObjectType::Building,
@@ -112,7 +112,7 @@ fn large_benchmark_model(building_count: usize) -> OwnedCityModel {
     let mut model = OwnedCityModel::new(CityModelType::CityJSON);
     model
         .metadata_mut()
-        .set_identifier(cityjson::v2_0::CityModelIdentifier::new(
+        .set_identifier(cityjson_types::v2_0::CityModelIdentifier::new(
             "benchmark-citymodel".to_string(),
         ));
     model.metadata_mut().set_title("Benchmark".to_string());
@@ -141,8 +141,8 @@ fn large_benchmark_model(building_count: usize) -> OwnedCityModel {
 #[allow(clippy::too_many_lines, clippy::cast_possible_truncation)]
 fn attribute_heavy_benchmark_building(
     building_index: usize,
-    geometry_handle: cityjson::prelude::GeometryHandle,
-) -> CityObject<cityjson::prelude::OwnedStringStorage> {
+    geometry_handle: cityjson_types::prelude::GeometryHandle,
+) -> CityObject<cityjson_types::prelude::OwnedStringStorage> {
     let floors =
         5 + u64::from(u32::try_from(building_index % 7).expect("floor count fits into u32"));
     let mut building = CityObject::new(
@@ -257,7 +257,7 @@ fn attribute_heavy_benchmark_model(building_count: usize) -> OwnedCityModel {
     let mut model = OwnedCityModel::new(CityModelType::CityJSON);
     model
         .metadata_mut()
-        .set_identifier(cityjson::v2_0::CityModelIdentifier::new(
+        .set_identifier(cityjson_types::v2_0::CityModelIdentifier::new(
             "attribute-heavy-benchmark-citymodel".to_string(),
         ));
     model

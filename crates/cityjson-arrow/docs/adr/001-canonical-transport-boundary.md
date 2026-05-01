@@ -20,7 +20,7 @@ storage boundaries.
 
 The crate needed a transport architecture that was explicit enough to support
 schema-locked package I/O, but narrow enough to avoid becoming a second domain
-model beside `cityjson::v2_0::OwnedCityModel`.
+model beside `cityjson_types::v2_0::OwnedCityModel`.
 
 The main pressure points were:
 
@@ -39,7 +39,7 @@ transport decomposition: `CityModelArrowParts`.
 
 The architecture is:
 
-1. `cityjson::v2_0::OwnedCityModel` remains the semantic source and sink
+1. `cityjson_types::v2_0::OwnedCityModel` remains the semantic source and sink
 2. `convert::to_parts` projects that model into canonical Arrow tables grouped
    as `CityModelArrowParts`
 3. package readers and writers persist those canonical tables through either

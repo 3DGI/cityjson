@@ -2,8 +2,10 @@
 
 use std::collections::BTreeSet;
 
-use cityjson_lib::cityjson::v2_0::CityObject;
-use cityjson_lib::cityjson::{prelude::CityObjectHandle, resources::storage::OwnedStringStorage};
+use cityjson_lib::cityjson_types::v2_0::CityObject;
+use cityjson_lib::cityjson_types::{
+    prelude::CityObjectHandle, resources::storage::OwnedStringStorage,
+};
 use cityjson_lib::{json, ops};
 use serde_json::Value;
 

@@ -6,9 +6,9 @@ use serde::Deserialize;
 use serde::de::{self, DeserializeSeed, MapAccess, Visitor};
 use serde_json::value::RawValue;
 
-use cityjson::resources::handles::CityObjectHandle;
-use cityjson::resources::storage::StringStorage;
-use cityjson::v2_0::{Attributes, BBox, CityModel, CityObject, CityObjectIdentifier};
+use cityjson_types::resources::handles::CityObjectHandle;
+use cityjson_types::resources::storage::StringStorage;
+use cityjson_types::v2_0::{Attributes, BBox, CityModel, CityObject, CityObjectIdentifier};
 
 use crate::de::attributes::{AttributeValueSeed, OptionalAttributesSeed};
 use crate::de::geometry::{GeometryResources, StreamingGeometry, import_stream_geometry};
@@ -316,8 +316,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use cityjson::prelude::OwnedStringStorage;
-    use cityjson::v2_0::AttributeValue;
+    use cityjson_types::prelude::OwnedStringStorage;
+    use cityjson_types::v2_0::AttributeValue;
 
     use super::StreamingCityObject;
 

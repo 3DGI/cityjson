@@ -22,13 +22,13 @@
 
 set -euo pipefail
 
-ALL_CRATES=(cityjson cityjson-json cityjson-arrow cityjson-parquet cityjson-lib cityjson-fake cityjson-index)
+ALL_CRATES=(cityjson-types cityjson-json cityjson-arrow cityjson-parquet cityjson-lib cityjson-fake cityjson-index)
 PYTHON_CRATES=(cityjson-lib cityjson-index)
 
 # Downstream closure for each crate (including the crate itself).
 # Keep in sync with the dep graph in README.md.
 declare -A CLOSURE
-CLOSURE[cityjson]="cityjson cityjson-json cityjson-arrow cityjson-parquet cityjson-lib cityjson-fake cityjson-index"
+CLOSURE[cityjson-types]="cityjson-types cityjson-json cityjson-arrow cityjson-parquet cityjson-lib cityjson-fake cityjson-index"
 CLOSURE[cityjson-json]="cityjson-json cityjson-lib cityjson-fake cityjson-index"
 CLOSURE[cityjson-arrow]="cityjson-arrow cityjson-parquet cityjson-lib cityjson-fake cityjson-index"
 CLOSURE[cityjson-parquet]="cityjson-parquet cityjson-lib cityjson-fake cityjson-index"
@@ -134,7 +134,7 @@ classify() {
             : ;;
 
         # Per-crate paths → crate closure.
-        crates/cityjson/*)         for c in ${CLOSURE[cityjson]};         do selected[$c]=1; done ;;
+        crates/cityjson-types/*)   for c in ${CLOSURE[cityjson-types]};   do selected[$c]=1; done ;;
         crates/cityjson-json/*)    for c in ${CLOSURE[cityjson-json]};    do selected[$c]=1; done ;;
         crates/cityjson-arrow/*)   for c in ${CLOSURE[cityjson-arrow]};   do selected[$c]=1; done ;;
         crates/cityjson-parquet/*) for c in ${CLOSURE[cityjson-parquet]}; do selected[$c]=1; done ;;

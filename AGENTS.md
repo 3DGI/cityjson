@@ -21,7 +21,7 @@ rust-toolchain.toml     # pins stable; respected by rustup
 release.toml            # cargo-release config
 CHANGELOG.md            # Keep a Changelog; promoted manually at release
 crates/
-  cityjson/             # core types
+  cityjson-types/       # core types
   cityjson-json/        # serde adapter
   cityjson-arrow/       # Arrow IPC transport
   cityjson-parquet/     # Parquet over cityjson-arrow
@@ -32,7 +32,7 @@ crates/
     ffi/core/ ffi/python/
 ```
 
-Dependency direction: `cityjson` → {`-json`, `-arrow`}; `-arrow` →
+Dependency direction: `cityjson-types` → {`-json`, `-arrow`}; `-arrow` →
 `-parquet`; `{-json,-arrow,-parquet}` → `-lib` → {`-fake`, `-index`}.
 
 Shared test fixtures live in the separate
@@ -62,7 +62,7 @@ Use the justfile — don't invent cargo invocations.
 | `test`      | `cargo test --workspace --all-features`                                   |
 | `doc`       | Nightly docsrs build, warnings as errors                                  |
 | `ci`        | `fmt-check` + `lint` + `check` + `test` + `doc` — must pass before a PR   |
-| `miri`      | Nightly miri on `unsafe`-touching modules of `cityjson`                   |
+| `miri`      | Nightly miri on `unsafe`-touching modules of `cityjson-types`             |
 | `test-python` / `build-python` | tox / wheel build for the two Python-shipping crates    |
 
 Per-crate scoping uses `-p <crate>`, not different flags.

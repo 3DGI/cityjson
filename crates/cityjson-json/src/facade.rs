@@ -2,8 +2,8 @@ use std::collections::BTreeSet;
 use std::fmt::{Display, Formatter};
 use std::io::Cursor;
 
-use cityjson::CityModelType;
-use cityjson::v2_0::OwnedCityModel;
+use cityjson_types::CityModelType;
+use cityjson_types::v2_0::OwnedCityModel;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 
@@ -18,9 +18,9 @@ pub mod staged {
     use std::io::Write;
     use std::path::Path;
 
-    use cityjson::CityModelType;
-    use cityjson::prelude::OwnedStringStorage;
-    use cityjson::v2_0::OwnedCityModel;
+    use cityjson_types::CityModelType;
+    use cityjson_types::prelude::OwnedStringStorage;
+    use cityjson_types::v2_0::OwnedCityModel;
     use serde_json::value::RawValue;
 
     use crate::de::attributes::RawAttribute;

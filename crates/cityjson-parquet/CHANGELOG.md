@@ -17,6 +17,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
+- Updated the core crate import path from `cityjson::...` to
+  `cityjson_types::...` after the `cityjson-types` package rename.
 - nullable canonical `FixedSizeList` columns are written to native Parquet
   datasets as nullable Parquet lists with reader-side fixed-length validation
   for PyArrow, DuckDB, and Polars interoperability

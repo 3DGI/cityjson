@@ -313,7 +313,7 @@ mod tests {
         assert_eq!(case.config.cityobjects.max_cityobjects, 16);
         assert_eq!(
             case.config.geometry.allowed_types_geometry,
-            Some(vec![cityjson::v2_0::GeometryType::MultiSurface])
+            Some(vec![cityjson_types::v2_0::GeometryType::MultiSurface])
         );
         assert!(!case.config.materials.materials_enabled);
         assert!(!case.config.textures.textures_enabled);

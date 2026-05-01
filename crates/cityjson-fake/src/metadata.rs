@@ -4,19 +4,19 @@
 //! use cityjson_fake::metadata::MetadataBuilder;
 //! use cityjson_fake::prelude::*;
 //! use rand::SeedableRng;
-//! use cityjson::prelude::OwnedStringStorage;
+//! use cityjson_types::prelude::OwnedStringStorage;
 //!
 //! let config = CJFakeConfig::default();
 //! let mut rng = rand::prelude::SmallRng::seed_from_u64(3);
-//! let metadata: cityjson::v2_0::Metadata<OwnedStringStorage> =
+//! let metadata: cityjson_types::v2_0::Metadata<OwnedStringStorage> =
 //!     MetadataBuilder::new(&config, &mut rng).build();
 //! let _ = metadata;
 //! ```
 
 use crate::cli::CJFakeConfig;
 use crate::{CRS_AUTHORITIES, CRS_EPSG_VERSIONS, CRS_OGC_CODES, CRS_OGC_VERSIONS};
-use cityjson::prelude::StringStorage;
-use cityjson::v2_0::{
+use cityjson_types::prelude::StringStorage;
+use cityjson_types::v2_0::{
     BBox, CRS, CityModelIdentifier, Contact, ContactRole, ContactType, Date, Metadata,
 };
 use fake::RngExt;

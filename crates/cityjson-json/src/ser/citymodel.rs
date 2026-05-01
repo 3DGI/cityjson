@@ -1,6 +1,6 @@
-use cityjson::resources::handles::CityObjectHandle;
-use cityjson::resources::storage::StringStorage;
-use cityjson::v2_0::{
+use cityjson_types::resources::handles::CityObjectHandle;
+use cityjson_types::resources::storage::StringStorage;
+use cityjson_types::v2_0::{
     BBox, CityModel, CityModelType, CityObject, Contact, ContactRole, ContactType, Extension,
     Metadata, VertexRef, extension::Extensions,
 };
@@ -22,7 +22,7 @@ pub(crate) struct CityModelSerializeOptions<'a> {
     pub(crate) type_name: CityModelType,
     pub(crate) include_id: bool,
     pub(crate) include_version: bool,
-    pub(crate) transform: Option<&'a cityjson::v2_0::Transform>,
+    pub(crate) transform: Option<&'a cityjson_types::v2_0::Transform>,
     pub(crate) include_transform: bool,
     pub(crate) include_metadata: bool,
     pub(crate) metadata_geographical_extent: Option<&'a BBox>,
@@ -492,7 +492,7 @@ where
     SS: StringStorage,
 {
     model: &'a CityModel<VR, SS>,
-    transform: Option<&'a cityjson::v2_0::Transform>,
+    transform: Option<&'a cityjson_types::v2_0::Transform>,
 }
 
 impl<VR, SS> Serialize for VerticesSerializer<'_, VR, SS>
@@ -522,7 +522,7 @@ struct VertexSerializer<'a> {
     x: f64,
     y: f64,
     z: f64,
-    transform: Option<&'a cityjson::v2_0::Transform>,
+    transform: Option<&'a cityjson_types::v2_0::Transform>,
 }
 
 impl Serialize for VertexSerializer<'_> {

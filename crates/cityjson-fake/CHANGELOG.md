@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Updated the core crate import path from `cityjson::...` to
+  `cityjson_types::...` after the `cityjson-types` package rename.
+
 ## [0.5.2] - 2026-04-22
 
 ### Changed

@@ -1,6 +1,6 @@
 //! Arrow transport for `cityjson-rs`.
 //!
-//! The semantic boundary remains `cityjson::v2_0::OwnedCityModel`, but the
+//! The semantic boundary remains `cityjson_types::v2_0::OwnedCityModel`, but the
 //! public transport surface is batch-first and stream-oriented.
 
 mod codec;

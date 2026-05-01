@@ -9,9 +9,9 @@ The published C++ and Python surfaces expose that authoring model directly.
 
 === "Rust"
     ```rust
-    use cityjson_lib::cityjson::{self, v2_0::OwnedCityModel};
+    use cityjson_lib::cityjson_types::{self, v2_0::OwnedCityModel};
 
-    let model = OwnedCityModel::new(cityjson::CityModelType::CityJSON);
+    let model = OwnedCityModel::new(cityjson_types::CityModelType::CityJSON);
     # let _ = model;
     ```
 
@@ -33,9 +33,9 @@ The published C++ and Python surfaces expose that authoring model directly.
 
 === "Rust"
     ```rust
-    use cityjson_lib::cityjson::{self, v2_0::OwnedCityModel};
+    use cityjson_lib::cityjson_types::{self, v2_0::OwnedCityModel};
 
-    let mut model = OwnedCityModel::new(cityjson::CityModelType::CityJSON);
+    let mut model = OwnedCityModel::new(cityjson_types::CityModelType::CityJSON);
     model.metadata_mut().set_title("My Dataset".to_string());
     # let _ = model;
     ```

@@ -3,8 +3,8 @@ use crate::error::Result;
 use crate::schema::CityModelArrowParts;
 use crate::schema::{CityArrowHeader, ProjectionLayout};
 use arrow::record_batch::RecordBatch;
-use cityjson::relational::RelationalAccess;
-use cityjson::v2_0::OwnedCityModel;
+use cityjson_types::relational::RelationalAccess;
+use cityjson_types::v2_0::OwnedCityModel;
 
 pub use crate::transport::{
     CanonicalTable, CanonicalTableSink, canonical_table_order, canonical_table_position,

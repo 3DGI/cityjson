@@ -99,8 +99,8 @@ pub mod metadata;
 pub mod texture;
 pub mod vertex;
 
-use cityjson::prelude::*;
-use cityjson::v2_0::{CityObjectType, LoD, SemanticType};
+use cityjson_types::prelude::*;
+use cityjson_types::v2_0::{CityObjectType, LoD, SemanticType};
 use fake::Dummy;
 use fake::RngExt;
 use rand::Rng;
@@ -117,8 +117,8 @@ use std::ops::RangeInclusive;
 /// assert_eq!(model.cityobjects().len(), 1);
 /// ```
 pub mod prelude {
-    pub use cityjson::prelude::*;
-    pub use cityjson::v2_0::*;
+    pub use cityjson_types::prelude::*;
+    pub use cityjson_types::v2_0::*;
 
     pub use crate::attribute::{AttributeValueMode, AttributesBuilder};
     pub use crate::citymodel::CityModelBuilder;
@@ -175,7 +175,7 @@ type IndexType = u32;
 pub fn generate_model(
     config: cli::CJFakeConfig,
     seed: Option<u64>,
-) -> cityjson::v2_0::CityModel<u32, OwnedStringStorage> {
+) -> cityjson_types::v2_0::CityModel<u32, OwnedStringStorage> {
     citymodel::CityModelBuilder::<u32, OwnedStringStorage>::new(config, seed)
         .metadata(None)
         .vertices()

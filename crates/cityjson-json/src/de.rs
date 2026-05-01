@@ -16,7 +16,7 @@ mod perf_probe {
     use std::path::PathBuf;
     use std::time::Instant;
 
-    use cityjson::prelude::OwnedStringStorage;
+    use cityjson_types::prelude::OwnedStringStorage;
 
     use super::build::build_model;
     use super::profiling;

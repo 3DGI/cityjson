@@ -43,7 +43,7 @@ pub(crate) struct PreparedReadCase {
 pub(crate) struct PreparedWriteCase {
     pub(crate) name: String,
     pub(crate) description: String,
-    pub(crate) model: cityjson::v2_0::OwnedCityModel,
+    pub(crate) model: cityjson_types::v2_0::OwnedCityModel,
     pub(crate) benchmark_bytes: BTreeMap<String, u64>,
 }
 

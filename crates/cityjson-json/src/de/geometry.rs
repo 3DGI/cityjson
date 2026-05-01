@@ -11,12 +11,12 @@ use crate::de::profiling::timed;
 use crate::de::sections::{RawAssignment, RawGeometry, RawMaterialTheme, RawSemantics};
 use crate::de::validation::{parse_lod, parse_semantic_type};
 use crate::errors::{Error, Result};
-use cityjson::resources::handles::{
+use cityjson_types::resources::handles::{
     GeometryHandle, GeometryTemplateHandle, MaterialHandle, SemanticHandle, TextureHandle,
 };
-use cityjson::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
-use cityjson::resources::storage::StringStorage;
-use cityjson::v2_0::{
+use cityjson_types::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
+use cityjson_types::resources::storage::StringStorage;
+use cityjson_types::v2_0::{
     AffineTransform3D, Boundary, CityModel, Geometry, GeometryType, LoD, Semantic, SemanticType,
     StoredGeometryInstance, StoredGeometryParts, ThemeName, VertexIndex,
 };
@@ -617,7 +617,7 @@ fn validate_root_vertex_references<VR, SS>(
     vertex_count: usize,
 ) -> Result<()>
 where
-    VR: cityjson::v2_0::VertexRef,
+    VR: cityjson_types::v2_0::VertexRef,
     SS: StringStorage,
 {
     if let Some(instance) = geometry.instance() {

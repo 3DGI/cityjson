@@ -72,7 +72,7 @@ Callers that need every duplicate can use the plural lookup API:
 ## Implementation
 
 The implementation lives in
-[/home/balazs/Development/cityjson/crates/cityjson-index/src/lib.rs](/home/balazs/Development/cityjson/crates/cityjson-index/src/lib.rs).
+[/home/balazs/Development/cityjson-rs/crates/cityjson-index/src/lib.rs](/home/balazs/Development/cityjson-rs/crates/cityjson-index/src/lib.rs).
 
 Key points:
 

@@ -13,7 +13,7 @@ a single version line.
 
 | Crate | Description | crates.io |
 |---|---|---|
-| [`cityjson`](crates/cityjson) | Core types and accessors for CityJSON 2.0 | [![crates.io](https://img.shields.io/crates/v/cityjson.svg?label=crates.io)](https://crates.io/crates/cityjson) |
+| [`cityjson-types`](crates/cityjson-types) | Core types and accessors for CityJSON 2.0 | [![crates.io](https://img.shields.io/crates/v/cityjson-types.svg?label=crates.io)](https://crates.io/crates/cityjson-types) |
 | [`cityjson-json`](crates/cityjson-json) | Serde adapter for CityJSON 2.0 | [![crates.io](https://img.shields.io/crates/v/cityjson-json.svg?label=crates.io)](https://crates.io/crates/cityjson-json) |
 | [`cityjson-arrow`](crates/cityjson-arrow) | Arrow IPC and Parquet transport | [![crates.io](https://img.shields.io/crates/v/cityjson-arrow.svg?label=crates.io)](https://crates.io/crates/cityjson-arrow) |
 | [`cityjson-parquet`](crates/cityjson-parquet) | Parquet read/write via cityjson-arrow | [![crates.io](https://img.shields.io/crates/v/cityjson-parquet.svg?label=crates.io)](https://crates.io/crates/cityjson-parquet) |
@@ -30,21 +30,21 @@ repository consumed by this workspace via the
 
 ```mermaid
 graph TD
-    cityjson --> cityjson-json
-    cityjson --> cityjson-arrow
+    cityjson-types --> cityjson-json
+    cityjson-types --> cityjson-arrow
     cityjson-arrow --> cityjson-parquet
     cityjson-json --> cityjson-lib
     cityjson-arrow --> cityjson-lib
     cityjson-parquet --> cityjson-lib
     cityjson-lib --> cityjson-fake
     cityjson-lib --> cityjson-index
-    cityjson-corpus -.->|test data| cityjson
+    cityjson-corpus -.->|test data| cityjson-types
 ```
 
 ## Quick start
 
 ```sh
-cargo add cityjson          # or cityjson-json, cityjson-lib, ...
+cargo add cityjson-types    # or cityjson-json, cityjson-lib, ...
 ```
 
 ## Python

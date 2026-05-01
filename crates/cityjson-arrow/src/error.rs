@@ -11,7 +11,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     Arrow(ArrowError),
     Parquet(ParquetError),
-    CityJSON(cityjson::error::Error),
+    CityJSON(cityjson_types::error::Error),
     Json(serde_json::Error),
     Conversion(String),
     Unsupported(String),
@@ -50,8 +50,8 @@ impl From<ParquetError> for Error {
     }
 }
 
-impl From<cityjson::error::Error> for Error {
-    fn from(value: cityjson::error::Error) -> Self {
+impl From<cityjson_types::error::Error> for Error {
+    fn from(value: cityjson_types::error::Error) -> Self {
         Self::CityJSON(value)
     }
 }

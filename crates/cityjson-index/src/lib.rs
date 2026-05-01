@@ -316,8 +316,8 @@ fn merge_lod_sets(
     }
 }
 
-type CityObjectHandle = cityjson_lib::cityjson::prelude::CityObjectHandle;
-type GeometryHandle = cityjson_lib::cityjson::prelude::GeometryHandle;
+type CityObjectHandle = cityjson_types::prelude::CityObjectHandle;
+type GeometryHandle = cityjson_types::prelude::GeometryHandle;
 
 fn retained_cityobject_handles(
     model: &CityModel,
@@ -395,7 +395,7 @@ fn lod_selection(
 }
 
 fn geometry_matches_lod_selection(
-    geometry_lod: Option<&cityjson_lib::cityjson::v2_0::LoD>,
+    geometry_lod: Option<&cityjson_types::v2_0::LoD>,
     highest_lod: Option<&String>,
     selection: &LodSelection,
 ) -> bool {

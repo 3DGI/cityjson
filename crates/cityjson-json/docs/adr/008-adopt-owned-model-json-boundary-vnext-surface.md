@@ -65,7 +65,7 @@ Negative:
 ## Remaining Gap Versus The Cross-Repo Plan
 
 The plan proposes `ReadOptions.symbol_storage` using
-`cityjson::symbols::SymbolStorageOptions`. That field is not implemented here
+`cityjson_types::symbols::SymbolStorageOptions`. That field is not implemented here
 because the `cityjson-rs` revision currently used by this repository does not
 yet expose that symbol-storage API.
 

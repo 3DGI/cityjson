@@ -1,6 +1,6 @@
 # cityjson-lib
 
-`cityjson_lib` is the release-facing facade for the current CityJSON crate and
+`cityjson_lib` is the release-facing facade for the current `cityjson-types` crate and
 binding surface in this repository.
 
 The docs set is intentionally small.

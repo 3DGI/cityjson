@@ -8,11 +8,11 @@ mod ser;
 pub mod v2_0;
 
 #[doc(hidden)]
-pub use cityjson::prelude;
+pub use cityjson_types::prelude;
 #[doc(hidden)]
-pub use cityjson::v2_0::{CityModel, OwnedCityModel};
+pub use cityjson_types::v2_0::{CityModel, OwnedCityModel};
 #[doc(hidden)]
-pub use cityjson::{CityJSONVersion, CityModelType};
+pub use cityjson_types::{CityJSONVersion, CityModelType};
 
 pub use errors::{Error, Result};
 pub use facade::{

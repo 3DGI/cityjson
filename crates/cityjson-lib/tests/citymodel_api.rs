@@ -1,6 +1,6 @@
 //! Public API contract for the `cityjson_lib::CityModel` boundary.
 
-use cityjson_lib::cityjson::v2_0::{
+use cityjson_lib::cityjson_types::v2_0::{
     BBox, CityObject, CityObjectIdentifier, CityObjectType, GeometryDraft, PointDraft,
     RealWorldCoordinate,
 };
@@ -20,22 +20,22 @@ fn citymodel_is_the_default_owned_model_type() -> cityjson_lib::Result<()> {
 
 #[test]
 fn citymodel_is_a_direct_alias_over_cityjson_rs() {
-    let model: CityModel = cityjson_lib::cityjson::v2_0::OwnedCityModel::new(
-        cityjson_lib::cityjson::CityModelType::CityJSON,
+    let model: CityModel = cityjson_lib::cityjson_types::v2_0::OwnedCityModel::new(
+        cityjson_lib::cityjson_types::CityModelType::CityJSON,
     );
 
-    let _: &cityjson_lib::cityjson::v2_0::OwnedCityModel = &model;
-    let _: &mut cityjson_lib::cityjson::v2_0::OwnedCityModel = &mut model.clone();
-    let _: cityjson_lib::cityjson::v2_0::OwnedCityModel = model.clone();
+    let _: &cityjson_lib::cityjson_types::v2_0::OwnedCityModel = &model;
+    let _: &mut cityjson_lib::cityjson_types::v2_0::OwnedCityModel = &mut model.clone();
+    let _: cityjson_lib::cityjson_types::v2_0::OwnedCityModel = model.clone();
 }
 
 #[test]
 fn advanced_model_access_is_directly_available_on_the_alias() {
-    let model = cityjson_lib::cityjson::v2_0::OwnedCityModel::new(
-        cityjson_lib::cityjson::CityModelType::CityJSON,
+    let model = cityjson_lib::cityjson_types::v2_0::OwnedCityModel::new(
+        cityjson_lib::cityjson_types::CityModelType::CityJSON,
     );
 
-    let owned: cityjson_lib::cityjson::v2_0::OwnedCityModel = model;
+    let owned: cityjson_lib::cityjson_types::v2_0::OwnedCityModel = model;
     let _ = owned;
 }
 
@@ -58,8 +58,8 @@ fn cityjson_version_stays_in_the_public_boundary() {
 #[test]
 fn cityjson_lib_citymodel_exposes_geographical_extent_calculation_api() -> cityjson_lib::Result<()>
 {
-    let mut model: CityModel = cityjson_lib::cityjson::v2_0::OwnedCityModel::new(
-        cityjson_lib::cityjson::CityModelType::CityJSON,
+    let mut model: CityModel = cityjson_lib::cityjson_types::v2_0::OwnedCityModel::new(
+        cityjson_lib::cityjson_types::CityModelType::CityJSON,
     );
     let geometry = GeometryDraft::multi_point(
         None,

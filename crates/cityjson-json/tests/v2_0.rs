@@ -2,16 +2,16 @@ use std::io::Cursor;
 
 use serde_json::{Value, json};
 
-use cityjson::v2_0::{
-    AffineTransform3D, BBox, CityModelType, CityObject, CityObjectIdentifier, CityObjectType,
-    GeometryDraft, LoD, OwnedCityModel, PointDraft, RealWorldCoordinate, Texture, Transform,
-    UVCoordinate,
-};
-use cityjson::v2_0::{ImageType, TextureType};
 use cityjson_json::{
     CityJsonSeqWriteOptions, FeatureStreamTransform, ReadOptions, append, read_feature,
     read_feature_stream, read_feature_with_base, read_model, write_feature_stream,
 };
+use cityjson_types::v2_0::{
+    AffineTransform3D, BBox, CityModelType, CityObject, CityObjectIdentifier, CityObjectType,
+    GeometryDraft, LoD, OwnedCityModel, PointDraft, RealWorldCoordinate, Texture, Transform,
+    UVCoordinate,
+};
+use cityjson_types::v2_0::{ImageType, TextureType};
 use common::*;
 
 mod common;

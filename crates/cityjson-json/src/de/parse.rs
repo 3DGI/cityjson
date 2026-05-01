@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
-use cityjson::prelude::{BorrowedStringStorage, OwnedStringStorage};
-use cityjson::resources::storage::StringStorage;
-use cityjson::v2_0::{CityModel, OwnedCityModel};
+use cityjson_types::prelude::{BorrowedStringStorage, OwnedStringStorage};
+use cityjson_types::resources::storage::StringStorage;
+use cityjson_types::v2_0::{CityModel, OwnedCityModel};
 
 use crate::de::build::build_model;
 use crate::de::root::parse_root;

@@ -54,7 +54,7 @@ The implementation rules are:
 - canonical tables remain an internal transport contract
 - doc-hidden parts bridges remain only where currently unavoidable for the
   sibling `cityjson-parquet` crate and local diagnostics
-- export and stream writing start from `cityjson::relational::ModelRelationalView`
+- export and stream writing start from `cityjson_types::relational::ModelRelationalView`
   rather than walking the owned semantic model directly
 - the stream write path remains direct-to-sink rather than routing through a
   public parts aggregate

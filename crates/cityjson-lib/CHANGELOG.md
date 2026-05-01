@@ -8,6 +8,9 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Changed
 
+- The facade now re-exports the renamed core crate as `cityjson_types` instead
+  of `cityjson`; callers should use `cityjson_lib::cityjson_types` or depend on
+  `cityjson-types` directly.
 - `ops::append` and `ops::merge` now accept differing source transforms and
   reconcile them into the merged result instead of rejecting the merge.
   Identical transforms are preserved, mixed transforms clear the merged model
@@ -58,6 +61,6 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Changed
 
-- `CityModel` is now a direct re-export of `cityjson::v2_0::OwnedCityModel`.
+- `CityModel` is now a direct re-export of `cityjson_types::v2_0::OwnedCityModel`.
 - Removed the wrapper-model compatibility layer in favor of the minimal facade contract.
 - Updated JSON, Arrow, FFI, examples, and tests to work directly against the re-exported model type.

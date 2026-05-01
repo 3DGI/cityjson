@@ -2,7 +2,7 @@
 
 use std::io::Cursor;
 
-use cityjson_lib::cityjson::v2_0::{BBox, Transform};
+use cityjson_lib::cityjson_types::v2_0::{BBox, Transform};
 use serde_json::value::RawValue;
 
 use cityjson_lib::{CityJSONVersion, json};

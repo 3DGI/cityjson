@@ -5,7 +5,7 @@
 //! use cityjson_fake::prelude::*;
 //! use fake::{Fake, Faker};
 //! use rand::SeedableRng;
-//! use cityjson::v2_0::{RealWorldCoordinate, Vertices};
+//! use cityjson_types::v2_0::{RealWorldCoordinate, Vertices};
 //!
 //! let config = CJFakeConfig::default();
 //! let mut rng = rand::prelude::SmallRng::seed_from_u64(4);
@@ -16,7 +16,7 @@
 
 use crate::cli::CJFakeConfig;
 use crate::get_nr_items;
-use cityjson::v2_0::{RealWorldCoordinate, VertexRef, Vertices};
+use cityjson_types::v2_0::{RealWorldCoordinate, VertexRef, Vertices};
 use fake::RngExt;
 use fake::{Dummy, Fake};
 use rand::Rng;
@@ -27,7 +27,7 @@ use rand::Rng;
 /// ```rust
 /// use cityjson_fake::prelude::*;
 /// use fake::{Fake, Faker};
-/// use cityjson::v2_0::{Vertices, RealWorldCoordinate, VertexRef};
+/// use cityjson_types::v2_0::{Vertices, RealWorldCoordinate, VertexRef};
 /// use rand;
 ///
 /// // Example CJFakeConfig with arbitrary values
@@ -68,7 +68,7 @@ impl<'cmbuild> VerticesFaker<'cmbuild> {
 /// let faker = RealWorldCoordinateFaker::new(0.0, 1.0);
 /// let mut rng = rand::prelude::SmallRng::seed_from_u64(5);
 /// let _coord =
-///     <cityjson::v2_0::RealWorldCoordinate as Dummy<RealWorldCoordinateFaker>>::dummy_with_rng(
+///     <cityjson_types::v2_0::RealWorldCoordinate as Dummy<RealWorldCoordinateFaker>>::dummy_with_rng(
 ///         &faker,
 ///         &mut rng,
 ///     );

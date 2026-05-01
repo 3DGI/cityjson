@@ -5,7 +5,7 @@ model data across process and storage boundaries.
 
 ## Semantic boundary
 
-The data model is `cityjson::v2_0::OwnedCityModel`. Both crates read and write
+The data model is `cityjson_types::v2_0::OwnedCityModel`. Both crates read and write
 this type. The Arrow tables used for transport are an internal detail; they are
 not part of the public API.
 
@@ -23,7 +23,7 @@ not part of the public API.
 
 ## How export works
 
-Export reads the model through `cityjson::relational::ModelRelationalView`, which
+Export reads the model through `cityjson_types::relational::ModelRelationalView`, which
 provides a dense, ordinal-indexed view over all model data. The exporter derives
 the attribute projection layout from this view and emits canonical Arrow table
 batches in a fixed order.

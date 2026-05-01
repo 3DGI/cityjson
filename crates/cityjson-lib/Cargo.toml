@@ -41,7 +41,7 @@ path = "src/lib.rs"
 workspace = true
 
 [dependencies]
-cityjson = { workspace = true }
+cityjson-types = { workspace = true }
 cityjson-arrow = { workspace = true, optional = true }
 cityjson-json = { workspace = true, optional = true }
 cityjson-parquet = { workspace = true, optional = true }

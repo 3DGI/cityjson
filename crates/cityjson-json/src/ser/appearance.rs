@@ -1,10 +1,10 @@
 use serde::Serialize;
 use serde::ser::{SerializeMap, SerializeSeq};
 
-use cityjson::resources::storage::StringStorage;
-use cityjson::v2_0::appearance::material::Material;
-use cityjson::v2_0::appearance::texture::Texture;
-use cityjson::v2_0::{CityModel, ImageType, RGB, RGBA, TextureType, VertexRef, WrapMode};
+use cityjson_types::resources::storage::StringStorage;
+use cityjson_types::v2_0::appearance::material::Material;
+use cityjson_types::v2_0::appearance::texture::Texture;
+use cityjson_types::v2_0::{CityModel, ImageType, RGB, RGBA, TextureType, VertexRef, WrapMode};
 
 use crate::errors::Result;
 use crate::ser::context::WriteContext;

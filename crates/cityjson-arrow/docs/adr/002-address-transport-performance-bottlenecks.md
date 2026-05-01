@@ -7,7 +7,7 @@ Accepted
 ## Context
 
 `cityjson-arrow` and `cityjson-parquet` exist to move `cityjson-rs` data through Arrow-
-shaped transport while keeping `cityjson::v2_0::OwnedCityModel` as the shared
+shaped transport while keeping `cityjson_types::v2_0::OwnedCityModel` as the shared
 semantic boundary.
 
 That design deliberately aims to stay close to a columnar representation. In

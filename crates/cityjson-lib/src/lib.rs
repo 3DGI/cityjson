@@ -11,12 +11,12 @@ pub mod ops;
 #[cfg(feature = "parquet")]
 pub mod parquet;
 pub mod query {
-    pub use cityjson::query::{ModelSummary, summary};
+    pub use cityjson_types::query::{ModelSummary, summary};
 }
 mod version;
 
 pub use Model as CityModel;
-pub use cityjson;
-pub use cityjson::v2_0::OwnedCityModel as Model;
+pub use cityjson_types;
+pub use cityjson_types::v2_0::OwnedCityModel as Model;
 pub use error::{Error, ErrorKind, Result};
 pub use version::CityJSONVersion;

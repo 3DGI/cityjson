@@ -28,7 +28,7 @@ pub(super) fn geometry_tables(
 pub(super) fn append_geometry_tables(
     context: &GeometryExportContext<'_>,
     cityobject_ix: u64,
-    geometry_handle: cityjson::prelude::GeometryHandle,
+    geometry_handle: cityjson_types::prelude::GeometryHandle,
     ordinal: usize,
     exported: &mut ExportedGeometryTables,
 ) -> Result<()> {
@@ -52,7 +52,7 @@ pub(super) fn append_geometry_tables(
 pub(super) fn append_geometry_instance(
     cityobject_ix: u64,
     geometry_id: u64,
-    geometry: &Geometry<u32, cityjson::prelude::OwnedStringStorage>,
+    geometry: &Geometry<u32, cityjson_types::prelude::OwnedStringStorage>,
     ordinal: usize,
     exported: &mut ExportedGeometryTables,
 ) -> Result<()> {
@@ -75,7 +75,7 @@ pub(super) fn append_geometry_instance(
 pub(super) fn append_boundary_geometry_tables(
     cityobject_ix: u64,
     geometry_id: u64,
-    geometry: &Geometry<u32, cityjson::prelude::OwnedStringStorage>,
+    geometry: &Geometry<u32, cityjson_types::prelude::OwnedStringStorage>,
     ordinal: usize,
     exported: &mut ExportedGeometryTables,
 ) -> Result<()> {
@@ -119,7 +119,7 @@ pub(super) fn append_boundary_geometry_tables(
 
 pub(super) fn append_geometry_semantic_rows(
     geometry_id: u64,
-    geometry: &Geometry<u32, cityjson::prelude::OwnedStringStorage>,
+    geometry: &Geometry<u32, cityjson_types::prelude::OwnedStringStorage>,
     boundary: &impl BoundaryPayloadView,
     exported: &mut ExportedGeometryTables,
 ) -> Result<()> {
@@ -193,7 +193,7 @@ pub(super) fn append_geometry_material_rows(
     geometry_id: u64,
     geometry_type: GeometryType,
     boundary: &impl BoundaryPayloadView,
-    materials: Option<MaterialThemesView<'_, u32, cityjson::prelude::OwnedStringStorage>>,
+    materials: Option<MaterialThemesView<'_, u32, cityjson_types::prelude::OwnedStringStorage>>,
     exported: &mut ExportedGeometryTables,
 ) -> Result<()> {
     let Some(materials) = materials else {
@@ -244,7 +244,7 @@ pub(super) fn append_geometry_ring_texture_rows(
     geometry_id: u64,
     geometry_type: GeometryType,
     boundary: &impl BoundaryPayloadView,
-    textures: Option<TextureThemesView<'_, u32, cityjson::prelude::OwnedStringStorage>>,
+    textures: Option<TextureThemesView<'_, u32, cityjson_types::prelude::OwnedStringStorage>>,
     exported: &mut ExportedGeometryTables,
 ) -> Result<()> {
     let Some(textures) = textures else {
@@ -277,9 +277,9 @@ pub(super) fn append_geometry_ring_texture_rows(
             };
             let uv_indices = map.vertices()[layout.start..layout.start + layout.len]
                 .iter()
-                .map(|value: &Option<cityjson::v2_0::VertexIndex<u32>>| {
+                .map(|value: &Option<cityjson_types::v2_0::VertexIndex<u32>>| {
                     value
-                        .map(|uv: cityjson::v2_0::VertexIndex<u32>| u64::from(uv.value()))
+                        .map(|uv: cityjson_types::v2_0::VertexIndex<u32>| u64::from(uv.value()))
                         .ok_or_else(|| {
                             Error::Conversion(format!(
                                 "textured ring {ring_index} for theme {theme} contains missing uv indices"
@@ -305,7 +305,7 @@ pub(super) fn append_template_geometry_ring_texture_rows(
     template_geometry_id: u64,
     geometry_type: GeometryType,
     boundary: &impl BoundaryPayloadView,
-    textures: &TextureThemesView<'_, u32, cityjson::prelude::OwnedStringStorage>,
+    textures: &TextureThemesView<'_, u32, cityjson_types::prelude::OwnedStringStorage>,
     exported: &mut ExportedTemplateGeometryTables,
 ) -> Result<()> {
     ensure_surface_backed_geometry(geometry_type, "template geometry textures")?;
@@ -335,9 +335,9 @@ pub(super) fn append_template_geometry_ring_texture_rows(
             };
             let uv_indices = map.vertices()[layout.start..layout.start + layout.len]
                 .iter()
-                .map(|value: &Option<cityjson::v2_0::VertexIndex<u32>>| {
+                .map(|value: &Option<cityjson_types::v2_0::VertexIndex<u32>>| {
                     value
-                        .map(|uv: cityjson::v2_0::VertexIndex<u32>| u64::from(uv.value()))
+                        .map(|uv: cityjson_types::v2_0::VertexIndex<u32>| u64::from(uv.value()))
                         .ok_or_else(|| {
                             Error::Conversion(format!(
                                 "template textured ring {ring_index} for theme {theme} contains missing uv indices"
@@ -499,8 +499,8 @@ pub(super) fn template_geometry_tables(
 }
 
 pub(super) fn append_template_geometry_tables(
-    handle: cityjson::prelude::GeometryTemplateHandle,
-    geometry: &Geometry<u32, cityjson::prelude::OwnedStringStorage>,
+    handle: cityjson_types::prelude::GeometryTemplateHandle,
+    geometry: &Geometry<u32, cityjson_types::prelude::OwnedStringStorage>,
     exported: &mut ExportedTemplateGeometryTables,
 ) -> Result<()> {
     let template_geometry_id = raw_id_from_handle(handle);
@@ -538,7 +538,7 @@ pub(super) fn append_template_geometry_tables(
 
 pub(super) fn append_template_semantic_rows(
     template_geometry_id: u64,
-    geometry: &Geometry<u32, cityjson::prelude::OwnedStringStorage>,
+    geometry: &Geometry<u32, cityjson_types::prelude::OwnedStringStorage>,
     boundary: &impl BoundaryPayloadView,
     exported: &mut ExportedTemplateGeometryTables,
 ) -> Result<()> {
@@ -607,7 +607,7 @@ pub(super) fn append_template_semantic_rows(
 
 pub(super) fn append_template_material_rows(
     template_geometry_id: u64,
-    geometry: &Geometry<u32, cityjson::prelude::OwnedStringStorage>,
+    geometry: &Geometry<u32, cityjson_types::prelude::OwnedStringStorage>,
     boundary: &impl BoundaryPayloadView,
     exported: &mut ExportedTemplateGeometryTables,
 ) -> Result<()> {
@@ -747,13 +747,15 @@ pub(super) fn borrowed_boundary_payload(
     }
 }
 
-pub(super) fn raw_vertex_index_slice(values: &[cityjson::v2_0::VertexIndex<u32>]) -> &[u32] {
+pub(super) fn raw_vertex_index_slice(values: &[cityjson_types::v2_0::VertexIndex<u32>]) -> &[u32] {
     const {
         assert!(
-            std::mem::size_of::<cityjson::v2_0::VertexIndex<u32>>() == std::mem::size_of::<u32>()
+            std::mem::size_of::<cityjson_types::v2_0::VertexIndex<u32>>()
+                == std::mem::size_of::<u32>()
         );
         assert!(
-            std::mem::align_of::<cityjson::v2_0::VertexIndex<u32>>() == std::mem::align_of::<u32>()
+            std::mem::align_of::<cityjson_types::v2_0::VertexIndex<u32>>()
+                == std::mem::align_of::<u32>()
         );
     }
 
@@ -796,11 +798,11 @@ pub(super) fn build_indexed_semantic_map<F>(
     rows: &Range<usize>,
     view: &IndexedSemanticBatchView,
     spec: &IndexedSemanticMapSpec<'_>,
-    handles: &HashMap<u64, cityjson::prelude::SemanticHandle>,
+    handles: &HashMap<u64, cityjson_types::prelude::SemanticHandle>,
     append: F,
 ) -> Result<Option<SemanticMap<u32>>>
 where
-    F: Fn(&mut SemanticMap<u32>, Option<cityjson::prelude::SemanticHandle>),
+    F: Fn(&mut SemanticMap<u32>, Option<cityjson_types::prelude::SemanticHandle>),
 {
     if rows.is_empty() {
         return Ok(None);
@@ -843,7 +845,7 @@ pub(super) fn build_semantic_map(
     point_rows: Option<&GroupedBatchView<IndexedSemanticBatchView>>,
     linestring_rows: Option<&GroupedBatchView<IndexedSemanticBatchView>>,
     geometry_id: u64,
-    handles: &HashMap<u64, cityjson::prelude::SemanticHandle>,
+    handles: &HashMap<u64, cityjson_types::prelude::SemanticHandle>,
 ) -> Result<Option<SemanticMap<u32>>> {
     match parse_geometry_type(geometry_type)? {
         GeometryType::MultiPoint => {
@@ -915,7 +917,7 @@ pub(super) fn build_material_maps(
     boundary: &impl BoundaryPayloadView,
     surface_rows: Option<&GroupedBatchView<GeometrySurfaceMaterialBatchView>>,
     geometry_id: u64,
-    handles: &HashMap<u64, cityjson::prelude::MaterialHandle>,
+    handles: &HashMap<u64, cityjson_types::prelude::MaterialHandle>,
 ) -> Result<Option<MaterialThemeMaps>> {
     match parse_geometry_type(geometry_type)? {
         GeometryType::MultiPoint | GeometryType::MultiLineString => Ok(None),
@@ -957,18 +959,19 @@ pub(super) fn grouped_material_maps<FFields, FAppend, FExceeds, FDuplicate>(
     append: FAppend,
     exceeds_message: FExceeds,
     duplicate_message: FDuplicate,
-    handles: &HashMap<u64, cityjson::prelude::MaterialHandle>,
+    handles: &HashMap<u64, cityjson_types::prelude::MaterialHandle>,
 ) -> Result<MaterialThemeMaps>
 where
     FFields: Fn(usize) -> Result<(String, u32, u64)>,
-    FAppend: Fn(&mut MaterialMap<u32>, Option<cityjson::prelude::MaterialHandle>),
+    FAppend: Fn(&mut MaterialMap<u32>, Option<cityjson_types::prelude::MaterialHandle>),
     FExceeds: Fn(usize, usize) -> String,
     FDuplicate: Fn(usize) -> String,
 {
     if rows.is_empty() {
         return Ok(Vec::new());
     }
-    let mut grouped = BTreeMap::<String, Vec<Option<cityjson::prelude::MaterialHandle>>>::new();
+    let mut grouped =
+        BTreeMap::<String, Vec<Option<cityjson_types::prelude::MaterialHandle>>>::new();
     for row in rows.clone() {
         let (theme, ordinal, id) = fields(row)?;
         let ordinal = usize::try_from(ordinal).expect("u32 ordinal fits into usize");
@@ -1004,7 +1007,7 @@ pub(super) fn build_ordered_template_semantic_map(
     expected_primitive_type: &str,
     expected_count: usize,
     count_label: &str,
-    handles: &HashMap<u64, cityjson::prelude::SemanticHandle>,
+    handles: &HashMap<u64, cityjson_types::prelude::SemanticHandle>,
 ) -> Result<Option<SemanticMap<u32>>> {
     if rows.is_empty() {
         return Ok(None);
@@ -1057,7 +1060,7 @@ pub(super) fn build_template_semantic_map(
     boundary: &impl BoundaryPayloadView,
     rows: Option<&GroupedBatchView<TemplateSemanticBatchView>>,
     template_geometry_id: u64,
-    handles: &HashMap<u64, cityjson::prelude::SemanticHandle>,
+    handles: &HashMap<u64, cityjson_types::prelude::SemanticHandle>,
 ) -> Result<Option<SemanticMap<u32>>> {
     let Some(grouped) = rows else {
         return Ok(None);
@@ -1104,7 +1107,7 @@ pub(super) fn build_template_material_maps(
     boundary: &impl BoundaryPayloadView,
     rows: Option<&GroupedBatchView<TemplateMaterialBatchView>>,
     template_geometry_id: u64,
-    handles: &HashMap<u64, cityjson::prelude::MaterialHandle>,
+    handles: &HashMap<u64, cityjson_types::prelude::MaterialHandle>,
 ) -> Result<Option<MaterialThemeMaps>> {
     let Some(grouped) = rows else {
         return Ok(None);
@@ -1200,7 +1203,7 @@ pub(super) fn build_template_texture_maps(
     boundary: &impl BoundaryPayloadView,
     rows: Option<&GroupedBatchView<RingTextureBatchView>>,
     template_geometry_id: u64,
-    handles: &HashMap<u64, cityjson::prelude::TextureHandle>,
+    handles: &HashMap<u64, cityjson_types::prelude::TextureHandle>,
 ) -> Result<Option<TextureThemeMaps>> {
     let Some(grouped) = rows else {
         return Ok(None);
@@ -1267,7 +1270,7 @@ pub(super) fn build_template_texture_maps(
                     let uv_id = u32::try_from(*uv_id).map_err(|_| {
                         Error::Conversion(format!("uv index {uv_id} does not fit into u32"))
                     })?;
-                    *slot = Some(cityjson::v2_0::VertexIndex::new(uv_id));
+                    *slot = Some(cityjson_types::v2_0::VertexIndex::new(uv_id));
                 }
             }
 
@@ -1290,7 +1293,7 @@ pub(super) fn build_texture_maps(
     boundary: &impl BoundaryPayloadView,
     rows: Option<&GroupedBatchView<RingTextureBatchView>>,
     geometry_id: u64,
-    handles: &HashMap<u64, cityjson::prelude::TextureHandle>,
+    handles: &HashMap<u64, cityjson_types::prelude::TextureHandle>,
 ) -> Result<Option<TextureThemeMaps>> {
     let Some(grouped) = rows else {
         return Ok(None);
@@ -1357,7 +1360,7 @@ pub(super) fn build_texture_maps(
                     let uv_id = u32::try_from(*uv_id).map_err(|_| {
                         Error::Conversion(format!("uv index {uv_id} does not fit into u32"))
                     })?;
-                    *slot = Some(cityjson::v2_0::VertexIndex::new(uv_id));
+                    *slot = Some(cityjson_types::v2_0::VertexIndex::new(uv_id));
                 }
             }
 
@@ -1484,11 +1487,11 @@ pub(super) fn boundary_from_parts(
     Ok(boundary)
 }
 
-pub(super) fn copy_vertex_indices(values: &[u32]) -> Vec<cityjson::v2_0::VertexIndex<u32>> {
+pub(super) fn copy_vertex_indices(values: &[u32]) -> Vec<cityjson_types::v2_0::VertexIndex<u32>> {
     values
         .iter()
         .copied()
-        .map(cityjson::v2_0::VertexIndex::new)
+        .map(cityjson_types::v2_0::VertexIndex::new)
         .collect()
 }
 

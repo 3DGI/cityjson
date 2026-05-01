@@ -14,7 +14,7 @@ are compatible with the `cityjson-arrow.package.v3alpha3` format version.
 | `PackageReader` | Decode a file back into a model or read its manifest |
 | `spatial::SpatialIndex` | Viewport query index built from city object bounding boxes |
 
-The input and output type is always `cityjson::v2_0::OwnedCityModel`.
+The input and output type is always `cityjson_types::v2_0::OwnedCityModel`.
 
 ## Related documents
 

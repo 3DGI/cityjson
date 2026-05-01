@@ -102,8 +102,8 @@ impl From<cityjson_lib::Error> for AbiError {
     }
 }
 
-impl From<cityjson_lib::cityjson::error::Error> for AbiError {
-    fn from(error: cityjson_lib::cityjson::error::Error) -> Self {
+impl From<cityjson_lib::cityjson_types::error::Error> for AbiError {
+    fn from(error: cityjson_lib::cityjson_types::error::Error) -> Self {
         Self::from(cityjson_lib::Error::from(error))
     }
 }

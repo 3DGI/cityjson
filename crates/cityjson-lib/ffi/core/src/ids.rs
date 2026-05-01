@@ -2,7 +2,7 @@ use crate::abi::{
     cj_cityobject_id_t, cj_geometry_id_t, cj_geometry_template_id_t, cj_material_id_t,
     cj_semantic_id_t, cj_texture_id_t,
 };
-use cityjson_lib::cityjson::resources::handles::{
+use cityjson_lib::cityjson_types::resources::handles::{
     CityObjectHandle, GeometryHandle, GeometryTemplateHandle, MaterialHandle, SemanticHandle,
     TextureHandle,
 };

@@ -9,7 +9,7 @@ use crate::transport::{
 use arrow::ipc::reader::StreamReader;
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
-use cityjson::relational::ModelRelationalView;
+use cityjson_types::relational::ModelRelationalView;
 use serde::{Deserialize, Serialize};
 use std::io::{ErrorKind, Read, Write};
 

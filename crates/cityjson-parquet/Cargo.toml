@@ -24,7 +24,7 @@ arrow = { version = "58.1.0", features = ["ipc"] }
 arrow-array = "58.1.0"
 arrow-ipc = "58.1.0"
 arrow-schema = "58.1.0"
-cityjson = { workspace = true }
+cityjson-types = { workspace = true }
 memmap2 = "0.9.9"
 parquet = "58.1.0"
 serde = { version = "1.0", features = ["derive"] }

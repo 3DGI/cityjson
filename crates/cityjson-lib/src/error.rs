@@ -14,7 +14,7 @@ pub enum ErrorKind {
 pub enum Error {
     Io(std::io::Error),
     Syntax(String),
-    CityJSON(cityjson::error::Error),
+    CityJSON(cityjson_types::error::Error),
     MissingVersion,
     ExpectedCityJSON(String),
     ExpectedCityJSONFeature(String),
@@ -87,8 +87,8 @@ impl From<std::io::Error> for Error {
     }
 }
 
-impl From<cityjson::error::Error> for Error {
-    fn from(value: cityjson::error::Error) -> Self {
+impl From<cityjson_types::error::Error> for Error {
+    fn from(value: cityjson_types::error::Error) -> Self {
         Self::CityJSON(value)
     }
 }
@@ -124,7 +124,7 @@ impl From<cityjson_json::Error> for Error {
             cityjson_json::Error::UnsupportedType(found) => Self::UnsupportedType(found),
             cityjson_json::Error::UnsupportedVersion(found) => Self::UnsupportedVersion {
                 found,
-                supported: cityjson::CityJSONVersion::V2_0.to_string(),
+                supported: cityjson_types::CityJSONVersion::V2_0.to_string(),
             },
             cityjson_json::Error::MalformedRootObject(reason) => Self::Syntax(reason.to_owned()),
             cityjson_json::Error::InvalidValue(reason) => Self::Import(reason),

@@ -13,7 +13,7 @@ interpreted as described in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119).
 | Field | Value |
 |---|---|
 | Schema id | `cityjson-arrow.package.v3alpha3` |
-| Data model | `cityjson::v2_0::OwnedCityModel` |
+| Data model | `cityjson_types::v2_0::OwnedCityModel` |
 
 ## Canonical tables
 

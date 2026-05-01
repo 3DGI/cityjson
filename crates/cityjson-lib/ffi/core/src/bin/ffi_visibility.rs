@@ -225,7 +225,7 @@ fn benchmark_append(mode: Mode) -> Vec<serde_json::Value> {
 
     let direct_append = measure_append_direct(mode.append_repeats, || {
         let mut target =
-            cityjson_lib::CityModel::new(cityjson_lib::cityjson::CityModelType::CityJSON);
+            cityjson_lib::CityModel::new(cityjson_lib::cityjson_types::CityModelType::CityJSON);
         apply_unit_transform(&mut target);
         let mut source_model = cityjson_lib::json::from_slice(source.bytes).unwrap();
         apply_unit_transform(&mut source_model);

@@ -17,10 +17,10 @@ use ::arrow::array::{
 };
 use ::arrow::datatypes::{DataType, FieldRef};
 use arrow_buffer::{MutableBuffer, NullBuffer, OffsetBuffer, ScalarBuffer};
-use cityjson::CityModelType;
-use cityjson::relational::ModelRelationalView;
-use cityjson::v2_0::geometry::{MaterialThemesView, TextureThemesView};
-use cityjson::v2_0::{
+use cityjson_types::CityModelType;
+use cityjson_types::relational::ModelRelationalView;
+use cityjson_types::v2_0::geometry::{MaterialThemesView, TextureThemesView};
+use cityjson_types::v2_0::{
     AttributeValue, BBox, Boundary, CRS, CityModelCapacities, CityModelIdentifier, CityObject,
     CityObjectIdentifier, CityObjectType, Contact, ContactRole, ContactType, Extension, Geometry,
     GeometryType, ImageType, LoD, MaterialMap, Metadata, OwnedAttributeValue, OwnedCityModel,
@@ -75,7 +75,7 @@ struct MetadataContactRow {
     contact_type: Option<String>,
     phone: Option<String>,
     organization: Option<String>,
-    address: Option<cityjson::v2_0::OwnedAttributes>,
+    address: Option<cityjson_types::v2_0::OwnedAttributes>,
 }
 
 #[derive(Debug, Clone)]
@@ -92,8 +92,8 @@ struct MetadataRow {
     default_material_theme: Option<String>,
     default_texture_theme: Option<String>,
     point_of_contact: Option<MetadataContactRow>,
-    root_extra: Option<cityjson::v2_0::OwnedAttributes>,
-    metadata_extra: Option<cityjson::v2_0::OwnedAttributes>,
+    root_extra: Option<cityjson_types::v2_0::OwnedAttributes>,
+    metadata_extra: Option<cityjson_types::v2_0::OwnedAttributes>,
 }
 
 struct U32ListBatchBuffer {
@@ -570,11 +570,11 @@ struct ExportedTemplateGeometryTables {
 }
 
 type MaterialThemeMaps = Vec<(
-    ThemeName<cityjson::prelude::OwnedStringStorage>,
+    ThemeName<cityjson_types::prelude::OwnedStringStorage>,
     MaterialMap<u32>,
 )>;
 type TextureThemeMaps = Vec<(
-    ThemeName<cityjson::prelude::OwnedStringStorage>,
+    ThemeName<cityjson_types::prelude::OwnedStringStorage>,
     TextureMap<u32>,
 )>;
 
@@ -668,12 +668,12 @@ struct GroupedBatchView<V> {
 struct ImportState {
     model: OwnedCityModel,
     pending_feature_root_id: Option<String>,
-    semantic_handle_by_id: HashMap<u64, cityjson::prelude::SemanticHandle>,
-    material_handle_by_id: HashMap<u64, cityjson::prelude::MaterialHandle>,
-    texture_handle_by_id: HashMap<u64, cityjson::prelude::TextureHandle>,
-    template_handle_by_id: HashMap<u64, cityjson::prelude::GeometryTemplateHandle>,
-    geometry_handle_by_id: HashMap<u64, cityjson::prelude::GeometryHandle>,
-    cityobject_handle_by_ix: Vec<Option<cityjson::prelude::CityObjectHandle>>,
+    semantic_handle_by_id: HashMap<u64, cityjson_types::prelude::SemanticHandle>,
+    material_handle_by_id: HashMap<u64, cityjson_types::prelude::MaterialHandle>,
+    texture_handle_by_id: HashMap<u64, cityjson_types::prelude::TextureHandle>,
+    template_handle_by_id: HashMap<u64, cityjson_types::prelude::GeometryTemplateHandle>,
+    geometry_handle_by_id: HashMap<u64, cityjson_types::prelude::GeometryHandle>,
+    cityobject_handle_by_ix: Vec<Option<cityjson_types::prelude::CityObjectHandle>>,
     pending_geometry_attachments: Vec<Vec<(u32, u64)>>,
     fully_reserved: bool,
 }
@@ -892,7 +892,7 @@ impl BoundaryBatchView {
 fn empty_texture_map(ring_layouts: &[RingLayout]) -> Result<TextureMap<u32>> {
     let mut map = TextureMap::new();
     for layout in ring_layouts {
-        map.add_ring(cityjson::v2_0::VertexIndex::new(usize_to_u32(
+        map.add_ring(cityjson_types::v2_0::VertexIndex::new(usize_to_u32(
             layout.start,
             "ring vertex start",
         )?));

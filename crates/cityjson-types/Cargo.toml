@@ -1,0 +1,46 @@
+[package]
+name = "cityjson-types"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+categories = ["data-structures"]
+keywords = ["cityjson", "geospatial", "3d", "gis"]
+description = "Types and accessor methods for representing semantic 3D city models in Rust, implementing the CityJSON specifications."
+exclude = ["benches/", "tests/", "docs/", "bench_results/", ".github/", "profiling/", "tools/", "docker/", "justfile"]
+
+[package.metadata]
+# The crate can compile on narrower targets, but `u64`-backed index paths need
+# explicit overflow handling when converting to `usize`.
+platform_support = "Portable across pointer widths; wider index conversions to usize may need explicit handling on 32-bit targets"
+
+[package.metadata.docs.rs]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
+
+[lints]
+workspace = true
+
+[dependencies]
+num = "0.4.3"
+
+[dev-dependencies]
+criterion = { version = "0.8.2", features = ["html_reports"] }
+# For custom profiling and benchmarking
+dhat = "0.3"  # Heap profiling
+proptest = "1.11.0"
+rand = "0.10.0"
+serde_json = "1"
+
+[[bench]]
+name = "memory"
+harness = false
+
+[[bench]]
+name = "builder"
+harness = false
+
+[[bench]]
+name = "processor"
+harness = false

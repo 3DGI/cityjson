@@ -2,15 +2,15 @@
 //!
 //! ```rust
 //! use cityjson_fake::material::MaterialBuilder;
-//! use cityjson::prelude::OwnedStringStorage;
+//! use cityjson_types::prelude::OwnedStringStorage;
 //!
-//! let material: cityjson::v2_0::Material<OwnedStringStorage> =
+//! let material: cityjson_types::v2_0::Material<OwnedStringStorage> =
 //!     MaterialBuilder::default().build();
 //! let _ = material;
 //! ```
 
-use cityjson::prelude::StringStorage;
-use cityjson::v2_0::{Material, RGB};
+use cityjson_types::prelude::StringStorage;
+use cityjson_types::v2_0::{Material, RGB};
 use fake::Dummy;
 use fake::RngExt;
 use rand::prelude::SmallRng;
@@ -26,7 +26,7 @@ use rand::{Rng, SeedableRng};
 /// use rand::SeedableRng;
 ///
 /// let mut rng = rand::rngs::SmallRng::seed_from_u64(2);
-/// let _rgb: cityjson::v2_0::RGB = Dummy::dummy_with_rng(&RgbFaker, &mut rng);
+/// let _rgb: cityjson_types::v2_0::RGB = Dummy::dummy_with_rng(&RgbFaker, &mut rng);
 /// ```
 pub struct RgbFaker;
 
@@ -47,7 +47,7 @@ impl Dummy<RgbFaker> for RGB {
 /// ```rust
 /// use cityjson_fake::prelude::*;
 ///
-/// let material: cityjson::v2_0::Material<OwnedStringStorage> = MaterialBuilder::default()
+/// let material: cityjson_types::v2_0::Material<OwnedStringStorage> = MaterialBuilder::default()
 ///     .name()
 ///     .diffuse_color()
 ///     .shininess()

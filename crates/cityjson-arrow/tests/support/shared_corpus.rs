@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::LazyLock;
 
-use cityjson::v2_0::OwnedCityModel;
 use cityjson_json::{ReadOptions, WriteOptions, read_feature, read_model, to_vec};
+use cityjson_types::v2_0::OwnedCityModel;
 use serde::Deserialize;
 use serde_json::{Number, Value};
 

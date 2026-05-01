@@ -2,7 +2,6 @@ use arrow_array::RecordBatch;
 use arrow_ipc::reader::FileReader;
 use arrow_ipc::writer::FileWriter;
 use arrow_schema::SchemaRef;
-use cityjson::v2_0::OwnedCityModel;
 use cityjson_arrow::error::{Error, Result};
 use cityjson_arrow::internal::{
     CanonicalTable, CanonicalTableSink, IncrementalDecoder, build_parts_from_tables,
@@ -12,6 +11,7 @@ use cityjson_arrow::schema::{
     CityArrowHeader, CityModelArrowParts, PackageManifest, PackageTableRef, ProjectionLayout,
     canonical_schema_set,
 };
+use cityjson_types::v2_0::OwnedCityModel;
 use memmap2::Mmap;
 use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};

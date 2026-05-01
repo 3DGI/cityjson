@@ -3,7 +3,7 @@
 `cityjson-parquet` stores `cityjson-rs` city models as seekable single-file packages
 and native Parquet canonical-table datasets.
 
-`PackageWriter` and `PackageReader` encode and decode `cityjson::v2_0::OwnedCityModel`
+`PackageWriter` and `PackageReader` encode and decode `cityjson_types::v2_0::OwnedCityModel`
 into a container backed by Arrow IPC table payloads.
 `ParquetDatasetWriter` and `ParquetDatasetReader` encode the same canonical tables as
 one native Parquet file per table.

@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use cityjson::resources::handles::{
+use cityjson_types::resources::handles::{
     CityObjectHandle, GeometryTemplateHandle, MaterialHandle, TextureHandle,
 };
-use cityjson::resources::storage::StringStorage;
-use cityjson::v2_0::{CityModel, VertexRef};
+use cityjson_types::resources::storage::StringStorage;
+use cityjson_types::v2_0::{CityModel, VertexRef};
 
 pub(crate) struct WriteContext {
     pub(crate) id_by_handle: HashMap<CityObjectHandle, String>,

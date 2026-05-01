@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use cityjson::resources::handles::{SemanticHandle, TextureHandle};
-use cityjson::resources::storage::StringStorage;
-use cityjson::v2_0::{
+use cityjson_types::resources::handles::{SemanticHandle, TextureHandle};
+use cityjson_types::resources::storage::StringStorage;
+use cityjson_types::v2_0::{
     CityModel, Geometry, GeometryType, Semantic, SemanticType, VertexRef,
     boundary::Boundary,
     geometry::{SemanticMapView, TextureMapView},
@@ -778,10 +778,10 @@ where
             .texture_map
             .rings()
             .get(self.ring_index)
-            .map_or(0, cityjson::v2_0::VertexIndex::to_usize);
+            .map_or(0, cityjson_types::v2_0::VertexIndex::to_usize);
         let vertex_end = self.texture_map.rings().get(self.ring_index + 1).map_or(
             self.texture_map.vertices().len(),
-            cityjson::v2_0::VertexIndex::to_usize,
+            cityjson_types::v2_0::VertexIndex::to_usize,
         );
 
         let mut seq =

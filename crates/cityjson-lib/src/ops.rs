@@ -7,17 +7,17 @@
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use crate::cityjson::resources::storage::OwnedStringStorage;
-use crate::cityjson::v2_0::attributes::Attributes;
-use crate::cityjson::v2_0::geometry::{
+use crate::cityjson_types::resources::storage::OwnedStringStorage;
+use crate::cityjson_types::v2_0::attributes::Attributes;
+use crate::cityjson_types::v2_0::geometry::{
     Geometry, GeometryType, StoredGeometryInstance, StoredGeometryParts,
 };
-use crate::cityjson::v2_0::metadata::BBox;
-use crate::cityjson::v2_0::{
+use crate::cityjson_types::v2_0::metadata::BBox;
+use crate::cityjson_types::v2_0::{
     CityObject, CityObjectIdentifier, MaterialMap, Metadata, SemanticMap, TextureMap, Transform,
     VertexIndex,
 };
-use crate::cityjson::{
+use crate::cityjson_types::{
     CityModelType,
     prelude::{
         CityObjectHandle, GeometryHandle, GeometryTemplateHandle, MaterialHandle, SemanticHandle,
@@ -398,9 +398,9 @@ fn merge_root_extensions(target: &mut OwnedExtensions, source: &OwnedExtensions)
 }
 
 fn remap_vertex_indices(
-    boundary: &crate::cityjson::v2_0::boundary::Boundary<u32>,
+    boundary: &crate::cityjson_types::v2_0::boundary::Boundary<u32>,
     vertex_map: &[VertexIndex<u32>],
-) -> Result<crate::cityjson::v2_0::boundary::Boundary<u32>> {
+) -> Result<crate::cityjson_types::v2_0::boundary::Boundary<u32>> {
     let mut boundary = boundary.clone();
     let remapped = boundary.vertices().iter().map(|index| {
         vertex_map
@@ -413,7 +413,7 @@ fn remap_vertex_indices(
 }
 
 fn remap_texture_map(
-    map: &crate::cityjson::v2_0::geometry::TextureMapView<'_, u32>,
+    map: &crate::cityjson_types::v2_0::geometry::TextureMapView<'_, u32>,
     uv_map: &[VertexIndex<u32>],
     texture_map: &HashMap<TextureHandle, TextureHandle>,
 ) -> Result<TextureMap<u32>> {

@@ -2,7 +2,7 @@
 
 This note records the decision on whether the next `cityjson-arrow` and
 `cityjson-parquet` optimization slice should adopt
-`cityjson::v2_0::BorrowedCityModel<'a>` or otherwise move the semantic boundary
+`cityjson_types::v2_0::BorrowedCityModel<'a>` or otherwise move the semantic boundary
 to borrowed string storage.
 
 ## Decision
@@ -23,7 +23,7 @@ For the current architecture:
 
 ### 1. The ADR Boundary Is Already Chosen
 
-ADR 1 and ADR 3 both fix `cityjson::v2_0::OwnedCityModel` as the semantic
+ADR 1 and ADR 3 both fix `cityjson_types::v2_0::OwnedCityModel` as the semantic
 boundary.
 
 That means the current optimization question is not "owned or borrowed semantic

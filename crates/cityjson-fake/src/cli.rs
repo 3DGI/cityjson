@@ -18,8 +18,8 @@
 //! ```
 
 use crate::attribute::AttributeValueMode;
-use cityjson::prelude::OwnedStringStorage;
-use cityjson::v2_0::{CityObjectType, GeometryType, LoD, SemanticType};
+use cityjson_types::prelude::OwnedStringStorage;
+use cityjson_types::v2_0::{CityObjectType, GeometryType, LoD, SemanticType};
 use clap::{Args, Parser, ValueEnum};
 #[cfg(feature = "cli")]
 use serde::Deserialize;

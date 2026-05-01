@@ -7,8 +7,8 @@
 //! assert!(attributes.is_empty());
 //! ```
 
-use cityjson::prelude::*;
-use cityjson::v2_0::{AttributeValue, Attributes};
+use cityjson_types::prelude::*;
+use cityjson_types::v2_0::{AttributeValue, Attributes};
 use fake::Fake;
 use fake::RngExt;
 use fake::faker::lorem::raw::Word;

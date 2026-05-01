@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use cityjson::resources::storage::StringStorage;
-use cityjson::v2_0::appearance::material::Material;
-use cityjson::v2_0::appearance::texture::Texture;
-use cityjson::v2_0::{
+use cityjson_types::resources::storage::StringStorage;
+use cityjson_types::v2_0::appearance::material::Material;
+use cityjson_types::v2_0::appearance::texture::Texture;
+use cityjson_types::v2_0::{
     BBox, CRS, CityModel, CityModelIdentifier, Contact, Date, Extension, Extensions, Metadata, RGB,
     RGBA, RealWorldCoordinate, ThemeName, Transform, UVCoordinate,
 };
@@ -74,7 +74,8 @@ where
     if let Some(extensions) = extensions {
         *model.extensions_mut() = timed("build.extensions", || build_extensions::<SS>(extensions));
     }
-    let feature_root_id = if header.type_citymodel == cityjson::CityModelType::CityJSONFeature {
+    let feature_root_id = if header.type_citymodel == cityjson_types::CityModelType::CityJSONFeature
+    {
         Some(parse_feature_root_id(id.ok_or_else(|| {
             crate::errors::Error::InvalidValue("CityJSONFeature root id is required".to_owned())
         })?)?)
@@ -113,7 +114,7 @@ fn parse_feature_root_id(raw: RawAttribute<'_>) -> Result<String> {
 fn resolve_feature_root_handle<SS: StringStorage>(
     model: &CityModel<u32, SS>,
     feature_root_id: &str,
-) -> Result<cityjson::prelude::CityObjectHandle> {
+) -> Result<cityjson_types::prelude::CityObjectHandle> {
     model
         .cityobjects()
         .iter()

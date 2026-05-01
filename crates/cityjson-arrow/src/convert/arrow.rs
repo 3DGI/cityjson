@@ -198,7 +198,7 @@ pub(super) fn point_of_contact_array(
 pub(super) fn projected_struct_array_from_attributes(
     field: &FieldRef,
     spec: &ProjectedStructSpec,
-    rows: &[Option<&cityjson::v2_0::OwnedAttributes>],
+    rows: &[Option<&cityjson_types::v2_0::OwnedAttributes>],
 ) -> Result<ArrayRef> {
     let child_fields = match field.data_type() {
         DataType::Struct(fields) => fields.clone(),
@@ -238,7 +238,7 @@ pub(super) fn projected_map_from_array(
     spec: &ProjectedStructSpec,
     array: &StructArray,
     row: usize,
-    geometry_handles: &HashMap<u64, cityjson::prelude::GeometryHandle>,
+    geometry_handles: &HashMap<u64, cityjson_types::prelude::GeometryHandle>,
 ) -> Result<HashMap<String, OwnedAttributeValue>> {
     let mut attributes = HashMap::with_capacity(spec.fields.len());
     if array.is_null(row) {
@@ -549,9 +549,9 @@ pub(super) fn projected_attributes_from_array(
     spec: Option<&ProjectedStructSpec>,
     array: Option<&StructArray>,
     row: usize,
-    geometry_handles: &HashMap<u64, cityjson::prelude::GeometryHandle>,
-) -> Result<cityjson::v2_0::OwnedAttributes> {
-    let mut attributes = cityjson::v2_0::OwnedAttributes::default();
+    geometry_handles: &HashMap<u64, cityjson_types::prelude::GeometryHandle>,
+) -> Result<cityjson_types::v2_0::OwnedAttributes> {
+    let mut attributes = cityjson_types::v2_0::OwnedAttributes::default();
     let (Some(spec), Some(array)) = (spec, array) else {
         return Ok(attributes);
     };
@@ -576,7 +576,7 @@ pub(super) fn projected_value_from_array(
     array: &dyn Array,
     spec: &ProjectedValueSpec,
     row: usize,
-    geometry_handles: &HashMap<u64, cityjson::prelude::GeometryHandle>,
+    geometry_handles: &HashMap<u64, cityjson_types::prelude::GeometryHandle>,
 ) -> Result<OwnedAttributeValue> {
     if array.is_null(row) {
         return Ok(AttributeValue::Null);
@@ -667,8 +667,8 @@ pub(super) fn read_optional_projected_attributes(
     column_name: &str,
     spec: Option<&ProjectedStructSpec>,
     row: usize,
-    geometry_handles: &HashMap<u64, cityjson::prelude::GeometryHandle>,
-) -> Result<Option<cityjson::v2_0::OwnedAttributes>> {
+    geometry_handles: &HashMap<u64, cityjson_types::prelude::GeometryHandle>,
+) -> Result<Option<cityjson_types::v2_0::OwnedAttributes>> {
     let array = spec
         .map(|_| downcast_required::<StructArray>(batch, column_name))
         .transpose()?;
@@ -679,7 +679,7 @@ pub(super) fn read_optional_projected_attributes(
 pub(super) fn read_metadata_point_of_contact(
     batch: &RecordBatch,
     projection: &ProjectionLayout,
-    geometry_handles: &HashMap<u64, cityjson::prelude::GeometryHandle>,
+    geometry_handles: &HashMap<u64, cityjson_types::prelude::GeometryHandle>,
 ) -> Result<Option<MetadataContactRow>> {
     let array = downcast_required::<StructArray>(batch, "point_of_contact")?;
     if array.is_null(0) {
@@ -764,7 +764,7 @@ pub(super) fn read_metadata_row(
 pub(super) fn apply_metadata_row(
     model: &mut OwnedCityModel,
     row: &MetadataRow,
-    _geometry_handles: &HashMap<u64, cityjson::prelude::GeometryHandle>,
+    _geometry_handles: &HashMap<u64, cityjson_types::prelude::GeometryHandle>,
 ) -> Result<()> {
     if let Some(identifier) = &row.identifier {
         model
@@ -788,7 +788,7 @@ pub(super) fn apply_metadata_row(
     if let Some(reference_date) = &row.reference_date {
         model
             .metadata_mut()
-            .set_reference_date(cityjson::v2_0::Date::new(reference_date.clone()));
+            .set_reference_date(cityjson_types::v2_0::Date::new(reference_date.clone()));
     }
     if let Some(theme) = &row.default_material_theme {
         model.set_default_material_theme(Some(ThemeName::new(theme.clone())));
@@ -865,7 +865,7 @@ pub(super) fn parse_texture_mapping_type(value: &str) -> Result<TextureType> {
 
 pub(super) fn parse_semantic_type(
     value: &str,
-) -> SemanticType<cityjson::prelude::OwnedStringStorage> {
+) -> SemanticType<cityjson_types::prelude::OwnedStringStorage> {
     match value {
         "Default" => SemanticType::Default,
         "RoofSurface" => SemanticType::RoofSurface,

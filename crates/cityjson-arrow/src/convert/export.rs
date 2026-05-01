@@ -186,7 +186,7 @@ fn build_export_context<'a>(relational: &'a ModelRelationalView<'a>) -> Result<E
             citymodel_id,
             model
                 .version()
-                .unwrap_or(cityjson::CityJSONVersion::V2_0)
+                .unwrap_or(cityjson_types::CityJSONVersion::V2_0)
                 .to_string(),
         ),
         projection: projection.clone(),
@@ -525,37 +525,37 @@ pub(super) trait RawPartsHandle {
     fn raw_parts(self) -> (u32, u16);
 }
 
-impl RawPartsHandle for cityjson::prelude::GeometryHandle {
+impl RawPartsHandle for cityjson_types::prelude::GeometryHandle {
     fn raw_parts(self) -> (u32, u16) {
         self.raw_parts()
     }
 }
 
-impl RawPartsHandle for cityjson::prelude::CityObjectHandle {
+impl RawPartsHandle for cityjson_types::prelude::CityObjectHandle {
     fn raw_parts(self) -> (u32, u16) {
         self.raw_parts()
     }
 }
 
-impl RawPartsHandle for cityjson::prelude::GeometryTemplateHandle {
+impl RawPartsHandle for cityjson_types::prelude::GeometryTemplateHandle {
     fn raw_parts(self) -> (u32, u16) {
         self.raw_parts()
     }
 }
 
-impl RawPartsHandle for cityjson::prelude::SemanticHandle {
+impl RawPartsHandle for cityjson_types::prelude::SemanticHandle {
     fn raw_parts(self) -> (u32, u16) {
         self.raw_parts()
     }
 }
 
-impl RawPartsHandle for cityjson::prelude::MaterialHandle {
+impl RawPartsHandle for cityjson_types::prelude::MaterialHandle {
     fn raw_parts(self) -> (u32, u16) {
         self.raw_parts()
     }
 }
 
-impl RawPartsHandle for cityjson::prelude::TextureHandle {
+impl RawPartsHandle for cityjson_types::prelude::TextureHandle {
     fn raw_parts(self) -> (u32, u16) {
         self.raw_parts()
     }
@@ -997,13 +997,13 @@ fn texture_vertices_batch_from_view(
             Arc::new(Float32Array::from(
                 uv_coordinates
                     .iter()
-                    .map(cityjson::v2_0::UVCoordinate::u)
+                    .map(cityjson_types::v2_0::UVCoordinate::u)
                     .collect::<Vec<_>>(),
             )),
             Arc::new(Float32Array::from(
                 uv_coordinates
                     .iter()
-                    .map(cityjson::v2_0::UVCoordinate::v)
+                    .map(cityjson_types::v2_0::UVCoordinate::v)
                     .collect::<Vec<_>>(),
             )),
         ],
@@ -1012,7 +1012,7 @@ fn texture_vertices_batch_from_view(
 
 fn vertex_batch_from_coordinates(
     schema: &Arc<::arrow::datatypes::Schema>,
-    coordinates: &[cityjson::v2_0::RealWorldCoordinate],
+    coordinates: &[cityjson_types::v2_0::RealWorldCoordinate],
     _id_name: &str,
 ) -> Result<RecordBatch> {
     let count = coordinates.len();
@@ -1041,7 +1041,7 @@ fn vertex_batch_from_coordinates(
 }
 
 fn encode_semantic_type(
-    semantic_type: &SemanticType<cityjson::prelude::OwnedStringStorage>,
+    semantic_type: &SemanticType<cityjson_types::prelude::OwnedStringStorage>,
 ) -> String {
     match semantic_type {
         SemanticType::Default => "Default".to_string(),
@@ -1069,16 +1069,16 @@ fn encode_semantic_type(
 }
 
 fn cloned_attributes(
-    attributes: Option<&cityjson::v2_0::OwnedAttributes>,
-) -> Option<cityjson::v2_0::OwnedAttributes> {
+    attributes: Option<&cityjson_types::v2_0::OwnedAttributes>,
+) -> Option<cityjson_types::v2_0::OwnedAttributes> {
     attributes
         .cloned()
         .filter(|attributes| !attributes.is_empty())
 }
 
 fn non_empty_attributes(
-    attributes: Option<&cityjson::v2_0::OwnedAttributes>,
-) -> Option<&cityjson::v2_0::OwnedAttributes> {
+    attributes: Option<&cityjson_types::v2_0::OwnedAttributes>,
+) -> Option<&cityjson_types::v2_0::OwnedAttributes> {
     attributes.filter(|attributes| !attributes.is_empty())
 }
 

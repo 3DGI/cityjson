@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 use std::io::{Read, Write};
 
-use cityjson::resources::storage::StringStorage;
-use cityjson::v2_0::{BBox, CityModel, OwnedCityModel, Transform, VertexRef};
-use cityjson::{CityJSONVersion, CityModelType};
+use cityjson_types::resources::storage::StringStorage;
+use cityjson_types::v2_0::{BBox, CityModel, OwnedCityModel, Transform, VertexRef};
+use cityjson_types::{CityJSONVersion, CityModelType};
 use serde::Serialize;
 use serde_json::de::{IoRead, StreamDeserializer};
 use serde_json::{Map, Value};
@@ -12,7 +12,7 @@ use crate::errors::{Error, Result};
 
 #[derive(Debug, Clone)]
 pub struct ReadOptions {
-    pub symbol_storage: cityjson::symbols::SymbolStorageOptions,
+    pub symbol_storage: cityjson_types::symbols::SymbolStorageOptions,
     pub validate_default_themes: bool,
     pub reject_duplicate_ids: bool,
 }
@@ -20,7 +20,7 @@ pub struct ReadOptions {
 impl Default for ReadOptions {
     fn default() -> Self {
         Self {
-            symbol_storage: cityjson::symbols::SymbolStorageOptions::default(),
+            symbol_storage: cityjson_types::symbols::SymbolStorageOptions::default(),
             validate_default_themes: false,
             reject_duplicate_ids: true,
         }

@@ -8,7 +8,7 @@ Accepted
 
 [ADR 1](001-canonical-transport-boundary.md) established
 `CityModelArrowParts` as the canonical transport decomposition around
-`cityjson::v2_0::OwnedCityModel`.
+`cityjson_types::v2_0::OwnedCityModel`.
 
 [ADR 2](002-address-transport-performance-bottlenecks.md) then clarified that
 the current benchmark gap should be treated as an implementation problem in
@@ -50,7 +50,7 @@ old and new transport architectures alive.
 
 The new architecture is:
 
-1. `cityjson::v2_0::OwnedCityModel` remains the semantic source and sink
+1. `cityjson_types::v2_0::OwnedCityModel` remains the semantic source and sink
 2. live process-to-process transport uses Arrow IPC stream format as the
    primary wire representation
 3. persistent package IO uses a seekable, memory-mappable package container

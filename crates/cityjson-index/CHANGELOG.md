@@ -23,6 +23,9 @@
 
 ### Changed
 
+- Stopped routing core model types through `cityjson_lib::cityjson`; Rust code
+  now uses the renamed `cityjson_types` crate directly after the
+  `cityjson-types` package rename.
 - Feature-file and NDJSON indexing now derives feature ids from every key in a
   feature package's `CityObjects` object and ignores the package's top-level
   `id` during indexing.

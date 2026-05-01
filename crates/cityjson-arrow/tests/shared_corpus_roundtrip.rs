@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 
-use cityjson::CityModelType;
-use cityjson::v2_0::appearance::ImageType;
-use cityjson::v2_0::geometry::semantic::SemanticType;
-use cityjson::v2_0::{
+use cityjson_arrow::{
+    ExportOptions, ImportOptions, export_reader, import_batches, read_stream, write_stream,
+};
+use cityjson_types::CityModelType;
+use cityjson_types::v2_0::appearance::ImageType;
+use cityjson_types::v2_0::geometry::semantic::SemanticType;
+use cityjson_types::v2_0::{
     AttributeValue, CityModelIdentifier, CityObject, CityObjectIdentifier, CityObjectType,
     GeometryDraft, OwnedCityModel, OwnedMaterial, OwnedSemantic, OwnedTexture, RingDraft,
     SurfaceDraft,
-};
-use cityjson_arrow::{
-    ExportOptions, ImportOptions, export_reader, import_batches, read_stream, write_stream,
 };
 
 fn assert_stream_roundtrip(model: &OwnedCityModel) {

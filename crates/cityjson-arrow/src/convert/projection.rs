@@ -134,7 +134,7 @@ pub(super) fn validate_appearance_projection_layout(layout: &ProjectionLayout) -
 }
 
 pub(super) fn discover_optional_attribute_projection(
-    attributes: Option<&cityjson::v2_0::OwnedAttributes>,
+    attributes: Option<&cityjson_types::v2_0::OwnedAttributes>,
 ) -> Result<Option<ProjectedStructSpec>> {
     match attributes {
         Some(attributes) => discover_attribute_projection(std::iter::once(attributes)),
@@ -146,7 +146,7 @@ pub(super) fn discover_attribute_projection<'a, I>(
     attributes: I,
 ) -> Result<Option<ProjectedStructSpec>>
 where
-    I: IntoIterator<Item = &'a cityjson::v2_0::OwnedAttributes>,
+    I: IntoIterator<Item = &'a cityjson_types::v2_0::OwnedAttributes>,
 {
     let mut layout = ProjectedStructSpec::new(Vec::new());
     let mut seen_rows = 0_usize;
@@ -166,7 +166,7 @@ where
 
 pub(super) fn merge_attribute_map_into_spec(
     spec: &mut ProjectedStructSpec,
-    attributes: &cityjson::v2_0::OwnedAttributes,
+    attributes: &cityjson_types::v2_0::OwnedAttributes,
     seen_rows: usize,
 ) -> Result<()> {
     let present = attributes.keys().cloned().collect::<BTreeSet<_>>();
@@ -241,7 +241,7 @@ pub(super) fn infer_projected_value_spec(
         }
         AttributeValue::Map(values) => {
             let mut fields = ProjectedStructSpec::new(Vec::new());
-            let mut attributes = cityjson::v2_0::OwnedAttributes::default();
+            let mut attributes = cityjson_types::v2_0::OwnedAttributes::default();
             for (key, value) in values {
                 attributes.insert(key.clone(), value.clone());
             }

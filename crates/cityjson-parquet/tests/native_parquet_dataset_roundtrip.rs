@@ -1,8 +1,8 @@
 #[path = "../../cityjson-arrow/tests/support/shared_corpus.rs"]
 mod shared_corpus;
 
-use cityjson::CityModelType;
 use cityjson_parquet::{ParquetDatasetReader, ParquetDatasetWriter};
+use cityjson_types::CityModelType;
 use tempfile::tempdir;
 
 macro_rules! conformance_roundtrip_tests {

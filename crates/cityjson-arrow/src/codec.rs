@@ -4,8 +4,8 @@ use crate::schema::{CityArrowHeader, CityArrowPackageVersion, ProjectionLayout};
 use crate::stream;
 use crate::transport::{CanonicalTable, CanonicalTableSink};
 use arrow::record_batch::RecordBatch;
-use cityjson::relational::RelationalAccess;
-use cityjson::v2_0::OwnedCityModel;
+use cityjson_types::relational::RelationalAccess;
+use cityjson_types::v2_0::OwnedCityModel;
 use std::collections::VecDeque;
 use std::io::{Read, Write};
 
@@ -43,7 +43,7 @@ impl Default for ExportOptions {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportOptions {
     pub expected_schema_version: Option<SchemaVersion>,
-    pub symbol_storage: cityjson::symbols::SymbolStorageOptions,
+    pub symbol_storage: cityjson_types::symbols::SymbolStorageOptions,
     pub validate_schema: bool,
 }
 
@@ -51,7 +51,7 @@ impl Default for ImportOptions {
     fn default() -> Self {
         Self {
             expected_schema_version: Some(SchemaVersion::V3Alpha3),
-            symbol_storage: cityjson::symbols::SymbolStorageOptions::default(),
+            symbol_storage: cityjson_types::symbols::SymbolStorageOptions::default(),
             validate_schema: true,
         }
     }

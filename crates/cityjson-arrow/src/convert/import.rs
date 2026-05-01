@@ -534,7 +534,7 @@ fn import_semantics_batch(
     batch: &RecordBatch,
     projection: &ProjectionLayout,
     model: &mut OwnedCityModel,
-) -> Result<HashMap<u64, cityjson::prelude::SemanticHandle>> {
+) -> Result<HashMap<u64, cityjson_types::prelude::SemanticHandle>> {
     let empty_geometry_handles = HashMap::new();
     let mut semantic_handle_by_id = HashMap::with_capacity(batch.num_rows());
     let columns = bind_semantic_columns(batch, projection)?;
@@ -628,7 +628,7 @@ fn import_vertex_batch(batch: &RecordBatch, state: &mut ImportState) -> Result<(
         let vertex_id = columns.vertex_id.value(row);
         ensure_strictly_increasing_u64(previous_id, vertex_id, "vertex_id")?;
         previous_id = Some(vertex_id);
-        vertices.push(cityjson::v2_0::RealWorldCoordinate::new(
+        vertices.push(cityjson_types::v2_0::RealWorldCoordinate::new(
             columns.x.value(row),
             columns.y.value(row),
             columns.z.value(row),
@@ -654,7 +654,7 @@ fn import_template_vertex_batch(batch: &RecordBatch, state: &mut ImportState) ->
         previous_id = Some(template_vertex_id);
         state
             .model
-            .add_template_vertex(cityjson::v2_0::RealWorldCoordinate::new(
+            .add_template_vertex(cityjson_types::v2_0::RealWorldCoordinate::new(
                 columns.x.value(row),
                 columns.y.value(row),
                 columns.z.value(row),
@@ -689,7 +689,7 @@ fn import_materials_batch(
     batch: &RecordBatch,
     projection: &ProjectionLayout,
     model: &mut OwnedCityModel,
-) -> Result<HashMap<u64, cityjson::prelude::MaterialHandle>> {
+) -> Result<HashMap<u64, cityjson_types::prelude::MaterialHandle>> {
     let mut material_handle_by_id = HashMap::with_capacity(batch.num_rows());
     let columns = bind_material_columns(batch, projection)?;
     let mut previous_id = None;
@@ -727,7 +727,7 @@ fn import_textures_batch(
     batch: &RecordBatch,
     projection: &ProjectionLayout,
     model: &mut OwnedCityModel,
-) -> Result<HashMap<u64, cityjson::prelude::TextureHandle>> {
+) -> Result<HashMap<u64, cityjson_types::prelude::TextureHandle>> {
     let mut texture_handle_by_id = HashMap::with_capacity(batch.num_rows());
     let columns = bind_texture_columns(batch, projection)?;
     let mut previous_id = None;
@@ -965,13 +965,13 @@ fn import_instance_geometries_batch(batch: &RecordBatch, state: &mut ImportState
             textures: None,
             instance: Some(StoredGeometryInstance {
                 template,
-                reference_point: cityjson::v2_0::VertexIndex::new(reference_point),
+                reference_point: cityjson_types::v2_0::VertexIndex::new(reference_point),
                 transformation: read_fixed_size_list_array_optional::<16>(
                     columns.transform_matrix,
                     "transform_matrix",
                     row,
                 )?
-                .map(cityjson::v2_0::AffineTransform3D::from)
+                .map(cityjson_types::v2_0::AffineTransform3D::from)
                 .unwrap_or_default(),
             }),
         });
@@ -991,9 +991,9 @@ fn import_instance_geometries_batch(batch: &RecordBatch, state: &mut ImportState
 }
 
 fn insert_unique_geometry_handle(
-    handles: &mut HashMap<u64, cityjson::prelude::GeometryHandle>,
+    handles: &mut HashMap<u64, cityjson_types::prelude::GeometryHandle>,
     geometry_id: u64,
-    handle: cityjson::prelude::GeometryHandle,
+    handle: cityjson_types::prelude::GeometryHandle,
 ) -> Result<()> {
     if handles.insert(geometry_id, handle).is_some() {
         return Err(Error::Conversion(format!(
@@ -1034,7 +1034,7 @@ fn push_pending_geometry_attachment(
 fn register_cityobject_handle(
     state: &mut ImportState,
     cityobject_ix: u64,
-    handle: cityjson::prelude::CityObjectHandle,
+    handle: cityjson_types::prelude::CityObjectHandle,
 ) -> Result<()> {
     let cityobject_ix = usize::try_from(cityobject_ix)
         .map_err(|_| Error::Conversion("cityobject_ix does not fit in memory".to_string()))?;
@@ -1051,7 +1051,7 @@ fn register_cityobject_handle(
 fn cityobject_handle(
     state: &ImportState,
     cityobject_ix: u64,
-) -> Result<cityjson::prelude::CityObjectHandle> {
+) -> Result<cityjson_types::prelude::CityObjectHandle> {
     let cityobject_ix = usize::try_from(cityobject_ix)
         .map_err(|_| Error::Conversion("cityobject_ix does not fit in memory".to_string()))?;
     state

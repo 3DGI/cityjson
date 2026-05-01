@@ -1,9 +1,9 @@
 use serde::Serialize;
 use serde::ser::{Error as _, SerializeMap, SerializeSeq};
 
-use cityjson::resources::storage::StringStorage;
-use cityjson::v2_0::{AttributeValue, Attributes};
-use cityjson::v2_0::{CityModel, VertexRef};
+use cityjson_types::resources::storage::StringStorage;
+use cityjson_types::v2_0::{AttributeValue, Attributes};
+use cityjson_types::v2_0::{CityModel, VertexRef};
 
 use crate::errors::Error;
 use crate::ser::context::WriteContext;

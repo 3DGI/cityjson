@@ -24,16 +24,16 @@ use crate::texture::TextureBuilder;
 #[allow(unused_imports)]
 use crate::vertex::VerticesFaker;
 use crate::{CityObjectLevel, CityObjectTypeFaker, LoDFaker, SemanticCtx, get_nr_items};
-use cityjson::prelude::*;
-use cityjson::v2_0::{
+#[cfg(feature = "json")]
+use cityjson_json::{self, WriteOptions};
+use cityjson_types::prelude::*;
+use cityjson_types::v2_0::{
     AffineTransform3D, BBox, CityModel, CityObject, CityObjectIdentifier, CityObjectType,
     GeometryDraft, GeometryType, ImageType, LineStringDraft, LoD, Material, OwnedAttributeValue,
     OwnedSemantic, PointDraft, RGB, RealWorldCoordinate, RingDraft, Semantic, SemanticType,
     ShellDraft, SolidDraft, SurfaceDraft, Texture, ThemeName, UVCoordinate, UvDraft, VertexDraft,
     VertexIndex, VertexRef,
 };
-#[cfg(feature = "json")]
-use cityjson_json::{self, WriteOptions};
 use fake::Fake;
 use fake::RngExt;
 use rand::SeedableRng;
@@ -1648,7 +1648,7 @@ mod tests {
         };
         let themes = vec![String::from("winter")];
         let mut model =
-            CityModel::<u32, OwnedStringStorage>::new(cityjson::CityModelType::CityJSON);
+            CityModel::<u32, OwnedStringStorage>::new(cityjson_types::CityModelType::CityJSON);
         let handles = [model
             .add_texture(Texture::new("tex.png".to_string(), ImageType::Png))
             .expect("texture handle should be created")];
@@ -1675,7 +1675,7 @@ mod tests {
         };
         let themes = vec![String::from("winter")];
         let mut model =
-            CityModel::<u32, OwnedStringStorage>::new(cityjson::CityModelType::CityJSON);
+            CityModel::<u32, OwnedStringStorage>::new(cityjson_types::CityModelType::CityJSON);
         let handles = [model
             .add_texture(Texture::new("tex.png".to_string(), ImageType::Png))
             .expect("texture handle should be created")];

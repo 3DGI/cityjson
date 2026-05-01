@@ -7,8 +7,8 @@
 //! assert!(!texture.image().is_empty());
 //! ```
 
-use cityjson::prelude::OwnedStringStorage;
-use cityjson::v2_0::{ImageType, Texture};
+use cityjson_types::prelude::OwnedStringStorage;
+use cityjson_types::v2_0::{ImageType, Texture};
 use fake::Fake;
 use fake::RngExt;
 use rand::prelude::SmallRng;
@@ -22,7 +22,7 @@ use std::path::PathBuf;
 /// ```rust
 /// use cityjson_fake::prelude::*;
 ///
-/// let texture: cityjson::v2_0::Texture<OwnedStringStorage> = TextureBuilder::default()
+/// let texture: cityjson_types::v2_0::Texture<OwnedStringStorage> = TextureBuilder::default()
 ///     .image()
 ///     .image_type()
 ///     .build();

@@ -37,7 +37,7 @@ rust-toolchain.toml
 release.toml                # cargo-release config
 CHANGELOG.md                # Keep a Changelog; promoted manually at release time
 crates/
-  cityjson/                 # core types
+  cityjson-types/           # core types
   cityjson-json/            # serde adapter
   cityjson-arrow/           # Arrow IPC transport
   cityjson-parquet/         # Parquet over cityjson-arrow
@@ -156,10 +156,10 @@ build — that's intentional; the docs are a feature.
 ## Miri
 
 ```sh
-cargo +nightly miri test -p cityjson <module>
+cargo +nightly miri test -p cityjson-types <module>
 ```
 
-with `MIRIFLAGS=-Zmiri-strict-provenance`. Only runs for the `cityjson`
+with `MIRIFLAGS=-Zmiri-strict-provenance`. Only runs for the `cityjson-types`
 core crate, and only across modules that touch `unsafe` (boundary, vertex,
 vertices, handles, raw_access, geometry). `just miri` runs the lot.
 

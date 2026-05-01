@@ -1,8 +1,8 @@
-use cityjson::resources::storage::StringStorage;
-use cityjson::v2_0::{
+use cityjson_types::resources::storage::StringStorage;
+use cityjson_types::v2_0::{
     CityObjectType, ContactRole, ContactType, ImageType, LoD, SemanticType, TextureType, WrapMode,
 };
-use cityjson::{CityJSONVersion, CityModelType};
+use cityjson_types::{CityJSONVersion, CityModelType};
 
 use crate::errors::{Error, Result};
 

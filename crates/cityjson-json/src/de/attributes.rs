@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use serde::de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
-use cityjson::v2_0::{AttributeValue, Attributes};
+use cityjson_types::v2_0::{AttributeValue, Attributes};
 
 use crate::de::parse::ParseStringStorage;
 use crate::errors::{Error, Result};
@@ -377,8 +377,8 @@ where
 mod tests {
     use std::collections::HashMap;
 
-    use cityjson::prelude::OwnedStringStorage;
-    use cityjson::v2_0::AttributeValue;
+    use cityjson_types::prelude::OwnedStringStorage;
+    use cityjson_types::v2_0::AttributeValue;
 
     use super::AttributesSeed;
     use serde::de::DeserializeSeed;

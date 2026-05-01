@@ -1,6 +1,6 @@
 # cityjson-json
 
-`cityjson-json` is the `CityJSON` 2.0 JSON boundary crate around the [`cityjson`](https://crates.io/crates/cityjson) crate. It reads and writes owned `CityJSON` models with explicit document and feature-stream APIs.
+`cityjson-json` is the `CityJSON` 2.0 JSON boundary crate around the [`cityjson-types`](https://crates.io/crates/cityjson-types) crate. It reads and writes owned `CityJSON` models with explicit document and feature-stream APIs.
 
 It also exposes the JSON-aware helper layer consumed by `cityjson-lib`:
 
@@ -104,7 +104,7 @@ use cityjson_json::v2_0::{
     CityJsonSeqWriteOptions, FeatureStreamTransform, ReadOptions, read_feature_with_base,
     read_model, write_feature_stream,
 };
-use cityjson::v2_0::Transform;
+use cityjson_types::v2_0::Transform;
 
 let base_input = br#"{"type":"CityJSON","version":"2.0","transform":{"scale":[0.001,0.001,0.001],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
 let base = read_model(base_input, &ReadOptions::default())?;

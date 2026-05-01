@@ -38,14 +38,14 @@ test:
 doc:
     RUSTDOCFLAGS="--cfg docsrs -Dwarnings" cargo +nightly doc --workspace --all-features --no-deps
 
-# Miri on the cityjson crate's unsafe-touching test suites
+# Miri on the cityjson-types crate's unsafe-touching test suites
 miri:
-    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p cityjson boundary
-    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p cityjson vertex
-    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p cityjson vertices
-    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p cityjson handles
-    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p cityjson raw_access
-    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p cityjson geometry
+    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p cityjson-types boundary
+    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p cityjson-types vertex
+    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p cityjson-types vertices
+    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p cityjson-types handles
+    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p cityjson-types raw_access
+    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p cityjson-types geometry
 
 # Run the Python binding test suites (tox smoke) for both crates
 test-python:

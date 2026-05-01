@@ -1,6 +1,6 @@
-use cityjson::resources::handles::GeometryHandle;
-use cityjson::resources::storage::StringStorage;
-use cityjson::v2_0::{Boundary, CityModel, Geometry, GeometryType, VertexRef};
+use cityjson_types::resources::handles::GeometryHandle;
+use cityjson_types::resources::storage::StringStorage;
+use cityjson_types::v2_0::{Boundary, CityModel, Geometry, GeometryType, VertexRef};
 use serde::Serialize;
 use serde::ser::{Error as _, SerializeMap, SerializeSeq};
 
@@ -236,7 +236,7 @@ where
     }
 }
 
-struct VertexSliceSerializer<'a, VR>(&'a [cityjson::v2_0::VertexIndex<VR>])
+struct VertexSliceSerializer<'a, VR>(&'a [cityjson_types::v2_0::VertexIndex<VR>])
 where
     VR: VertexRef + serde::Serialize;
 
@@ -278,7 +278,7 @@ where
             let vertex_start = self.boundary.rings()[ring_index].to_usize();
             let vertex_end = self.boundary.rings().get(ring_index + 1).map_or(
                 self.boundary.vertices().len(),
-                cityjson::v2_0::VertexIndex::to_usize,
+                cityjson_types::v2_0::VertexIndex::to_usize,
             );
             seq.serialize_element(&VertexSliceSerializer(
                 &self.boundary.vertices()[vertex_start..vertex_end],
@@ -421,7 +421,7 @@ where
     let start = boundary.surfaces()[surface_index].to_usize();
     let end = boundary.surfaces().get(surface_index + 1).map_or(
         boundary.rings().len(),
-        cityjson::v2_0::VertexIndex::to_usize,
+        cityjson_types::v2_0::VertexIndex::to_usize,
     );
     (start, end)
 }
@@ -436,7 +436,7 @@ where
     let start = boundary.shells()[shell_index].to_usize();
     let end = boundary.shells().get(shell_index + 1).map_or(
         boundary.surfaces().len(),
-        cityjson::v2_0::VertexIndex::to_usize,
+        cityjson_types::v2_0::VertexIndex::to_usize,
     );
     (start, end)
 }
@@ -451,7 +451,7 @@ where
     let start = boundary.solids()[solid_index].to_usize();
     let end = boundary.solids().get(solid_index + 1).map_or(
         boundary.shells().len(),
-        cityjson::v2_0::VertexIndex::to_usize,
+        cityjson_types::v2_0::VertexIndex::to_usize,
     );
     (start, end)
 }

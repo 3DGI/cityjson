@@ -4,7 +4,7 @@ use std::fmt::{Debug, Display, Formatter};
 pub enum Error {
     Json(serde_json::Error),
     Utf8(std::str::Utf8Error),
-    CityJson(cityjson::error::Error),
+    CityJson(cityjson_types::error::Error),
     UnsupportedType(String),
     UnsupportedVersion(String),
     MalformedRootObject(&'static str),
@@ -63,8 +63,8 @@ impl From<serde_json::Error> for Error {
     }
 }
 
-impl From<cityjson::error::Error> for Error {
-    fn from(error: cityjson::error::Error) -> Self {
+impl From<cityjson_types::error::Error> for Error {
+    fn from(error: cityjson_types::error::Error) -> Self {
         Self::CityJson(error)
     }
 }

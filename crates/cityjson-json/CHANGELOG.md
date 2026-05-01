@@ -8,6 +8,8 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Changed
 
+- Updated the core crate import path from `cityjson::...` to
+  `cityjson_types::...` after the `cityjson-types` package rename.
 - `facade::append` now mirrors the Rust merge semantics for model transforms,
   so differing source transforms are accepted and collapse to a transform-free
   merged result.

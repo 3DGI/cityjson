@@ -2,7 +2,7 @@
 
 `cityjson-arrow` is the Arrow stream and batch codec for `cityjson-rs`.
 
-It moves `cityjson::v2_0::OwnedCityModel` across Arrow IPC boundaries:
+It moves `cityjson_types::v2_0::OwnedCityModel` across Arrow IPC boundaries:
 
 - `write_stream` / `read_stream` — live Arrow IPC stream transport
 - `export_reader` — ordered canonical table batches (used by `cityjson-parquet`)
@@ -11,7 +11,7 @@ It moves `cityjson::v2_0::OwnedCityModel` across Arrow IPC boundaries:
 
 ## How it works
 
-- Export reads the model through `cityjson::relational::ModelRelationalView` and
+- Export reads the model through `cityjson_types::relational::ModelRelationalView` and
   emits canonical Arrow table batches in a fixed order.
 - The live stream path writes batches directly as Arrow IPC frames without
   building an intermediate aggregate.

@@ -68,7 +68,7 @@ yet implemented.
 
 ## Data model
 
-The public data model is `cityjson::v2_0::OwnedCityModel`. Callers interact
+The public data model is `cityjson_types::v2_0::OwnedCityModel`. Callers interact
 with model values only through `PackageWriter` and `PackageReader`. The
 canonical Arrow tables are a transport detail and are not part of the public API.
 
