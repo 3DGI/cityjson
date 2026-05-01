@@ -2,13 +2,192 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Self
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 from . import _native
 
 if TYPE_CHECKING:
     from cityjson_lib import CityModel
+
+
+class _LodSelectionKind(Enum):
+    ALL = "all"
+    HIGHEST = "highest"
+    EXACT = "exact"
+
+
+@dataclass(frozen=True, slots=True)
+class LodSelection:
+    kind: _LodSelectionKind
+    exact_lod: str | None = None
+
+    ALL: ClassVar["LodSelection"]
+    HIGHEST: ClassVar["LodSelection"]
+
+    @classmethod
+    def all(cls) -> Self:
+        return cls(_LodSelectionKind.ALL)
+
+    @classmethod
+    def highest(cls) -> Self:
+        return cls(_LodSelectionKind.HIGHEST)
+
+    @classmethod
+    def exact(cls, lod: str) -> Self:
+        if not lod:
+            raise ValueError("lod must not be empty")
+        return cls(_LodSelectionKind.EXACT, lod)
+
+    @classmethod
+    def Exact(cls, lod: str) -> Self:
+        return cls.exact(lod)
+
+    @property
+    def _native_kind(self) -> int:
+        if self.kind is _LodSelectionKind.ALL:
+            return 0
+        if self.kind is _LodSelectionKind.HIGHEST:
+            return 1
+        return 2
+
+
+LodSelection.ALL = LodSelection.all()
+LodSelection.HIGHEST = LodSelection.highest()
+
+
+@dataclass(frozen=True, slots=True)
+class FeatureFilter:
+    cityobject_types: frozenset[str] | None = None
+    default_lod: LodSelection = field(default_factory=LodSelection.all)
+    lods_by_type: Mapping[str, LodSelection] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.cityobject_types is not None:
+            object.__setattr__(self, "cityobject_types", frozenset(self.cityobject_types))
+        object.__setattr__(self, "lods_by_type", dict(self.lods_by_type))
+
+
+@dataclass(frozen=True, slots=True)
+class MissingLodSelection:
+    cityobject_type: str
+    requested_lod: str
+    available_lods: frozenset[str] = field(default_factory=frozenset)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "available_lods", frozenset(self.available_lods))
+
+
+@dataclass(frozen=True, slots=True)
+class FeatureFilterDiagnostics:
+    available_types: frozenset[str] = field(default_factory=frozenset)
+    retained_types: frozenset[str] = field(default_factory=frozenset)
+    ignored_types: frozenset[str] = field(default_factory=frozenset)
+    available_lods: Mapping[str, frozenset[str]] = field(default_factory=dict)
+    retained_lods: Mapping[str, frozenset[str]] = field(default_factory=dict)
+    missing_lods: list[MissingLodSelection] = field(default_factory=list)
+    retained_geometry_count: int = 0
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "available_types", frozenset(self.available_types))
+        object.__setattr__(self, "retained_types", frozenset(self.retained_types))
+        object.__setattr__(self, "ignored_types", frozenset(self.ignored_types))
+        object.__setattr__(
+            self,
+            "available_lods",
+            {key: frozenset(value) for key, value in self.available_lods.items()},
+        )
+        object.__setattr__(
+            self,
+            "retained_lods",
+            {key: frozenset(value) for key, value in self.retained_lods.items()},
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class FilteredFeature:
+    model: "CityModel"
+    diagnostics: FeatureFilterDiagnostics
+
+
+@dataclass(slots=True)
+class FeatureFilterSummary:
+    available_types: set[str] = field(default_factory=set)
+    retained_types: set[str] = field(default_factory=set)
+    ignored_types: set[str] = field(default_factory=set)
+    available_lods: dict[str, set[str]] = field(default_factory=dict)
+    retained_lods: dict[str, set[str]] = field(default_factory=dict)
+    missing_lods: dict[str, MissingLodSelection] = field(default_factory=dict)
+    retained_feature_count: int = 0
+    ignored_feature_count: int = 0
+
+    def add(self, diagnostics: FeatureFilterDiagnostics) -> None:
+        self.available_types.update(diagnostics.available_types)
+        self.retained_types.update(diagnostics.retained_types)
+        self.ignored_types.update(diagnostics.ignored_types)
+        _merge_lod_sets(self.available_lods, diagnostics.available_lods)
+        _merge_lod_sets(self.retained_lods, diagnostics.retained_lods)
+        for missing in diagnostics.missing_lods:
+            if missing.cityobject_type not in self.missing_lods:
+                self.missing_lods[missing.cityobject_type] = missing
+        if diagnostics.retained_geometry_count == 0:
+            self.ignored_feature_count += 1
+        else:
+            self.retained_feature_count += 1
+
+    def requested_lod_failures(self, filter: FeatureFilter) -> list[MissingLodSelection]:
+        failures: list[MissingLodSelection] = []
+        for cityobject_type, selection in filter.lods_by_type.items():
+            if selection.kind is not _LodSelectionKind.EXACT:
+                continue
+            eligible = (
+                cityobject_type in self.available_lods
+                or cityobject_type in self.retained_types
+                or filter.cityobject_types is None
+                or cityobject_type in filter.cityobject_types
+            )
+            if not eligible:
+                continue
+            available_lods = self.available_lods.get(cityobject_type, set())
+            if selection.exact_lod in available_lods:
+                continue
+            failures.append(
+                MissingLodSelection(
+                    cityobject_type=cityobject_type,
+                    requested_lod=selection.exact_lod or "",
+                    available_lods=frozenset(available_lods),
+                )
+            )
+        return failures
+
+    def ensure_requested_lods_available(self, filter: FeatureFilter) -> None:
+        failures = self.requested_lod_failures(filter)
+        if not failures:
+            return
+
+        details = "; ".join(
+            (
+                f"{missing.cityobject_type} requested LoD '{missing.requested_lod}' "
+                f"but available LoDs are: {_format_available_lods(missing.available_lods)}"
+            )
+            for missing in failures
+        )
+        raise RuntimeError(f"requested LoD selector matched no geometry: {details}")
+
+
+def _merge_lod_sets(target: dict[str, set[str]], source: Mapping[str, frozenset[str]]) -> None:
+    for cityobject_type, lods in source.items():
+        if cityobject_type not in target:
+            target[cityobject_type] = set()
+        target[cityobject_type].update(lods)
+
+
+def _format_available_lods(lods: frozenset[str]) -> str:
+    if not lods:
+        return "none"
+    return ", ".join(sorted(lods))
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,8 +255,37 @@ def _parse_citymodel_bytes(payload: bytes) -> "CityModel":
     citymodel_type = _require_citymodel_type()
     probe = probe_bytes(payload)
     if probe.root_kind is RootKind.CITY_JSON_FEATURE:
-        return citymodel_type.parse_feature_bytes(payload)
+        try:
+            return citymodel_type.parse_feature_bytes(payload)
+        except RuntimeError:
+            fallback_payload = _empty_feature_as_document_bytes(payload)
+            if fallback_payload is None:
+                raise
+            return citymodel_type.parse_document_bytes(fallback_payload)
     return citymodel_type.parse_document_bytes(payload)
+
+
+def _empty_feature_as_document_bytes(payload: bytes) -> bytes | None:
+    try:
+        document = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(document, dict):
+        return None
+    cityobjects = document.get("CityObjects")
+    if (
+        document.get("type") != "CityJSONFeature"
+        or document.get("id") is not None
+        or not isinstance(cityobjects, dict)
+        or cityobjects
+    ):
+        return None
+
+    document["type"] = "CityJSON"
+    if "version" not in document:
+        document["version"] = "2.0"
+    document.pop("id", None)
+    return json.dumps(document, separators=(",", ":")).encode("utf-8")
 
 
 class OpenedIndex:
@@ -174,5 +382,25 @@ class OpenedIndex:
     def read_feature_json(self, ref: FeatureRef) -> Any:
         return json.loads(self.read_feature_model_bytes(ref))
 
+    def read_filtered_features(
+        self,
+        refs: list[FeatureRef],
+        filter: FeatureFilter,
+    ) -> list[FilteredFeature]:
+        return _native.read_filtered_features(self._require_handle(), refs, filter)
 
-__all__ = ["FeatureRef", "IndexStatus", "OpenedIndex"]
+    def read_filtered_feature(self, ref: FeatureRef, filter: FeatureFilter) -> FilteredFeature:
+        return self.read_filtered_features([ref], filter)[0]
+
+
+__all__ = [
+    "FeatureFilter",
+    "FeatureFilterDiagnostics",
+    "FeatureFilterSummary",
+    "FeatureRef",
+    "FilteredFeature",
+    "IndexStatus",
+    "LodSelection",
+    "MissingLodSelection",
+    "OpenedIndex",
+]

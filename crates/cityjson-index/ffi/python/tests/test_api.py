@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from cityjson_index import OpenedIndex
+from cityjson_index import FeatureFilter, FeatureFilterSummary, LodSelection, OpenedIndex
 from cityjson_lib import ModelType
 
 
@@ -43,6 +43,61 @@ class OpenedIndexApiTests(unittest.TestCase):
                 self.assertIn("metadata", by_ref_payload)
                 self.assertIn(ref.feature_id, by_id_payload["CityObjects"])
                 self.assertEqual(by_id_payload, by_ref_payload)
+
+    def test_read_filtered_features_reports_diagnostics(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            index_path = Path(tmpdir) / ".cityjson_index.sqlite"
+            with OpenedIndex.open(CITYJSON_DATASET, index_path) as index:
+                index.reindex()
+                refs = index.feature_ref_page(0, 2)
+
+                filter = FeatureFilter(
+                    cityobject_types={"Building"},
+                    default_lod=LodSelection.HIGHEST,
+                )
+                filtered = index.read_filtered_features(refs, filter)
+
+                self.assertEqual(len(filtered), len(refs))
+                self.assertTrue(filtered)
+                self.assertEqual(filtered[0].model.summary().model_type, ModelType.CITY_JSON_FEATURE)
+                self.assertIn("Building", filtered[0].diagnostics.available_types)
+                self.assertIn("Building", filtered[0].diagnostics.retained_types)
+                self.assertEqual(filtered[0].diagnostics.retained_lods["Building"], {"1.0"})
+
+                single = index.read_filtered_feature(refs[0], filter)
+                self.assertEqual(single.model.cityobject_ids(), filtered[0].model.cityobject_ids())
+                self.assertEqual(single.diagnostics, filtered[0].diagnostics)
+
+    def test_filter_summary_reports_missing_requested_lods(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            index_path = Path(tmpdir) / ".cityjson_index.sqlite"
+            with OpenedIndex.open(CITYJSON_DATASET, index_path) as index:
+                index.reindex()
+                refs = index.feature_ref_page(0, 2)
+
+                filter = FeatureFilter(
+                    cityobject_types={"Building"},
+                    default_lod=LodSelection.HIGHEST,
+                    lods_by_type={"Building": LodSelection.Exact("2.0")},
+                )
+                filtered = index.read_filtered_features(refs, filter)
+                summary = FeatureFilterSummary()
+                for feature in filtered:
+                    summary.add(feature.diagnostics)
+
+                self.assertEqual(summary.available_lods["Building"], {"1.0"})
+                self.assertEqual(summary.retained_feature_count, 0)
+                self.assertEqual(summary.ignored_feature_count, len(refs))
+
+                failures = summary.requested_lod_failures(filter)
+                self.assertEqual(len(failures), 1)
+                self.assertEqual(failures[0].cityobject_type, "Building")
+                self.assertEqual(failures[0].requested_lod, "2.0")
+                self.assertEqual(failures[0].available_lods, {"1.0"})
+                self.assertEqual(filtered[0].diagnostics.missing_lods, failures)
+
+                with self.assertRaisesRegex(RuntimeError, "requested LoD selector matched no geometry"):
+                    summary.ensure_requested_lods_available(filter)
 
 
 if __name__ == "__main__":

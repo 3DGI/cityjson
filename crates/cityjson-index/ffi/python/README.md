@@ -35,6 +35,27 @@ with OpenedIndex.open("city.idx") as index:
     print(feature.id, len(feature.payload))
 ```
 
+## Filtered reads
+
+```python
+from cityjson_index import FeatureFilter, FeatureFilterSummary, LodSelection, OpenedIndex
+
+with OpenedIndex.open("dataset") as index:
+    refs = index.feature_ref_page(0, 100)
+    filter = FeatureFilter(
+        cityobject_types={"Building"},
+        default_lod=LodSelection.HIGHEST,
+        lods_by_type={"Building": LodSelection.Exact("2.0")},
+    )
+
+    summary = FeatureFilterSummary()
+    for feature in index.read_filtered_features(refs, filter):
+        summary.add(feature.diagnostics)
+        print(feature.model.summary().model_type)
+
+    summary.ensure_requested_lods_available(filter)
+```
+
 ## Links
 
 - Rust workspace and docs: <https://github.com/3DGI/cityjson>

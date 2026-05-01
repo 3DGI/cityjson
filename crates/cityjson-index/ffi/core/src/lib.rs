@@ -1,3 +1,4 @@
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::c_char;
 use std::fs;
 use std::io::{ErrorKind, Read, Seek, SeekFrom};
@@ -13,7 +14,8 @@ use cityjson_lib_ffi_core::{
 };
 
 use cityjson_index::{
-    CityIndex, FeatureBounds, IndexedFeatureRef, ResolvedDataset, resolve_dataset,
+    CityIndex, FeatureBounds, FeatureFilter, FeatureFilterDiagnostics, IndexedFeatureRef,
+    LodSelection, MissingLodSelection, ResolvedDataset, resolve_dataset,
 };
 
 #[allow(non_camel_case_types)]
@@ -45,6 +47,105 @@ pub struct cjx_feature_ref_t {
     pub vertices_length: u64,
     pub member_ranges_json: cj_bytes_t,
     pub source_id: i64,
+}
+
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cjx_string_list_t {
+    pub data: *mut cj_bytes_t,
+    pub len: usize,
+}
+
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum cjx_lod_selection_kind_t {
+    #[default]
+    CJX_LOD_SELECTION_ALL = 0,
+    CJX_LOD_SELECTION_HIGHEST = 1,
+    CJX_LOD_SELECTION_EXACT = 2,
+}
+
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cjx_lod_selection_t {
+    pub kind: cjx_lod_selection_kind_t,
+    pub exact_lod: cj_bytes_t,
+}
+
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cjx_lod_by_type_t {
+    pub cityobject_type: cj_bytes_t,
+    pub selection: cjx_lod_selection_t,
+}
+
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cjx_feature_filter_t {
+    pub has_cityobject_types: bool,
+    pub cityobject_types: cjx_string_list_t,
+    pub default_lod: cjx_lod_selection_t,
+    pub lods_by_type: *mut cjx_lod_by_type_t,
+    pub lods_by_type_len: usize,
+}
+
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cjx_lod_map_entry_t {
+    pub cityobject_type: cj_bytes_t,
+    pub lods: cjx_string_list_t,
+}
+
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cjx_lod_map_t {
+    pub data: *mut cjx_lod_map_entry_t,
+    pub len: usize,
+}
+
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cjx_missing_lod_selection_t {
+    pub cityobject_type: cj_bytes_t,
+    pub requested_lod: cj_bytes_t,
+    pub available_lods: cjx_string_list_t,
+}
+
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cjx_missing_lod_selection_list_t {
+    pub data: *mut cjx_missing_lod_selection_t,
+    pub len: usize,
+}
+
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cjx_feature_filter_diagnostics_t {
+    pub available_types: cjx_string_list_t,
+    pub retained_types: cjx_string_list_t,
+    pub ignored_types: cjx_string_list_t,
+    pub available_lods: cjx_lod_map_t,
+    pub retained_lods: cjx_lod_map_t,
+    pub missing_lods: cjx_missing_lod_selection_list_t,
+    pub retained_geometry_count: usize,
+}
+
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cjx_filtered_feature_t {
+    pub model_json: cj_bytes_t,
+    pub diagnostics: cjx_feature_filter_diagnostics_t,
 }
 
 impl From<IndexedFeatureRef> for cjx_feature_ref_t {
@@ -167,6 +268,34 @@ impl OpenedIndex {
         let model = self.index.read_feature(&feature).map_err(AbiError::from)?;
         json::to_vec(&model).map_err(AbiError::from)
     }
+
+    fn read_filtered_features(
+        &self,
+        features: &[cjx_feature_ref_t],
+        filter: &FeatureFilter,
+    ) -> Result<Vec<cjx_filtered_feature_t>, AbiError> {
+        let features = features
+            .iter()
+            .map(IndexedFeatureRef::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
+        let filtered_features = self
+            .index
+            .read_filtered_features(&features, filter)
+            .map_err(AbiError::from)?;
+        let model_jsons = filtered_features
+            .iter()
+            .map(|feature| json::to_vec(&feature.model).map_err(AbiError::from))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(filtered_features
+            .iter()
+            .zip(model_jsons)
+            .map(|(feature, model_json)| cjx_filtered_feature_t {
+                model_json: bytes_from_vec(model_json),
+                diagnostics: diagnostics_from_abi(&feature.diagnostics),
+            })
+            .collect())
+    }
 }
 
 fn read_exact_range(path: &Path, offset: u64, length: u64) -> Result<Vec<u8>, AbiError> {
@@ -228,7 +357,7 @@ fn read_exact_range_from_file(
     Ok(bytes)
 }
 
-fn bytes_to_string(bytes: cj_bytes_t, name: &'static str) -> Result<String, AbiError> {
+fn bytes_to_string(bytes: cj_bytes_t, name: &str) -> Result<String, AbiError> {
     if bytes.data.is_null() {
         if bytes.len == 0 {
             return Ok(String::new());
@@ -244,6 +373,166 @@ fn bytes_to_string(bytes: cj_bytes_t, name: &'static str) -> Result<String, AbiE
         AbiError::invalid_argument(format!("{name} must be valid UTF-8: {error}"))
     })?;
     Ok(value.to_owned())
+}
+
+fn string_list_to_set(
+    list: cjx_string_list_t,
+    name: &'static str,
+) -> Result<BTreeSet<String>, AbiError> {
+    if list.len == 0 {
+        return Ok(BTreeSet::new());
+    }
+    let data = NonNull::new(list.data)
+        .ok_or_else(|| AbiError::invalid_argument(format!("{name}.data must not be null")))?;
+    // SAFETY: the caller promises `list.len` readable byte buffers at `list.data`.
+    let items = unsafe { slice::from_raw_parts(data.as_ptr(), list.len) };
+    items
+        .iter()
+        .enumerate()
+        .map(|(index, item)| bytes_to_string(*item, &format!("{name}[{index}]")))
+        .collect()
+}
+
+fn lod_selection_from_abi(
+    selection: cjx_lod_selection_t,
+    name: &'static str,
+) -> Result<LodSelection, AbiError> {
+    match selection.kind {
+        cjx_lod_selection_kind_t::CJX_LOD_SELECTION_ALL => Ok(LodSelection::All),
+        cjx_lod_selection_kind_t::CJX_LOD_SELECTION_HIGHEST => Ok(LodSelection::Highest),
+        cjx_lod_selection_kind_t::CJX_LOD_SELECTION_EXACT => {
+            let exact_lod = bytes_to_string(selection.exact_lod, name)?;
+            if exact_lod.is_empty() {
+                return Err(AbiError::invalid_argument(format!(
+                    "{name} must not be empty for exact LoD selections"
+                )));
+            }
+            Ok(LodSelection::Exact(exact_lod))
+        }
+    }
+}
+
+fn feature_filter_from_abi(filter: &cjx_feature_filter_t) -> Result<FeatureFilter, AbiError> {
+    let cityobject_types = if filter.has_cityobject_types {
+        Some(string_list_to_set(
+            filter.cityobject_types,
+            "filter.cityobject_types",
+        )?)
+    } else {
+        None
+    };
+
+    let default_lod = lod_selection_from_abi(filter.default_lod, "filter.default_lod.exact_lod")?;
+    let lods_by_type = if filter.lods_by_type_len == 0 {
+        BTreeMap::new()
+    } else {
+        let data = NonNull::new(filter.lods_by_type).ok_or_else(|| {
+            AbiError::invalid_argument("filter.lods_by_type must not be null when len is non-zero")
+        })?;
+        // SAFETY: the caller promises `lods_by_type_len` readable entries at `lods_by_type`.
+        let entries = unsafe { slice::from_raw_parts(data.as_ptr(), filter.lods_by_type_len) };
+        entries
+            .iter()
+            .enumerate()
+            .map(|(index, entry)| {
+                let cityobject_type = bytes_to_string(
+                    entry.cityobject_type,
+                    &format!("filter.lods_by_type[{index}].cityobject_type"),
+                )?;
+                if cityobject_type.is_empty() {
+                    return Err(AbiError::invalid_argument(format!(
+                        "filter.lods_by_type[{index}].cityobject_type must not be empty"
+                    )));
+                }
+                let selection = lod_selection_from_abi(
+                    entry.selection,
+                    "filter.lods_by_type.selection.exact_lod",
+                )?;
+                Ok((cityobject_type, selection))
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()?
+    };
+
+    Ok(FeatureFilter {
+        cityobject_types,
+        default_lod,
+        lods_by_type,
+    })
+}
+
+fn string_list_from_set(items: &BTreeSet<String>) -> cjx_string_list_t {
+    let items = items
+        .iter()
+        .cloned()
+        .map(bytes_from_string)
+        .collect::<Vec<_>>();
+    string_list_from_vec(items)
+}
+
+fn string_list_from_vec(items: Vec<cj_bytes_t>) -> cjx_string_list_t {
+    if items.is_empty() {
+        return cjx_string_list_t::default();
+    }
+
+    let boxed = items.into_boxed_slice();
+    let len = boxed.len();
+    let data = Box::into_raw(boxed).cast::<cj_bytes_t>();
+    cjx_string_list_t { data, len }
+}
+
+fn lod_map_from_abi(map: &BTreeMap<String, BTreeSet<String>>) -> cjx_lod_map_t {
+    let entries = map
+        .iter()
+        .map(|(cityobject_type, lods)| cjx_lod_map_entry_t {
+            cityobject_type: bytes_from_string(cityobject_type.clone()),
+            lods: string_list_from_set(lods),
+        })
+        .collect::<Vec<_>>();
+    if entries.is_empty() {
+        return cjx_lod_map_t::default();
+    }
+
+    let boxed = entries.into_boxed_slice();
+    let len = boxed.len();
+    let data = Box::into_raw(boxed).cast::<cjx_lod_map_entry_t>();
+    cjx_lod_map_t { data, len }
+}
+
+fn missing_lod_from_abi(missing: &MissingLodSelection) -> cjx_missing_lod_selection_t {
+    cjx_missing_lod_selection_t {
+        cityobject_type: bytes_from_string(missing.cityobject_type.clone()),
+        requested_lod: bytes_from_string(missing.requested_lod.clone()),
+        available_lods: string_list_from_set(&missing.available_lods),
+    }
+}
+
+fn missing_lods_from_abi(items: &[MissingLodSelection]) -> cjx_missing_lod_selection_list_t {
+    if items.is_empty() {
+        return cjx_missing_lod_selection_list_t::default();
+    }
+
+    let boxed = items
+        .iter()
+        .map(missing_lod_from_abi)
+        .collect::<Vec<_>>()
+        .into_boxed_slice();
+    let len = boxed.len();
+    let data = Box::into_raw(boxed).cast::<cjx_missing_lod_selection_t>();
+    cjx_missing_lod_selection_list_t { data, len }
+}
+
+fn diagnostics_from_abi(
+    diagnostics: &FeatureFilterDiagnostics,
+) -> cjx_feature_filter_diagnostics_t {
+    cjx_feature_filter_diagnostics_t {
+        available_types: string_list_from_set(&diagnostics.available_types),
+        retained_types: string_list_from_set(&diagnostics.retained_types),
+        ignored_types: string_list_from_set(&diagnostics.ignored_types),
+        available_lods: lod_map_from_abi(&diagnostics.available_lods),
+        retained_lods: lod_map_from_abi(&diagnostics.retained_lods),
+        missing_lods: missing_lods_from_abi(&diagnostics.missing_lods),
+        retained_geometry_count: diagnostics.retained_geometry_count,
+    }
 }
 
 fn required_string(
@@ -323,6 +612,81 @@ fn free_feature_ref(feature: cjx_feature_ref_t) {
         bytes_free(feature.source_path);
         bytes_free(feature.member_ranges_json);
     }
+}
+
+fn free_string_list(list: cjx_string_list_t) {
+    if list.data.is_null() || list.len == 0 {
+        return;
+    }
+
+    // SAFETY: the list and each nested byte buffer were allocated by this ABI.
+    unsafe {
+        let slice = slice::from_raw_parts_mut(list.data, list.len);
+        for bytes in slice.iter_mut() {
+            bytes_free(*bytes);
+        }
+        let raw = ptr::slice_from_raw_parts_mut(list.data, list.len);
+        drop(Box::from_raw(raw));
+    }
+}
+
+fn free_lod_map(map: cjx_lod_map_t) {
+    if map.data.is_null() || map.len == 0 {
+        return;
+    }
+
+    // SAFETY: the map and each nested buffer/list were allocated by this ABI.
+    unsafe {
+        let slice = slice::from_raw_parts_mut(map.data, map.len);
+        for entry in slice.iter_mut() {
+            bytes_free(entry.cityobject_type);
+            free_string_list(entry.lods);
+        }
+        let raw = ptr::slice_from_raw_parts_mut(map.data, map.len);
+        drop(Box::from_raw(raw));
+    }
+}
+
+fn free_missing_lod_selection(missing: cjx_missing_lod_selection_t) {
+    // SAFETY: each field is an owned buffer/list allocated by this ABI.
+    unsafe {
+        bytes_free(missing.cityobject_type);
+        bytes_free(missing.requested_lod);
+    }
+    free_string_list(missing.available_lods);
+}
+
+fn free_missing_lod_selection_list(list: cjx_missing_lod_selection_list_t) {
+    if list.data.is_null() || list.len == 0 {
+        return;
+    }
+
+    // SAFETY: the list and each nested item were allocated by this ABI.
+    unsafe {
+        let slice = slice::from_raw_parts_mut(list.data, list.len);
+        for missing in slice.iter_mut() {
+            free_missing_lod_selection(*missing);
+        }
+        let raw = ptr::slice_from_raw_parts_mut(list.data, list.len);
+        drop(Box::from_raw(raw));
+    }
+}
+
+fn free_diagnostics(diagnostics: cjx_feature_filter_diagnostics_t) {
+    free_string_list(diagnostics.available_types);
+    free_string_list(diagnostics.retained_types);
+    free_string_list(diagnostics.ignored_types);
+    free_lod_map(diagnostics.available_lods);
+    free_lod_map(diagnostics.retained_lods);
+    free_missing_lod_selection_list(diagnostics.missing_lods);
+}
+
+fn free_filtered_feature(feature: cjx_filtered_feature_t) {
+    // SAFETY: the model buffer was allocated by this ABI.
+    unsafe {
+        bytes_free(feature.model_json);
+    }
+    free_diagnostics(feature.diagnostics);
 }
 
 #[unsafe(no_mangle)]
@@ -619,6 +983,86 @@ pub extern "C" fn cjx_index_read_feature_model_bytes(
         let feature = unsafe { feature.as_ref() };
         let bytes = handle.read_feature_model_bytes(feature)?;
         write_value(out_bytes, "out_bytes", bytes_from_vec(bytes))
+    }) {
+        Ok(()) => cj_status_t::CJ_STATUS_SUCCESS,
+        Err(status) => status,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cjx_index_read_filtered_features(
+    handle: *const cjx_index_t,
+    refs: *const cjx_feature_ref_t,
+    ref_count: usize,
+    filter: *const cjx_feature_filter_t,
+    out_features: *mut *mut cjx_filtered_feature_t,
+    out_count: *mut usize,
+) -> cj_status_t {
+    match run_ffi(|| {
+        let handle = required_handle(handle)?;
+        let filter = NonNull::new(filter.cast_mut())
+            .ok_or_else(|| AbiError::invalid_argument("filter must not be null"))?;
+        // SAFETY: `filter` is validated to be non-null and points to a valid filter struct.
+        let filter = feature_filter_from_abi(unsafe { filter.as_ref() })?;
+        let refs = if ref_count == 0 {
+            &[]
+        } else {
+            let refs = NonNull::new(refs.cast_mut()).ok_or_else(|| {
+                AbiError::invalid_argument("refs must not be null when ref_count is non-zero")
+            })?;
+            // SAFETY: the caller promises `ref_count` readable feature refs at `refs`.
+            unsafe { slice::from_raw_parts(refs.as_ptr(), ref_count) }
+        };
+        let features = handle.read_filtered_features(refs, &filter)?;
+        let count = features.len();
+
+        write_value(out_count, "out_count", count)?;
+
+        if count == 0 {
+            let out_features = NonNull::new(out_features)
+                .ok_or_else(|| AbiError::invalid_argument("out_features must not be null"))?;
+            // SAFETY: `out_features` is validated to be non-null and points to writable storage.
+            unsafe {
+                ptr::write(out_features.as_ptr(), ptr::null_mut());
+            }
+            return Ok(());
+        }
+
+        let boxed = features.into_boxed_slice();
+        let ptr = Box::into_raw(boxed).cast::<cjx_filtered_feature_t>();
+        write_value(out_features, "out_features", ptr)
+    }) {
+        Ok(()) => cj_status_t::CJ_STATUS_SUCCESS,
+        Err(status) => status,
+    }
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+///
+/// `features` must either be null or point to `count` filtered features
+/// allocated by `cjx_index_read_filtered_features`.
+pub unsafe extern "C" fn cjx_filtered_features_free(
+    features: *mut cjx_filtered_feature_t,
+    count: usize,
+) -> cj_status_t {
+    match run_ffi(|| {
+        if features.is_null() || count == 0 {
+            return Ok::<(), AbiError>(());
+        }
+
+        // SAFETY: the caller promises `count` valid filtered features starting at `features`.
+        let slice = unsafe { slice::from_raw_parts_mut(features, count) };
+        for feature in slice.iter_mut() {
+            free_filtered_feature(*feature);
+        }
+
+        // SAFETY: `features` was allocated as a boxed slice by this ABI.
+        let raw = ptr::slice_from_raw_parts_mut(features, count);
+        unsafe {
+            drop(Box::from_raw(raw));
+        }
+        Ok::<(), AbiError>(())
     }) {
         Ok(()) => cj_status_t::CJ_STATUS_SUCCESS,
         Err(status) => status,

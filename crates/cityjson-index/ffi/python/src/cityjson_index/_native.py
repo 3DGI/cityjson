@@ -18,6 +18,7 @@ from ctypes import (
 )
 from enum import IntEnum
 from pathlib import Path
+from typing import Any
 import os
 import sys
 
@@ -82,6 +83,64 @@ class _FeatureRef(Structure):
         ("member_ranges_json", _Bytes),
         ("source_id", c_int64),
     ]
+
+
+class _StringList(Structure):
+    _fields_ = [("data", POINTER(_Bytes)), ("len", c_size_t)]
+
+
+class _LodSelection(Structure):
+    _fields_ = [("kind", c_int), ("exact_lod", _Bytes)]
+
+
+class _LodByType(Structure):
+    _fields_ = [("cityobject_type", _Bytes), ("selection", _LodSelection)]
+
+
+class _FeatureFilter(Structure):
+    _fields_ = [
+        ("has_cityobject_types", c_bool),
+        ("cityobject_types", _StringList),
+        ("default_lod", _LodSelection),
+        ("lods_by_type", POINTER(_LodByType)),
+        ("lods_by_type_len", c_size_t),
+    ]
+
+
+class _LodMapEntry(Structure):
+    _fields_ = [("cityobject_type", _Bytes), ("lods", _StringList)]
+
+
+class _LodMap(Structure):
+    _fields_ = [("data", POINTER(_LodMapEntry)), ("len", c_size_t)]
+
+
+class _MissingLodSelection(Structure):
+    _fields_ = [
+        ("cityobject_type", _Bytes),
+        ("requested_lod", _Bytes),
+        ("available_lods", _StringList),
+    ]
+
+
+class _MissingLodSelectionList(Structure):
+    _fields_ = [("data", POINTER(_MissingLodSelection)), ("len", c_size_t)]
+
+
+class _FeatureFilterDiagnostics(Structure):
+    _fields_ = [
+        ("available_types", _StringList),
+        ("retained_types", _StringList),
+        ("ignored_types", _StringList),
+        ("available_lods", _LodMap),
+        ("retained_lods", _LodMap),
+        ("missing_lods", _MissingLodSelectionList),
+        ("retained_geometry_count", c_size_t),
+    ]
+
+
+class _FilteredFeature(Structure):
+    _fields_ = [("model_json", _Bytes), ("diagnostics", _FeatureFilterDiagnostics)]
 
 
 def _library_name() -> str:
@@ -205,6 +264,17 @@ class FfiLibrary:
             POINTER(_Bytes),
         ]
         self._lib.cjx_index_read_feature_model_bytes.restype = c_int
+        self._lib.cjx_index_read_filtered_features.argtypes = [
+            c_void_p,
+            POINTER(_FeatureRef),
+            c_size_t,
+            POINTER(_FeatureFilter),
+            POINTER(POINTER(_FilteredFeature)),
+            POINTER(c_size_t),
+        ]
+        self._lib.cjx_index_read_filtered_features.restype = c_int
+        self._lib.cjx_filtered_features_free.argtypes = [POINTER(_FilteredFeature), c_size_t]
+        self._lib.cjx_filtered_features_free.restype = c_int
 
     def clear_error(self) -> None:
         self._check_status(self._lib.cjx_clear_error())
@@ -413,11 +483,196 @@ class FfiLibrary:
         finally:
             self._check_status(self._lib.cjx_bytes_free(out))
 
+    def read_filtered_features(
+        self,
+        handle: c_void_p,
+        refs: list[object],
+        filter: object,
+    ) -> list[object]:
+        keepalive: list[Any] = []
+        native_refs = _feature_ref_array(refs, keepalive)
+        native_filter = _feature_filter_to_native(filter, keepalive)
+        out = POINTER(_FilteredFeature)()
+        count = c_size_t()
+
+        self._check_status(
+            self._lib.cjx_index_read_filtered_features(
+                handle,
+                native_refs,
+                len(refs),
+                byref(native_filter),
+                byref(out),
+                byref(count),
+            )
+        )
+
+        try:
+            return _filtered_features_from_native(out, count.value)
+        finally:
+            self._check_status(self._lib.cjx_filtered_features_free(out, count.value))
+
 
 def _bytes_to_py(value: _Bytes) -> bytes:
     if value.data is None or value.len == 0:
         return b""
     return string_at(value.data, value.len)
+
+
+def _bytes_from_str(value: str, keepalive: list[Any]) -> _Bytes:
+    payload = value.encode("utf-8")
+    buffer = create_string_buffer(payload)
+    keepalive.append(buffer)
+    return _Bytes(cast(buffer, c_void_p), len(payload))
+
+
+def _string_list_to_native(values: object, keepalive: list[Any]) -> _StringList:
+    items = [_bytes_from_str(str(value), keepalive) for value in values]
+    if not items:
+        return _StringList(POINTER(_Bytes)(), 0)
+
+    array_type = _Bytes * len(items)
+    array = array_type(*items)
+    keepalive.append(array)
+    return _StringList(array, len(items))
+
+
+def _lod_selection_to_native(selection: object, keepalive: list[Any]) -> _LodSelection:
+    exact_lod = getattr(selection, "exact_lod")
+    if exact_lod is None:
+        exact_lod_bytes = _Bytes()
+    else:
+        exact_lod_bytes = _bytes_from_str(exact_lod, keepalive)
+    return _LodSelection(int(getattr(selection, "_native_kind")), exact_lod_bytes)
+
+
+def _feature_filter_to_native(filter: object, keepalive: list[Any]) -> _FeatureFilter:
+    cityobject_types = getattr(filter, "cityobject_types")
+    if cityobject_types is None:
+        native_cityobject_types = _StringList(POINTER(_Bytes)(), 0)
+        has_cityobject_types = False
+    else:
+        native_cityobject_types = _string_list_to_native(sorted(cityobject_types), keepalive)
+        has_cityobject_types = True
+
+    lods_by_type = getattr(filter, "lods_by_type")
+    items: list[_LodByType] = []
+    for cityobject_type, selection in sorted(lods_by_type.items()):
+        items.append(
+            _LodByType(
+                _bytes_from_str(cityobject_type, keepalive),
+                _lod_selection_to_native(selection, keepalive),
+            )
+        )
+
+    if items:
+        array_type = _LodByType * len(items)
+        array = array_type(*items)
+        keepalive.append(array)
+        lods_by_type_ptr = array
+    else:
+        lods_by_type_ptr = POINTER(_LodByType)()
+
+    return _FeatureFilter(
+        has_cityobject_types,
+        native_cityobject_types,
+        _lod_selection_to_native(getattr(filter, "default_lod"), keepalive),
+        lods_by_type_ptr,
+        len(items),
+    )
+
+
+def _feature_ref_to_native(ref: object, keepalive: list[Any]) -> _FeatureRef:
+    native = _FeatureRef()
+    native.row_id = int(getattr(ref, "row_id"))
+    native.feature_id = _bytes_from_str(getattr(ref, "feature_id"), keepalive)
+    native.source_path = _bytes_from_str(getattr(ref, "source_path"), keepalive)
+    native.offset = int(getattr(ref, "offset"))
+    native.length = int(getattr(ref, "length"))
+    native.vertices_offset = int(getattr(ref, "vertices_offset"))
+    native.vertices_length = int(getattr(ref, "vertices_length"))
+    native.member_ranges_json = _bytes_from_str(getattr(ref, "member_ranges_json"), keepalive)
+    native.source_id = int(getattr(ref, "source_id"))
+    return native
+
+
+def _feature_ref_array(refs: list[object], keepalive: list[Any]) -> Any:
+    if not refs:
+        return POINTER(_FeatureRef)()
+
+    items = [_feature_ref_to_native(ref, keepalive) for ref in refs]
+    array_type = _FeatureRef * len(items)
+    array = array_type(*items)
+    keepalive.append(array)
+    return array
+
+
+def _string_list_to_frozenset(value: _StringList) -> frozenset[str]:
+    if value.len == 0 or not value.data:
+        return frozenset()
+    return frozenset(_bytes_to_py(value.data[index]).decode("utf-8") for index in range(value.len))
+
+
+def _lod_map_to_dict(value: _LodMap) -> dict[str, frozenset[str]]:
+    if value.len == 0 or not value.data:
+        return {}
+
+    result: dict[str, frozenset[str]] = {}
+    for index in range(value.len):
+        entry = value.data[index]
+        cityobject_type = _bytes_to_py(entry.cityobject_type).decode("utf-8")
+        result[cityobject_type] = _string_list_to_frozenset(entry.lods)
+    return result
+
+
+def _missing_lods_to_list(value: _MissingLodSelectionList) -> list[object]:
+    if value.len == 0 or not value.data:
+        return []
+
+    from . import MissingLodSelection
+
+    result: list[MissingLodSelection] = []
+    for index in range(value.len):
+        missing = value.data[index]
+        result.append(
+            MissingLodSelection(
+                cityobject_type=_bytes_to_py(missing.cityobject_type).decode("utf-8"),
+                requested_lod=_bytes_to_py(missing.requested_lod).decode("utf-8"),
+                available_lods=_string_list_to_frozenset(missing.available_lods),
+            )
+        )
+    return result
+
+
+def _diagnostics_from_native(value: _FeatureFilterDiagnostics) -> object:
+    from . import FeatureFilterDiagnostics
+
+    return FeatureFilterDiagnostics(
+        available_types=_string_list_to_frozenset(value.available_types),
+        retained_types=_string_list_to_frozenset(value.retained_types),
+        ignored_types=_string_list_to_frozenset(value.ignored_types),
+        available_lods=_lod_map_to_dict(value.available_lods),
+        retained_lods=_lod_map_to_dict(value.retained_lods),
+        missing_lods=_missing_lods_to_list(value.missing_lods),
+        retained_geometry_count=int(value.retained_geometry_count),
+    )
+
+
+def _filtered_features_from_native(features: POINTER(_FilteredFeature), count: int) -> list[object]:
+    if count == 0 or not features:
+        return []
+
+    from . import FilteredFeature, _parse_citymodel_bytes
+
+    result: list[FilteredFeature] = []
+    for index in range(count):
+        feature = features[index]
+        result.append(
+            FilteredFeature(
+                model=_parse_citymodel_bytes(_bytes_to_py(feature.model_json)),
+                diagnostics=_diagnostics_from_native(feature.diagnostics),
+            )
+        )
+    return result
 
 
 _ffi = FfiLibrary.load()
@@ -489,3 +744,7 @@ def read_feature_model_bytes(
         member_ranges_json,
         source_id,
     )
+
+
+def read_filtered_features(handle: c_void_p, refs: list[object], filter: object) -> list[object]:
+    return _ffi.read_filtered_features(handle, refs, filter)
