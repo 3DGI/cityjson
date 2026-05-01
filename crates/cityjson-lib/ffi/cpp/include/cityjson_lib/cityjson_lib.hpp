@@ -59,6 +59,14 @@ struct GeometryBoundary final {
   std::vector<std::size_t> solid_offsets;
 };
 
+struct GeometrySelectionSpec final {
+  constexpr GeometrySelectionSpec(std::string_view cityobject_id, std::size_t geometry_index)
+      : cityobject_id(cityobject_id), geometry_index(geometry_index) {}
+
+  std::string_view cityobject_id;
+  std::size_t geometry_index;
+};
+
 class StatusError final : public std::runtime_error {
  public:
   StatusError(Status status, ErrorKind kind, std::string message)
@@ -881,6 +889,8 @@ class GeometryDraft final {
   friend class Model;
 };
 
+class ModelSelection;
+
 class Model final {
  public:
   Model() = default;
@@ -1119,6 +1129,19 @@ class Model final {
     return Model(handle);
   }
 
+  [[nodiscard]] static Model merge_models(std::span<const Model* const> models) {
+    std::vector<const cj_model_t*> handles;
+    handles.reserve(models.size());
+    for (const Model* model : models) {
+      handles.push_back(model->raw_handle());
+    }
+
+    cj_model_t* handle = nullptr;
+    check_status(cj_model_merge_models(
+        handles.empty() ? nullptr : handles.data(), handles.size(), &handle));
+    return Model(handle);
+  }
+
   [[nodiscard]] Model subset_cityobjects(
       std::span<const std::string_view> ids,
       bool exclude = false) const {
@@ -1133,6 +1156,8 @@ class Model final {
         handle_, views.empty() ? nullptr : views.data(), views.size(), exclude, &handle));
     return Model(handle);
   }
+
+  [[nodiscard]] Model extract_selection(const ModelSelection& selection) const;
 
   void append_model(const Model& source) {
     check_status(cj_model_append_model(handle_, source.raw_handle()));
@@ -1269,5 +1294,92 @@ class Model final {
  private:
   cj_model_t* handle_ = nullptr;
 };
+
+class ModelSelection final {
+ public:
+  ModelSelection() = default;
+
+  ModelSelection(const ModelSelection&) = delete;
+  ModelSelection& operator=(const ModelSelection&) = delete;
+  ModelSelection(ModelSelection&&) noexcept = default;
+  ModelSelection& operator=(ModelSelection&&) noexcept = default;
+
+  [[nodiscard]] static ModelSelection select_cityobjects_by_id(
+      const Model& model,
+      std::span<const std::string_view> ids) {
+    std::vector<cj_string_view_t> views;
+    views.reserve(ids.size());
+    for (const std::string_view id : ids) {
+      views.push_back(to_view(id));
+    }
+
+    cj_model_selection_t* handle = nullptr;
+    check_status(cj_model_select_cityobjects_by_id(
+        model.raw_handle(), views.empty() ? nullptr : views.data(), views.size(), &handle));
+    return ModelSelection(handle);
+  }
+
+  [[nodiscard]] static ModelSelection select_geometries_by_cityobject_id_and_index(
+      const Model& model,
+      std::span<const GeometrySelectionSpec> specs) {
+    std::vector<cj_geometry_selection_spec_t> native_specs;
+    native_specs.reserve(specs.size());
+    for (const GeometrySelectionSpec& spec : specs) {
+      native_specs.push_back(cj_geometry_selection_spec_t{
+          .cityobject_id = to_view(spec.cityobject_id),
+          .geometry_index = spec.geometry_index,
+      });
+    }
+
+    cj_model_selection_t* handle = nullptr;
+    check_status(cj_model_select_geometries_by_cityobject_id_and_index(
+        model.raw_handle(),
+        native_specs.empty() ? nullptr : native_specs.data(),
+        native_specs.size(),
+        &handle));
+    return ModelSelection(handle);
+  }
+
+  [[nodiscard]] bool valid() const noexcept { return handle_.valid(); }
+
+  [[nodiscard]] ModelSelection include_relatives(const Model& model) const {
+    cj_model_selection_t* handle = nullptr;
+    check_status(cj_model_selection_include_relatives(raw_handle(), model.raw_handle(), &handle));
+    return ModelSelection(handle);
+  }
+
+  [[nodiscard]] ModelSelection union_with(const ModelSelection& other) const {
+    cj_model_selection_t* handle = nullptr;
+    check_status(cj_model_selection_union(raw_handle(), other.raw_handle(), &handle));
+    return ModelSelection(handle);
+  }
+
+  [[nodiscard]] ModelSelection intersection_with(const ModelSelection& other) const {
+    cj_model_selection_t* handle = nullptr;
+    check_status(cj_model_selection_intersection(raw_handle(), other.raw_handle(), &handle));
+    return ModelSelection(handle);
+  }
+
+  [[nodiscard]] bool is_empty() const {
+    bool value = false;
+    check_status(cj_model_selection_is_empty(raw_handle(), &value));
+    return value;
+  }
+
+ private:
+  explicit ModelSelection(cj_model_selection_t* handle) : handle_(handle) {}
+
+  [[nodiscard]] cj_model_selection_t* raw_handle() const noexcept { return handle_.get(); }
+
+  detail::OwnedHandle<cj_model_selection_t, cj_model_selection_free> handle_;
+
+  friend class Model;
+};
+
+inline Model Model::extract_selection(const ModelSelection& selection) const {
+  cj_model_t* handle = nullptr;
+  check_status(cj_model_extract_selection(handle_, selection.raw_handle(), &handle));
+  return Model(handle);
+}
 
 }  // namespace cityjson_lib

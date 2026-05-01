@@ -1,9 +1,11 @@
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -28,6 +30,16 @@ void assert_same_summary(const cityjson_lib::ModelSummary& actual,
   assert(actual.vertex_count == expected.vertex_count);
   assert(actual.material_count == expected.material_count);
   assert(actual.texture_count == expected.texture_count);
+}
+
+std::size_t count_occurrences(std::string_view haystack, std::string_view needle) {
+  std::size_t count = 0U;
+  std::size_t offset = 0U;
+  while ((offset = haystack.find(needle, offset)) != std::string_view::npos) {
+    ++count;
+    offset += needle.size();
+  }
+  return count;
 }
 
 }  // namespace
@@ -277,6 +289,64 @@ int main() {
   const auto subset_summary = subset.summary();
   assert(subset_summary.cityobject_count == 1U);
   assert(subset.cityobject_ids()[0] == "right");
+
+  const auto ops_fixture_root = fixture_path.parent_path() / "ops";
+  auto subset_source = cityjson_lib::Model::parse_document(
+      read_file_bytes(ops_fixture_root / "subset_source.city.json"));
+  const auto selection = cityjson_lib::ModelSelection::select_cityobjects_by_id(
+      subset_source, std::array{std::string_view{"building-part-1"}});
+  assert(!selection.is_empty());
+  const auto extracted = subset_source.extract_selection(selection);
+  assert((extracted.cityobject_ids() == std::vector<std::string>{"building-part-1"}));
+
+  const auto with_relatives = selection.include_relatives(subset_source);
+  const auto relatives = subset_source.extract_selection(with_relatives);
+  auto relative_ids = relatives.cityobject_ids();
+  std::sort(relative_ids.begin(), relative_ids.end());
+  assert((relative_ids == std::vector<std::string>{
+                              "building-part-1",
+                              "building-part-2",
+                              "my-group",
+                              "root-building",
+                          }));
+
+  const auto empty_selection = cityjson_lib::ModelSelection::select_cityobjects_by_id(
+      subset_source, std::span<const std::string_view>{});
+  assert(empty_selection.is_empty());
+
+  auto merge_left = cityjson_lib::Model::parse_document(
+      read_file_bytes(ops_fixture_root / "merge_left.city.json"));
+  auto merge_right = cityjson_lib::Model::parse_document(
+      read_file_bytes(ops_fixture_root / "merge_right.city.json"));
+  const auto whole = cityjson_lib::ModelSelection::select_cityobjects_by_id(
+      merge_left, std::array{std::string_view{"shared-furniture"}});
+  const auto first_geometry =
+      cityjson_lib::ModelSelection::select_geometries_by_cityobject_id_and_index(
+          merge_left, std::array{cityjson_lib::GeometrySelectionSpec{"shared-furniture", 0U}});
+  const auto second_geometry =
+      cityjson_lib::ModelSelection::select_geometries_by_cityobject_id_and_index(
+          merge_left, std::array{cityjson_lib::GeometrySelectionSpec{"shared-furniture", 1U}});
+
+  const auto selection_union = whole.union_with(first_geometry);
+  assert(!selection_union.is_empty());
+  assert(selection_union.valid());
+  const auto union_document = merge_left.extract_selection(selection_union).serialize_document();
+  assert(count_occurrences(union_document, "\"transformationMatrix\"") == 2U);
+
+  const auto whole_first = whole.intersection_with(first_geometry);
+  const auto whole_first_document = merge_left.extract_selection(whole_first).serialize_document();
+  assert(count_occurrences(whole_first_document, "\"transformationMatrix\"") == 1U);
+
+  const auto disjoint = first_geometry.intersection_with(second_geometry);
+  assert(disjoint.is_empty());
+  assert(merge_left.extract_selection(disjoint).summary().cityobject_count == 0U);
+
+  const std::array<const cityjson_lib::Model* const, 2> merge_models{&merge_left, &merge_right};
+  const auto merged = cityjson_lib::Model::merge_models(merge_models);
+  const auto merged_summary = merged.summary();
+  assert(merged_summary.cityobject_count == 3U);
+  assert(merged_summary.geometry_count == 8U);
+  assert(merged_summary.geometry_template_count == 2U);
 
   const auto feature_fixture_bytes =
       read_file_bytes(fixture_path.parent_path() / "minimal.city.jsonl");

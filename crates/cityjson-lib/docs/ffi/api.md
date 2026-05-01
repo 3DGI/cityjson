@@ -89,6 +89,21 @@ merged = merge_models([model, extracted])
 model.cleanup();
 const std::array<std::string_view, 1> ids{"building-1"};
 const auto subset = model.subset_cityobjects(ids);
+
+const auto selection = cityjson_lib::ModelSelection::select_cityobjects_by_id(
+    model,
+    std::array{std::string_view{"building-part-1"}});
+const auto with_relatives = selection.include_relatives(model);
+const auto extracted = model.extract_selection(with_relatives);
+
+const auto geometry_selection =
+    cityjson_lib::ModelSelection::select_geometries_by_cityobject_id_and_index(
+        model,
+        std::array{cityjson_lib::GeometrySelectionSpec{"building-1", 0U}});
+const auto geometry_extract = model.extract_selection(geometry_selection);
+
+const std::array<const cityjson_lib::Model* const, 2> models{&model, &extracted};
+const auto merged = cityjson_lib::Model::merge_models(models);
     ```
 
 ## Typed Authoring

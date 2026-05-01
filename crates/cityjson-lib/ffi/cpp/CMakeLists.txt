@@ -32,6 +32,7 @@ set_target_properties(
 
 add_library(cityjson_lib_cpp INTERFACE)
 target_compile_features(cityjson_lib_cpp INTERFACE cxx_std_20)
+target_compile_definitions(cityjson_lib_cpp INTERFACE CITYJSON_LIB_NATIVE_FORMATS)
 target_include_directories(
   cityjson_lib_cpp
   INTERFACE
