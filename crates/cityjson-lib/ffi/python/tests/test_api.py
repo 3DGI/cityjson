@@ -17,9 +17,11 @@ from cityjson_lib import (
     ContactType,
     GeometryBoundary,
     GeometryDraft,
+    GeometrySelectionSpec,
     GeometryTemplateId,
     GeometryType,
     ImageType,
+    ModelSelection,
     RGBA,
     RGB,
     RingDraft,
@@ -39,6 +41,7 @@ from cityjson_lib import (
     Version,
     Vertex,
     merge_feature_stream_bytes,
+    merge_models,
     probe_bytes,
     serialize_feature_stream,
     serialize_feature_stream_bytes,
@@ -57,9 +60,18 @@ FAKE_COMPLETE_FIXTURE_PATH = (
     / "v2_0"
     / "cityjson_fake_complete.city.json"
 )
+OPS_FIXTURE_DIR = Path(__file__).resolve().parents[3] / "tests" / "data" / "v2_0" / "ops"
+SUBSET_FIXTURE_PATH = OPS_FIXTURE_DIR / "subset_source.city.json"
+MERGE_LEFT_FIXTURE_PATH = OPS_FIXTURE_DIR / "merge_left.city.json"
+MERGE_RIGHT_FIXTURE_PATH = OPS_FIXTURE_DIR / "merge_right.city.json"
 
 
 class PythonBindingSmokeTest(unittest.TestCase):
+    def geometry_count(self, model: CityModel, cityobject_id: str) -> int:
+        document = json.loads(model.serialize_document())
+        geometry = document["CityObjects"][cityobject_id].get("geometry", [])
+        return len(geometry)
+
     def assert_transport_shape_equal(self, actual: ModelSummary, expected: ModelSummary) -> None:
         self.assertEqual(actual.model_type, expected.model_type)
         self.assertEqual(actual.version, expected.version)
@@ -232,6 +244,82 @@ class PythonBindingSmokeTest(unittest.TestCase):
         self.assertEqual(model.cityobject_ids(), ["feature-a", "feature-b"])
         self.assertIn("feature-a", model.serialize_feature(WriteOptions(pretty=True)))
         self.assertIn(b"feature-a", model.serialize_feature_bytes())
+
+    def test_model_selection_workflows(self) -> None:
+        model = CityModel.parse_document_bytes(SUBSET_FIXTURE_PATH.read_bytes())
+        self.addCleanup(model.close)
+
+        selection = ModelSelection.select_cityobjects_by_id(model, ["building-part-1"])
+        self.addCleanup(selection.close)
+        extracted = model.extract_selection(selection)
+        self.addCleanup(extracted.close)
+        self.assertEqual(extracted.cityobject_ids(), ["building-part-1"])
+        self.assertFalse(selection.is_empty())
+
+        with_relatives = selection.include_relatives(model)
+        self.addCleanup(with_relatives.close)
+        relatives = model.extract_selection(with_relatives)
+        self.addCleanup(relatives.close)
+        self.assertEqual(
+            sorted(relatives.cityobject_ids()),
+            [
+                "building-part-1",
+                "building-part-2",
+                "my-group",
+                "root-building",
+            ],
+        )
+
+        empty = ModelSelection.select_cityobjects_by_id(model, [])
+        self.addCleanup(empty.close)
+        self.assertTrue(empty.is_empty())
+
+    def test_geometry_selection_set_operations_and_merge_models(self) -> None:
+        model = CityModel.parse_document_bytes(MERGE_LEFT_FIXTURE_PATH.read_bytes())
+        self.addCleanup(model.close)
+
+        whole = ModelSelection.select_cityobjects_by_id(model, ["shared-furniture"])
+        first = ModelSelection.select_geometries_by_cityobject_id_and_index(
+            model,
+            [GeometrySelectionSpec("shared-furniture", 0)],
+        )
+        second = ModelSelection.select_geometries_by_cityobject_id_and_index(
+            model,
+            [("shared-furniture", 1)],
+        )
+        self.addCleanup(whole.close)
+        self.addCleanup(first.close)
+        self.addCleanup(second.close)
+
+        union = whole.union(first)
+        self.addCleanup(union.close)
+        union_extract = model.extract_selection(union)
+        self.addCleanup(union_extract.close)
+        self.assertEqual(self.geometry_count(union_extract, "shared-furniture"), 2)
+
+        whole_first = whole.intersection(first)
+        self.addCleanup(whole_first.close)
+        whole_first_extract = model.extract_selection(whole_first)
+        self.addCleanup(whole_first_extract.close)
+        self.assertEqual(self.geometry_count(whole_first_extract, "shared-furniture"), 1)
+
+        disjoint = first.intersection(second)
+        self.addCleanup(disjoint.close)
+        self.assertTrue(disjoint.is_empty())
+        disjoint_extract = model.extract_selection(disjoint)
+        self.addCleanup(disjoint_extract.close)
+        self.assertEqual(disjoint_extract.summary().cityobject_count, 0)
+
+        left = CityModel.parse_document_bytes(MERGE_LEFT_FIXTURE_PATH.read_bytes())
+        right = CityModel.parse_document_bytes(MERGE_RIGHT_FIXTURE_PATH.read_bytes())
+        self.addCleanup(left.close)
+        self.addCleanup(right.close)
+        merged = merge_models([left, right])
+        self.addCleanup(merged.close)
+        summary = merged.summary()
+        self.assertEqual(summary.cityobject_count, 3)
+        self.assertEqual(summary.geometry_count, 8)
+        self.assertEqual(summary.geometry_template_count, 2)
 
     def test_feature_stream_helpers_round_trip(self) -> None:
         payload = FIXTURE_PATH.read_bytes()

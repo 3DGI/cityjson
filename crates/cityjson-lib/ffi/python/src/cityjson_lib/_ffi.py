@@ -309,6 +309,10 @@ class GeometryTemplateIdStruct(Structure):
     _fields_ = [("slot", c_uint32), ("generation", c_uint16), ("reserved", c_uint16)]
 
 
+class GeometrySelectionSpecStruct(Structure):
+    _fields_ = [("cityobject_id", StringViewStruct), ("geometry_index", c_size_t)]
+
+
 @dataclass(frozen=True)
 class GeometryBoundaryPayload:
     geometry_type: GeometryType
@@ -425,6 +429,8 @@ class FfiLibrary:
 
         self._lib.cj_model_free.argtypes = [c_void_p]
         self._lib.cj_model_free.restype = c_int
+        self._lib.cj_model_selection_free.argtypes = [c_void_p]
+        self._lib.cj_model_selection_free.restype = c_int
         self._lib.cj_bytes_free.argtypes = [BytesStruct]
         self._lib.cj_bytes_free.restype = c_int
         self._lib.cj_bytes_list_free.argtypes = [BytesListStruct]
@@ -541,6 +547,48 @@ class FfiLibrary:
             POINTER(c_void_p),
         ]
         self._lib.cj_model_subset_cityobjects.restype = c_int
+        self._lib.cj_model_select_cityobjects_by_id.argtypes = [
+            c_void_p,
+            POINTER(StringViewStruct),
+            c_size_t,
+            POINTER(c_void_p),
+        ]
+        self._lib.cj_model_select_cityobjects_by_id.restype = c_int
+        self._lib.cj_model_select_geometries_by_cityobject_id_and_index.argtypes = [
+            c_void_p,
+            POINTER(GeometrySelectionSpecStruct),
+            c_size_t,
+            POINTER(c_void_p),
+        ]
+        self._lib.cj_model_select_geometries_by_cityobject_id_and_index.restype = c_int
+        self._lib.cj_model_selection_include_relatives.argtypes = [
+            c_void_p,
+            c_void_p,
+            POINTER(c_void_p),
+        ]
+        self._lib.cj_model_selection_include_relatives.restype = c_int
+        self._lib.cj_model_selection_union.argtypes = [c_void_p, c_void_p, POINTER(c_void_p)]
+        self._lib.cj_model_selection_union.restype = c_int
+        self._lib.cj_model_selection_intersection.argtypes = [
+            c_void_p,
+            c_void_p,
+            POINTER(c_void_p),
+        ]
+        self._lib.cj_model_selection_intersection.restype = c_int
+        self._lib.cj_model_selection_is_empty.argtypes = [c_void_p, POINTER(c_bool)]
+        self._lib.cj_model_selection_is_empty.restype = c_int
+        self._lib.cj_model_extract_selection.argtypes = [
+            c_void_p,
+            c_void_p,
+            POINTER(c_void_p),
+        ]
+        self._lib.cj_model_extract_selection.restype = c_int
+        self._lib.cj_model_merge_models.argtypes = [
+            POINTER(c_void_p),
+            c_size_t,
+            POINTER(c_void_p),
+        ]
+        self._lib.cj_model_merge_models.restype = c_int
 
         self._lib.cj_model_parse_feature_stream_merge_bytes.argtypes = [
             POINTER(c_ubyte),
@@ -963,6 +1011,26 @@ class FfiLibrary:
         array_type = StringViewStruct * len(views)
         return array_type(*views), buffers
 
+    def _geometry_selection_specs(
+        self, specs: list[tuple[str, int]]
+    ) -> tuple[object, list[object]]:
+        buffers: list[object] = []
+        values: list[GeometrySelectionSpecStruct] = []
+        for cityobject_id, geometry_index in specs:
+            if geometry_index < 0:
+                raise ValueError("geometry_index must not be negative")
+            view, buffer = self._string_view(cityobject_id)
+            values.append(
+                GeometrySelectionSpecStruct(
+                    cityobject_id=view,
+                    geometry_index=geometry_index,
+                )
+            )
+            buffers.append(buffer)
+
+        array_type = GeometrySelectionSpecStruct * len(values)
+        return array_type(*values), buffers
+
     def probe(self, data: bytes) -> ProbeStruct:
         probe = ProbeStruct()
         pointer_data = self._data_pointer(data)
@@ -1029,6 +1097,9 @@ class FfiLibrary:
 
     def free_model(self, handle: int) -> None:
         self._raise_if_error(self._lib.cj_model_free(c_void_p(handle)))
+
+    def free_model_selection(self, handle: int) -> None:
+        self._raise_if_error(self._lib.cj_model_selection_free(c_void_p(handle)))
 
     def free_value(self, handle: int) -> None:
         self._raise_if_error(self._lib.cj_value_free(c_void_p(handle)))
@@ -1256,6 +1327,79 @@ class FfiLibrary:
             )
         )
         return int(extracted.value)
+
+    def select_cityobjects_by_id(self, handle: int, cityobject_ids: list[str]) -> int:
+        array, _buffers = self._string_handles(cityobject_ids)
+        selection = c_void_p()
+        self._raise_if_error(
+            self._lib.cj_model_select_cityobjects_by_id(
+                c_void_p(handle), array, len(cityobject_ids), pointer(selection)
+            )
+        )
+        return int(selection.value)
+
+    def select_geometries_by_cityobject_id_and_index(
+        self, handle: int, specs: list[tuple[str, int]]
+    ) -> int:
+        array, _buffers = self._geometry_selection_specs(specs)
+        selection = c_void_p()
+        self._raise_if_error(
+            self._lib.cj_model_select_geometries_by_cityobject_id_and_index(
+                c_void_p(handle), array, len(specs), pointer(selection)
+            )
+        )
+        return int(selection.value)
+
+    def model_selection_include_relatives(self, selection_handle: int, model_handle: int) -> int:
+        included = c_void_p()
+        self._raise_if_error(
+            self._lib.cj_model_selection_include_relatives(
+                c_void_p(selection_handle), c_void_p(model_handle), pointer(included)
+            )
+        )
+        return int(included.value)
+
+    def model_selection_union(self, lhs_handle: int, rhs_handle: int) -> int:
+        selection = c_void_p()
+        self._raise_if_error(
+            self._lib.cj_model_selection_union(
+                c_void_p(lhs_handle), c_void_p(rhs_handle), pointer(selection)
+            )
+        )
+        return int(selection.value)
+
+    def model_selection_intersection(self, lhs_handle: int, rhs_handle: int) -> int:
+        selection = c_void_p()
+        self._raise_if_error(
+            self._lib.cj_model_selection_intersection(
+                c_void_p(lhs_handle), c_void_p(rhs_handle), pointer(selection)
+            )
+        )
+        return int(selection.value)
+
+    def model_selection_is_empty(self, selection_handle: int) -> bool:
+        value = c_bool()
+        self._raise_if_error(
+            self._lib.cj_model_selection_is_empty(c_void_p(selection_handle), pointer(value))
+        )
+        return bool(value.value)
+
+    def extract_selection(self, model_handle: int, selection_handle: int) -> int:
+        extracted = c_void_p()
+        self._raise_if_error(
+            self._lib.cj_model_extract_selection(
+                c_void_p(model_handle), c_void_p(selection_handle), pointer(extracted)
+            )
+        )
+        return int(extracted.value)
+
+    def merge_models(self, handles: list[int]) -> int:
+        array = self._handle_array(handles)
+        merged = c_void_p()
+        self._raise_if_error(
+            self._lib.cj_model_merge_models(array, len(handles), pointer(merged))
+        )
+        return int(merged.value)
 
     def serialize_document_with_options(self, handle: int, options: WriteOptionsStruct) -> bytes:
         payload = BytesStruct()

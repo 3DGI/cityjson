@@ -197,6 +197,12 @@ class GeometryBoundary:
 
 
 @dataclass(frozen=True)
+class GeometrySelectionSpec:
+    cityobject_id: str
+    geometry_index: int
+
+
+@dataclass(frozen=True)
 class WriteOptions:
     pretty: bool = False
     validate_default_themes: bool = True
@@ -644,6 +650,57 @@ def probe_bytes(data: bytes | bytearray | memoryview) -> Probe:
     )
 
 
+class ModelSelection(_OwnedHandle):
+    def _free(self, handle: int) -> None:
+        _ffi.free_model_selection(handle)
+
+    @classmethod
+    def select_cityobjects_by_id(cls, model: "CityModel", cityobject_ids: list[str]) -> Self:
+        return cls(_ffi.select_cityobjects_by_id(model._require_handle(), cityobject_ids))
+
+    @classmethod
+    def select_geometries_by_cityobject_id_and_index(
+        cls,
+        model: "CityModel",
+        specs: list[GeometrySelectionSpec | tuple[str, int]],
+    ) -> Self:
+        return cls(
+            _ffi.select_geometries_by_cityobject_id_and_index(
+                model._require_handle(),
+                [_geometry_selection_spec_tuple(spec) for spec in specs],
+            )
+        )
+
+    def include_relatives(self, model: "CityModel") -> Self:
+        return type(self)(
+            _ffi.model_selection_include_relatives(
+                self._require_handle(),
+                model._require_handle(),
+            )
+        )
+
+    def union(self, other: Self) -> Self:
+        return type(self)(
+            _ffi.model_selection_union(self._require_handle(), other._require_handle())
+        )
+
+    def intersection(self, other: Self) -> Self:
+        return type(self)(
+            _ffi.model_selection_intersection(self._require_handle(), other._require_handle())
+        )
+
+    def is_empty(self) -> bool:
+        return _ffi.model_selection_is_empty(self._require_handle())
+
+
+def _geometry_selection_spec_tuple(
+    spec: GeometrySelectionSpec | tuple[str, int],
+) -> tuple[str, int]:
+    if isinstance(spec, GeometrySelectionSpec):
+        return (spec.cityobject_id, spec.geometry_index)
+    return spec
+
+
 class CityModel(_OwnedHandle):
     def __init__(self, handle: int) -> None:
         super().__init__(handle)
@@ -797,6 +854,11 @@ class CityModel(_OwnedHandle):
             _ffi.subset_cityobjects(self._require_handle(), cityobject_ids, exclude)
         )
 
+    def extract_selection(self, selection: ModelSelection) -> Self:
+        return type(self)(
+            _ffi.extract_selection(self._require_handle(), selection._require_handle())
+        )
+
     def cleanup(self) -> None:
         _ffi.cleanup(self._require_handle())
 
@@ -944,6 +1006,11 @@ def merge_feature_stream_bytes(data: bytes | bytearray | memoryview) -> CityMode
     return CityModel(_ffi.parse_feature_stream_merge(_as_bytes(data)))
 
 
+def merge_models(models: list[CityModel]) -> CityModel:
+    handles = [model._require_handle() for model in models]
+    return CityModel(_ffi.merge_models(handles))
+
+
 def serialize_feature_stream(
     models: list[CityModel],
     options: WriteOptions | None = None,
@@ -1040,12 +1107,14 @@ __all__ = [
     "GeometryBoundary",
     "GeometryDraft",
     "GeometryId",
+    "GeometrySelectionSpec",
     "GeometryTemplateId",
     "GeometryType",
     "ImageType",
     "MaterialId",
     "Model",
     "ModelCapacities",
+    "ModelSelection",
     "ModelSummary",
     "ModelType",
     "Probe",
@@ -1065,6 +1134,7 @@ __all__ = [
     "Vertex",
     "WrapMode",
     "merge_feature_stream_bytes",
+    "merge_models",
     "probe_bytes",
     "serialize_feature_stream",
     "serialize_feature_stream_bytes",

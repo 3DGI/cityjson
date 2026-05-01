@@ -148,6 +148,16 @@ typedef struct cj_model_t {
 } cj_model_t;
 
 /**
+ * Opaque model-selection handle type.
+ *
+ * The ABI only ever passes pointers to this marker type. The actual storage is
+ * a boxed `cityjson_lib::ops::ModelSelection` allocated by the Rust side.
+ */
+typedef struct cj_model_selection_t {
+  uint8_t _private[0];
+} cj_model_selection_t;
+
+/**
  * Owned byte buffer returned across the ABI.
  */
 typedef struct cj_bytes_t {
@@ -368,6 +378,14 @@ typedef struct cj_geometry_boundary_view_t {
 } cj_geometry_boundary_view_t;
 
 /**
+ * CityObject id and geometry index pair used by model-selection APIs.
+ */
+typedef struct cj_geometry_selection_spec_t {
+  struct cj_string_view_t cityobject_id;
+  uintptr_t geometry_index;
+} cj_geometry_selection_spec_t;
+
+/**
  * Explicit JSON write options for document, feature, and feature-stream output.
  */
 typedef struct cj_json_write_options_t {
@@ -493,6 +511,8 @@ extern "C" {
 #endif // __cplusplus
 
 enum cj_status_t cj_model_free(struct cj_model_t *handle);
+
+enum cj_status_t cj_model_selection_free(struct cj_model_selection_t *handle);
 
 enum cj_status_t cj_bytes_free(struct cj_bytes_t bytes);
 
@@ -678,6 +698,35 @@ enum cj_status_t cj_model_subset_cityobjects(const struct cj_model_t *model,
                                              uintptr_t cityobject_count,
                                              bool exclude,
                                              struct cj_model_t **out_model);
+
+enum cj_status_t cj_model_select_cityobjects_by_id(const struct cj_model_t *model,
+                                                   const struct cj_string_view_t *cityobject_ids,
+                                                   uintptr_t cityobject_count,
+                                                   struct cj_model_selection_t **out_selection);
+
+enum cj_status_t cj_model_select_geometries_by_cityobject_id_and_index(const struct cj_model_t *model,
+                                                                       const struct cj_geometry_selection_spec_t *specs,
+                                                                       uintptr_t spec_count,
+                                                                       struct cj_model_selection_t **out_selection);
+
+enum cj_status_t cj_model_selection_include_relatives(const struct cj_model_selection_t *selection,
+                                                      const struct cj_model_t *model,
+                                                      struct cj_model_selection_t **out_selection);
+
+enum cj_status_t cj_model_selection_union(const struct cj_model_selection_t *lhs,
+                                          const struct cj_model_selection_t *rhs,
+                                          struct cj_model_selection_t **out_selection);
+
+enum cj_status_t cj_model_selection_intersection(const struct cj_model_selection_t *lhs,
+                                                 const struct cj_model_selection_t *rhs,
+                                                 struct cj_model_selection_t **out_selection);
+
+enum cj_status_t cj_model_selection_is_empty(const struct cj_model_selection_t *selection,
+                                             bool *out_bool);
+
+enum cj_status_t cj_model_extract_selection(const struct cj_model_t *model,
+                                            const struct cj_model_selection_t *selection,
+                                            struct cj_model_t **out_model);
 
 enum cj_status_t cj_model_merge_models(const struct cj_model_t *const *models,
                                        uintptr_t model_count,

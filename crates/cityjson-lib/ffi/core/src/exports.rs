@@ -1,5 +1,6 @@
 #![allow(non_camel_case_types)]
 
+use std::collections::HashSet;
 use std::ffi::c_char;
 #[cfg(feature = "native-formats")]
 use std::io::Cursor;
@@ -23,12 +24,13 @@ use crate::abi::{
     cj_cityjsonseq_auto_transform_options_t, cj_cityjsonseq_write_options_t, cj_cityobject_draft_t,
     cj_cityobject_id_t, cj_contact_role_t, cj_contact_t, cj_contact_type_t, cj_error_kind_t,
     cj_geometry_boundary_t, cj_geometry_boundary_view_t, cj_geometry_draft_t, cj_geometry_id_t,
-    cj_geometry_template_id_t, cj_geometry_type_t, cj_geometry_types_t, cj_image_type_t,
-    cj_indices_t, cj_indices_view_t, cj_json_write_options_t, cj_material_id_t,
-    cj_model_capacities_t, cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t, cj_rgb_t,
-    cj_rgba_t, cj_ring_draft_t, cj_semantic_id_t, cj_shell_draft_t, cj_solid_draft_t, cj_status_t,
-    cj_string_view_t, cj_surface_draft_t, cj_texture_id_t, cj_texture_type_t, cj_transform_t,
-    cj_uv_t, cj_uvs_t, cj_value_t, cj_vertex_t, cj_vertices_t, cj_wrap_mode_t,
+    cj_geometry_selection_spec_t, cj_geometry_template_id_t, cj_geometry_type_t,
+    cj_geometry_types_t, cj_image_type_t, cj_indices_t, cj_indices_view_t, cj_json_write_options_t,
+    cj_material_id_t, cj_model_capacities_t, cj_model_selection_t, cj_model_summary_t, cj_model_t,
+    cj_model_type_t, cj_probe_t, cj_rgb_t, cj_rgba_t, cj_ring_draft_t, cj_semantic_id_t,
+    cj_shell_draft_t, cj_solid_draft_t, cj_status_t, cj_string_view_t, cj_surface_draft_t,
+    cj_texture_id_t, cj_texture_type_t, cj_transform_t, cj_uv_t, cj_uvs_t, cj_value_t, cj_vertex_t,
+    cj_vertices_t, cj_wrap_mode_t,
 };
 use crate::authoring::{
     GeometryAuthoring, LineStringAuthoring, OwnedCityObject, OwnedContact, OwnedMaterial,
@@ -47,13 +49,13 @@ use crate::handle::{
     geometry_boundary_free as free_geometry_boundary, geometry_draft_as_mut, geometry_draft_free,
     geometry_draft_into_handle, geometry_draft_take, geometry_types_free as free_geometry_types,
     geometry_types_from_vec, indices_free as free_indices, indices_from_vec, model_as_mut,
-    model_as_ref, model_free, model_into_handle, ring_draft_as_mut, ring_draft_free,
-    ring_draft_into_handle, ring_draft_take, shell_draft_as_mut, shell_draft_free,
-    shell_draft_into_handle, shell_draft_take, solid_draft_as_mut, solid_draft_free,
-    solid_draft_into_handle, solid_draft_take, surface_draft_as_mut, surface_draft_free,
-    surface_draft_into_handle, surface_draft_take, uvs_free as free_uvs, uvs_from_vec,
-    value_as_mut, value_free, value_into_handle, value_take, vertices_free as free_vertices,
-    vertices_from_vec,
+    model_as_ref, model_free, model_into_handle, model_selection_as_ref, model_selection_free,
+    model_selection_into_handle, ring_draft_as_mut, ring_draft_free, ring_draft_into_handle,
+    ring_draft_take, shell_draft_as_mut, shell_draft_free, shell_draft_into_handle,
+    shell_draft_take, solid_draft_as_mut, solid_draft_free, solid_draft_into_handle,
+    solid_draft_take, surface_draft_as_mut, surface_draft_free, surface_draft_into_handle,
+    surface_draft_take, uvs_free as free_uvs, uvs_from_vec, value_as_mut, value_free,
+    value_into_handle, value_take, vertices_free as free_vertices, vertices_from_vec,
 };
 
 /// cbindgen:ignore
@@ -164,6 +166,22 @@ fn required_string_views(
     Ok(unsafe { slice::from_raw_parts(ptr.as_ptr().cast_const(), len) })
 }
 
+fn required_geometry_selection_specs(
+    data: *const cj_geometry_selection_spec_t,
+    len: usize,
+    name: &'static str,
+) -> Result<&'static [cj_geometry_selection_spec_t], AbiError> {
+    if len == 0 {
+        return Ok(&[]);
+    }
+
+    let ptr = NonNull::new(data.cast_mut())
+        .ok_or_else(|| invalid_argument(format!("{name} must not be null when len is non-zero")))?;
+
+    // SAFETY: the caller promises `len` readable specs when the pointer is non-null.
+    Ok(unsafe { slice::from_raw_parts(ptr.as_ptr().cast_const(), len) })
+}
+
 fn required_model_ref<'a>(model: *const cj_model_t) -> Result<&'a CityModel, AbiError> {
     // SAFETY: null is rejected here; valid handles originate from Rust.
     unsafe { model_as_ref(model) }.ok_or_else(|| invalid_argument("model must not be null"))
@@ -172,6 +190,14 @@ fn required_model_ref<'a>(model: *const cj_model_t) -> Result<&'a CityModel, Abi
 fn required_model_mut<'a>(model: *mut cj_model_t) -> Result<&'a mut CityModel, AbiError> {
     // SAFETY: null is rejected here; valid handles originate from Rust.
     unsafe { model_as_mut(model) }.ok_or_else(|| invalid_argument("model must not be null"))
+}
+
+fn required_model_selection_ref<'a>(
+    selection: *const cj_model_selection_t,
+) -> Result<&'a cityjson_lib::ops::ModelSelection, AbiError> {
+    // SAFETY: null is rejected here; valid handles originate from Rust.
+    unsafe { model_selection_as_ref(selection) }
+        .ok_or_else(|| invalid_argument("selection must not be null"))
 }
 
 fn required_value_mut<'a>(value: *mut cj_value_t) -> Result<&'a mut OwnedValue, AbiError> {
@@ -251,6 +277,20 @@ fn write_model_handle(out_model: *mut *mut cj_model_t, model: CityModel) -> Resu
     // SAFETY: `out` is validated to be non-null and points to writable storage.
     unsafe {
         ptr::write(out.as_ptr(), model_into_handle(model));
+    }
+
+    Ok(())
+}
+
+fn write_model_selection_handle(
+    out_selection: *mut *mut cj_model_selection_t,
+    selection: cityjson_lib::ops::ModelSelection,
+) -> Result<(), AbiError> {
+    let out = required_out(out_selection, "out_selection")?;
+
+    // SAFETY: `out` is validated to be non-null and points to writable storage.
+    unsafe {
+        ptr::write(out.as_ptr(), model_selection_into_handle(selection));
     }
 
     Ok(())
@@ -959,6 +999,22 @@ pub extern "C" fn cj_model_free(handle: *mut cj_model_t) -> cj_status_t {
         // SAFETY: the ABI only frees handles that it allocated.
         unsafe {
             model_free(handle);
+        }
+
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_selection_free(handle: *mut cj_model_selection_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        if handle.is_null() {
+            return Ok(());
+        }
+
+        // SAFETY: the ABI only frees handles that it allocated.
+        unsafe {
+            model_selection_free(handle);
         }
 
         Ok(())
@@ -1909,6 +1965,120 @@ pub extern "C" fn cj_model_subset_cityobjects(
         let borrowed = ids.iter().map(String::as_str).collect::<Vec<_>>();
         let subset = cityjson_lib::ops::subset(required_model_ref(model)?, borrowed, exclude)?;
         write_model_handle(out_model, subset)
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_select_cityobjects_by_id(
+    model: *const cj_model_t,
+    cityobject_ids: *const cj_string_view_t,
+    cityobject_count: usize,
+    out_selection: *mut *mut cj_model_selection_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let views = required_string_views(cityobject_ids, cityobject_count, "cityobject_ids")?;
+        let ids = views
+            .iter()
+            .map(|view| view_utf8(*view, "cityobject_ids[]"))
+            .collect::<Result<HashSet<_>, _>>()?;
+        let selection = cityjson_lib::ops::select_cityobjects(required_model_ref(model)?, |ctx| {
+            ids.contains(ctx.id())
+        })?;
+        write_model_selection_handle(out_selection, selection)
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_select_geometries_by_cityobject_id_and_index(
+    model: *const cj_model_t,
+    specs: *const cj_geometry_selection_spec_t,
+    spec_count: usize,
+    out_selection: *mut *mut cj_model_selection_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let specs = required_geometry_selection_specs(specs, spec_count, "specs")?;
+        let pairs = specs
+            .iter()
+            .map(|spec| {
+                Ok((
+                    view_utf8(spec.cityobject_id, "specs[].cityobject_id")?,
+                    spec.geometry_index,
+                ))
+            })
+            .collect::<Result<HashSet<_>, AbiError>>()?;
+        let selection = cityjson_lib::ops::select_geometries(required_model_ref(model)?, |ctx| {
+            pairs.contains(&(ctx.cityobject_id().to_owned(), ctx.geometry_index()))
+        })?;
+        write_model_selection_handle(out_selection, selection)
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_selection_include_relatives(
+    selection: *const cj_model_selection_t,
+    model: *const cj_model_t,
+    out_selection: *mut *mut cj_model_selection_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let selection = required_model_selection_ref(selection)?
+            .clone()
+            .include_relatives(required_model_ref(model)?)?;
+        write_model_selection_handle(out_selection, selection)
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_selection_union(
+    lhs: *const cj_model_selection_t,
+    rhs: *const cj_model_selection_t,
+    out_selection: *mut *mut cj_model_selection_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let selection =
+            required_model_selection_ref(lhs)?.union(required_model_selection_ref(rhs)?);
+        write_model_selection_handle(out_selection, selection)
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_selection_intersection(
+    lhs: *const cj_model_selection_t,
+    rhs: *const cj_model_selection_t,
+    out_selection: *mut *mut cj_model_selection_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let selection =
+            required_model_selection_ref(lhs)?.intersection(required_model_selection_ref(rhs)?);
+        write_model_selection_handle(out_selection, selection)
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_selection_is_empty(
+    selection: *const cj_model_selection_t,
+    out_bool: *mut bool,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        write_value(
+            out_bool,
+            "out_bool",
+            required_model_selection_ref(selection)?.is_empty(),
+        )
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_extract_selection(
+    model: *const cj_model_t,
+    selection: *const cj_model_selection_t,
+    out_model: *mut *mut cj_model_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let extracted = cityjson_lib::ops::extract(
+            required_model_ref(model)?,
+            required_model_selection_ref(selection)?,
+        )?;
+        write_model_handle(out_model, extracted)
     }))
 }
 

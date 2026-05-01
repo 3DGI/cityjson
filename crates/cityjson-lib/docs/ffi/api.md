@@ -70,6 +70,18 @@ let subset = ops::subset(&cleaned, ["building-1"], false)?;
     ```python
 model.cleanup()
 subset = model.subset_cityobjects(["building-1"])
+
+selection = ModelSelection.select_cityobjects_by_id(model, ["building-part-1"])
+with_relatives = selection.include_relatives(model)
+extracted = model.extract_selection(with_relatives)
+
+geometry_selection = ModelSelection.select_geometries_by_cityobject_id_and_index(
+    model,
+    [GeometrySelectionSpec("building-1", 0)],
+)
+geometry_extract = model.extract_selection(geometry_selection)
+
+merged = merge_models([model, extracted])
     ```
 
 === "C++"

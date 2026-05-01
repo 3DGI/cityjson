@@ -4,10 +4,11 @@ use std::slice;
 use cityjson_lib_ffi_core::exports::*;
 use cityjson_lib_ffi_core::{
     AbiError, cj_bytes_list_t, cj_bytes_t, cj_cityobject_id_t, cj_error_kind_t,
-    cj_geometry_boundary_t, cj_geometry_id_t, cj_geometry_type_t, cj_geometry_types_t,
-    cj_indices_t, cj_json_write_options_t, cj_model_capacities_t, cj_model_summary_t, cj_model_t,
-    cj_model_type_t, cj_probe_t, cj_root_kind_t, cj_status_t, cj_string_view_t, cj_transform_t,
-    cj_uv_t, cj_uvs_t, cj_version_t, cj_vertex_t, cj_vertices_t, run_ffi,
+    cj_geometry_boundary_t, cj_geometry_id_t, cj_geometry_selection_spec_t, cj_geometry_type_t,
+    cj_geometry_types_t, cj_indices_t, cj_json_write_options_t, cj_model_capacities_t,
+    cj_model_selection_t, cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t,
+    cj_root_kind_t, cj_status_t, cj_string_view_t, cj_transform_t, cj_uv_t, cj_uvs_t, cj_version_t,
+    cj_vertex_t, cj_vertices_t, run_ffi,
 };
 
 fn v2_document() -> &'static [u8] {
@@ -177,6 +178,31 @@ fn model_summary(handle: *const cj_model_t) -> cj_model_summary_t {
     summary
 }
 
+fn cityobject_ids(handle: *const cj_model_t) -> Vec<String> {
+    let mut ids = cj_bytes_list_t::default();
+    assert_eq!(
+        cj_model_copy_cityobject_ids(handle, &raw mut ids),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    let mut ids = bytes_list_to_vec(ids);
+    ids.sort();
+    ids
+}
+
+fn cityobject_geometry_count(handle: *const cj_model_t, id: &str) -> usize {
+    let mut document = cj_bytes_t::default();
+    assert_eq!(
+        cj_model_serialize_document(handle, &raw mut document),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    let document = bytes_to_string(document);
+    let value: serde_json::Value =
+        serde_json::from_str(&document).expect("serialized model should be valid JSON");
+    value["CityObjects"][id]["geometry"]
+        .as_array()
+        .map_or(0, Vec::len)
+}
+
 fn assert_same_transport_summary(actual: cj_model_summary_t, expected: cj_model_summary_t) {
     assert_eq!(actual.model_type, expected.model_type);
     assert_eq!(actual.version, expected.version);
@@ -202,6 +228,10 @@ fn assert_same_transport_summary(actual: cj_model_summary_t, expected: cj_model_
 fn free_functions_accept_null_handles_and_buffers() {
     assert_eq!(
         cj_model_free(ptr::null_mut()),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cj_model_selection_free(ptr::null_mut()),
         cj_status_t::CJ_STATUS_SUCCESS
     );
     assert_eq!(
@@ -1023,6 +1053,240 @@ fn subset_merge_and_feature_stream_exports_work() {
     assert_eq!(cj_model_free(left), cj_status_t::CJ_STATUS_SUCCESS);
     assert_eq!(cj_model_free(subset), cj_status_t::CJ_STATUS_SUCCESS);
     assert_eq!(cj_model_free(subset_input), cj_status_t::CJ_STATUS_SUCCESS);
+}
+
+#[test]
+#[allow(clippy::too_many_lines)]
+fn model_selection_exports_work() {
+    let mut model = ptr::null_mut();
+    assert_eq!(
+        cj_model_parse_document_bytes(
+            subset_fixture().as_ptr(),
+            subset_fixture().len(),
+            &raw mut model,
+        ),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    let ids = [string_view("building-part-1")];
+    let mut selection: *mut cj_model_selection_t = ptr::null_mut();
+    assert_eq!(
+        cj_model_select_cityobjects_by_id(model, ids.as_ptr(), ids.len(), &raw mut selection),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert!(!selection.is_null());
+
+    let mut extracted = ptr::null_mut();
+    assert_eq!(
+        cj_model_extract_selection(model, selection, &raw mut extracted),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cityobject_ids(extracted),
+        vec![String::from("building-part-1")]
+    );
+    assert_eq!(cj_model_free(extracted), cj_status_t::CJ_STATUS_SUCCESS);
+
+    let mut with_relatives = ptr::null_mut();
+    assert_eq!(
+        cj_model_selection_include_relatives(selection, model, &raw mut with_relatives),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    let mut relatives_extract = ptr::null_mut();
+    assert_eq!(
+        cj_model_extract_selection(model, with_relatives, &raw mut relatives_extract),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cityobject_ids(relatives_extract),
+        vec![
+            String::from("building-part-1"),
+            String::from("building-part-2"),
+            String::from("my-group"),
+            String::from("root-building"),
+        ]
+    );
+    assert_eq!(
+        cj_model_free(relatives_extract),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    let mut empty_selection = ptr::null_mut();
+    assert_eq!(
+        cj_model_select_cityobjects_by_id(model, ptr::null(), 0, &raw mut empty_selection),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    let mut is_empty = false;
+    assert_eq!(
+        cj_model_selection_is_empty(empty_selection, &raw mut is_empty),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert!(is_empty);
+
+    assert_eq!(
+        cj_model_select_cityobjects_by_id(ptr::null(), ids.as_ptr(), ids.len(), &raw mut selection),
+        cj_status_t::CJ_STATUS_INVALID_ARGUMENT
+    );
+    assert_eq!(
+        cj_model_selection_is_empty(ptr::null(), &raw mut is_empty),
+        cj_status_t::CJ_STATUS_INVALID_ARGUMENT
+    );
+    assert_eq!(
+        cj_model_extract_selection(model, selection, ptr::null_mut()),
+        cj_status_t::CJ_STATUS_INVALID_ARGUMENT
+    );
+
+    assert_eq!(
+        cj_model_selection_free(empty_selection),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cj_model_selection_free(with_relatives),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cj_model_selection_free(selection),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(cj_model_free(model), cj_status_t::CJ_STATUS_SUCCESS);
+}
+
+#[test]
+#[allow(clippy::too_many_lines)]
+fn model_selection_geometry_union_and_intersection_exports_work() {
+    let mut model = ptr::null_mut();
+    assert_eq!(
+        cj_model_parse_document_bytes(
+            merge_left_fixture().as_ptr(),
+            merge_left_fixture().len(),
+            &raw mut model,
+        ),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    let whole_ids = [string_view("shared-furniture")];
+    let mut whole: *mut cj_model_selection_t = ptr::null_mut();
+    assert_eq!(
+        cj_model_select_cityobjects_by_id(
+            model,
+            whole_ids.as_ptr(),
+            whole_ids.len(),
+            &raw mut whole
+        ),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    let first_specs = [cj_geometry_selection_spec_t {
+        cityobject_id: string_view("shared-furniture"),
+        geometry_index: 0,
+    }];
+    let second_specs = [cj_geometry_selection_spec_t {
+        cityobject_id: string_view("shared-furniture"),
+        geometry_index: 1,
+    }];
+    let mut first: *mut cj_model_selection_t = ptr::null_mut();
+    let mut second: *mut cj_model_selection_t = ptr::null_mut();
+    assert_eq!(
+        cj_model_select_geometries_by_cityobject_id_and_index(
+            model,
+            first_specs.as_ptr(),
+            first_specs.len(),
+            &raw mut first,
+        ),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cj_model_select_geometries_by_cityobject_id_and_index(
+            model,
+            second_specs.as_ptr(),
+            second_specs.len(),
+            &raw mut second,
+        ),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    let mut union = ptr::null_mut();
+    assert_eq!(
+        cj_model_selection_union(whole, first, &raw mut union),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    let mut union_extract = ptr::null_mut();
+    assert_eq!(
+        cj_model_extract_selection(model, union, &raw mut union_extract),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cityobject_geometry_count(union_extract, "shared-furniture"),
+        2
+    );
+    assert_eq!(cj_model_free(union_extract), cj_status_t::CJ_STATUS_SUCCESS);
+
+    let mut whole_first = ptr::null_mut();
+    assert_eq!(
+        cj_model_selection_intersection(whole, first, &raw mut whole_first),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    let mut whole_first_extract = ptr::null_mut();
+    assert_eq!(
+        cj_model_extract_selection(model, whole_first, &raw mut whole_first_extract),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cityobject_geometry_count(whole_first_extract, "shared-furniture"),
+        1
+    );
+    assert_eq!(
+        cj_model_free(whole_first_extract),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    let mut disjoint = ptr::null_mut();
+    assert_eq!(
+        cj_model_selection_intersection(first, second, &raw mut disjoint),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    let mut is_empty = false;
+    assert_eq!(
+        cj_model_selection_is_empty(disjoint, &raw mut is_empty),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert!(is_empty);
+    let mut disjoint_extract = ptr::null_mut();
+    assert_eq!(
+        cj_model_extract_selection(model, disjoint, &raw mut disjoint_extract),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(model_summary(disjoint_extract).cityobject_count, 0);
+
+    assert_eq!(
+        cj_model_free(disjoint_extract),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cj_model_selection_free(disjoint),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cj_model_selection_free(whole_first),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cj_model_selection_free(union),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cj_model_selection_free(second),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cj_model_selection_free(first),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cj_model_selection_free(whole),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(cj_model_free(model), cj_status_t::CJ_STATUS_SUCCESS);
 }
 
 #[test]

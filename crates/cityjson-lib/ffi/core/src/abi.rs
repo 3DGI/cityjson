@@ -299,6 +299,16 @@ pub struct cj_model_t {
     _private: [u8; 0],
 }
 
+/// Opaque model-selection handle type.
+///
+/// The ABI only ever passes pointers to this marker type. The actual storage is
+/// a boxed `cityjson_lib::ops::ModelSelection` allocated by the Rust side.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+pub struct cj_model_selection_t {
+    _private: [u8; 0],
+}
+
 /// Opaque typed value handle.
 #[allow(non_camel_case_types)]
 #[repr(C)]
@@ -567,6 +577,15 @@ pub struct cj_geometry_boundary_view_t {
     pub surface_offsets: cj_indices_view_t,
     pub shell_offsets: cj_indices_view_t,
     pub solid_offsets: cj_indices_view_t,
+}
+
+/// CityObject id and geometry index pair used by model-selection APIs.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cj_geometry_selection_spec_t {
+    pub cityobject_id: cj_string_view_t,
+    pub geometry_index: usize,
 }
 
 /// Probe result returned by the low-level ABI.

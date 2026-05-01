@@ -2,9 +2,9 @@ use std::ptr;
 
 use crate::abi::{
     cj_bytes_list_t, cj_bytes_t, cj_cityobject_draft_t, cj_contact_t, cj_geometry_boundary_t,
-    cj_geometry_draft_t, cj_geometry_types_t, cj_indices_t, cj_model_t, cj_ring_draft_t,
-    cj_shell_draft_t, cj_solid_draft_t, cj_surface_draft_t, cj_uv_t, cj_uvs_t, cj_value_t,
-    cj_vertex_t, cj_vertices_t,
+    cj_geometry_draft_t, cj_geometry_types_t, cj_indices_t, cj_model_selection_t, cj_model_t,
+    cj_ring_draft_t, cj_shell_draft_t, cj_solid_draft_t, cj_surface_draft_t, cj_uv_t, cj_uvs_t,
+    cj_value_t, cj_vertex_t, cj_vertices_t,
 };
 use crate::authoring::{
     GeometryAuthoring, OwnedCityObject, OwnedContact, OwnedValue, RingAuthoring, ShellAuthoring,
@@ -33,6 +33,32 @@ pub unsafe fn model_as_mut<'a>(handle: *mut cj_model_t) -> Option<&'a mut cityjs
 
 pub unsafe fn model_free(handle: *mut cj_model_t) {
     let _ = unsafe { model_take(handle) };
+}
+
+pub fn model_selection_into_handle(
+    selection: cityjson_lib::ops::ModelSelection,
+) -> *mut cj_model_selection_t {
+    Box::into_raw(Box::new(selection)).cast::<cj_model_selection_t>()
+}
+
+pub unsafe fn model_selection_take(
+    handle: *mut cj_model_selection_t,
+) -> Option<Box<cityjson_lib::ops::ModelSelection>> {
+    if handle.is_null() {
+        return None;
+    }
+
+    Some(unsafe { Box::from_raw(handle.cast::<cityjson_lib::ops::ModelSelection>()) })
+}
+
+pub unsafe fn model_selection_as_ref<'a>(
+    handle: *const cj_model_selection_t,
+) -> Option<&'a cityjson_lib::ops::ModelSelection> {
+    unsafe { handle.cast::<cityjson_lib::ops::ModelSelection>().as_ref() }
+}
+
+pub unsafe fn model_selection_free(handle: *mut cj_model_selection_t) {
+    let _ = unsafe { model_selection_take(handle) };
 }
 
 macro_rules! define_handle_accessors {
