@@ -16,7 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Verify tag is on main
@@ -43,11 +43,11 @@ jobs:
         os: [ubuntu-latest, macos-13, macos-14, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.93.0
-      - uses: pypa/cibuildwheel@v2.21
+      - uses: pypa/cibuildwheel@v3.4.1
         with:
           package-dir: crates/cityjson-lib/ffi/python
         env:
@@ -59,7 +59,7 @@ jobs:
           CIBW_BEFORE_ALL_LINUX: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -t stable && . $HOME/.cargo/env"
           CIBW_ENVIRONMENT_LINUX: 'PATH="$HOME/.cargo/bin:$PATH"'
           CIBW_TEST_COMMAND: 'python -c "import cityjson_lib"'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wheels-lib-${{ matrix.os }}
           path: wheelhouse/*.whl
@@ -72,11 +72,11 @@ jobs:
         os: [ubuntu-latest, macos-13, macos-14, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.93.0
-      - uses: pypa/cibuildwheel@v2.21
+      - uses: pypa/cibuildwheel@v3.4.1
         with:
           package-dir: crates/cityjson-index/ffi/python
         env:
@@ -101,7 +101,7 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: wheels-lib-*
           path: dist
@@ -118,7 +118,7 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: wheels-index-*
           path: dist
@@ -133,7 +133,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes

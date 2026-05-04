@@ -103,7 +103,7 @@ jobs:
             schemas
             scripts
           sparse-checkout-cone-mode: true
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.x"
       - name: Render corpus correctness index
@@ -173,7 +173,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: pywheel-${{ matrix.crate }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{matrix.python}}
       - run: python -m pip install --upgrade pip uv
