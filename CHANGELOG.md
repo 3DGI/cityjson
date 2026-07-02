@@ -9,8 +9,13 @@ crate in the workspace to the same version.
 ## [Unreleased]
 
 ### Added
-- Added `cityjson-types` WKB/EWKB boundary serialization, including ISO WKB
-  output and PostGIS EWKB geometry type support for GIS interoperability.
+- Added `cityjson-types` WKB/EWKB boundary serialization APIs: `Boundary::to_wkb`
+  and `Boundary::from_wkb` for little-endian ISO WKB, plus `Boundary::to_ewkb`,
+  `Boundary::from_ewkb`, `EwkbType`, and `EwkbBoundary` for PostGIS EWKB.
+  The implementation resolves coordinates from the caller-provided vertex pool,
+  preserves boundary ordering, writes XYZ geometries, closes polygon rings on
+  output, and maps surface-backed CityJSON boundaries to multi-polygon,
+  polyhedral-surface, or TIN EWKB as requested.
 - Added a Docker-backed `cityjson-types` GIS integration test setup for
   validating WKB/EWKB output against GEOS and PostGIS.
 
