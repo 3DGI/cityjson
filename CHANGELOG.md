@@ -8,6 +8,12 @@ crate in the workspace to the same version.
 
 ## [Unreleased]
 
+### Added
+- Added `cityjson-types` WKB/EWKB boundary serialization, including ISO WKB
+  output and PostGIS EWKB geometry type support for GIS interoperability.
+- Added a Docker-backed `cityjson-types` GIS integration test setup for
+  validating WKB/EWKB output against GEOS and PostGIS.
+
 ## [0.10.0] - 2026-06-17
 
 ### Added
