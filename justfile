@@ -34,6 +34,17 @@ fmt-check:
 test:
     cargo test --workspace --all-features
 
+# Run heavy GIS interoperability tests in Docker Compose.
+test-gis:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    compose_file="crates/cityjson-types/docker/gis-integration/compose.yml"
+    cleanup() {
+        docker compose -f "$compose_file" down --volumes --remove-orphans
+    }
+    trap cleanup EXIT
+    docker compose -f "$compose_file" up --build --abort-on-container-exit --exit-code-from gis-tests
+
 # Build docs (nightly, docsrs cfg, deny warnings)
 doc:
     RUSTDOCFLAGS="--cfg docsrs -Dwarnings" cargo +nightly doc --workspace --all-features --no-deps

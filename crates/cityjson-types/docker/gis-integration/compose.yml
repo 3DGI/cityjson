@@ -1,0 +1,32 @@
+services:
+  postgis:
+    image: postgis/postgis:17-3.5
+    environment:
+      POSTGRES_DB: cityjson_gis
+      POSTGRES_USER: cityjson
+      POSTGRES_PASSWORD: cityjson
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cityjson -d cityjson_gis"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  gis-tests:
+    build:
+      context: ../../../..
+      dockerfile: crates/cityjson-types/docker/gis-integration/Dockerfile
+    depends_on:
+      postgis:
+        condition: service_healthy
+    environment:
+      CARGO_TARGET_DIR: /workspace/target/gis-integration
+      DATABASE_URL: postgres://cityjson:cityjson@postgis:5432/cityjson_gis
+    volumes:
+      - ../../../..:/workspace
+      - cargo-registry:/usr/local/cargo/registry
+      - cargo-git:/usr/local/cargo/git
+    command: cargo test --locked
+
+volumes:
+  cargo-registry:
+  cargo-git:
