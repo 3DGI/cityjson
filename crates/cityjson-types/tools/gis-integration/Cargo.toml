@@ -1,0 +1,16 @@
+[workspace]
+resolver = "3"
+
+[package]
+name = "cityjson-types-gis-integration"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.93"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+anyhow = "1"
+cityjson-types = { path = "../.." }
+geos = "11.1.1"
+postgres = "0.19.14"

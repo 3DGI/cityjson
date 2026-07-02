@@ -104,7 +104,7 @@ pub mod boundary {
     pub use crate::backend::default::boundary::nested;
     pub use crate::backend::default::boundary::{
         Boundary, Boundary16, Boundary32, Boundary64, BoundaryCoordinates, BoundaryType,
-        BoundaryUniqueCoordinates,
+        BoundaryUniqueCoordinates, EwkbBoundary, EwkbType,
     };
 }
 

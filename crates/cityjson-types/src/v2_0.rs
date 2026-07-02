@@ -55,7 +55,7 @@ pub mod boundary {
     pub use crate::cityjson::core::boundary::nested;
     pub use crate::cityjson::core::boundary::{
         Boundary, Boundary16, Boundary32, Boundary64, BoundaryCoordinates, BoundaryType,
-        BoundaryUniqueCoordinates,
+        BoundaryUniqueCoordinates, EwkbBoundary, EwkbType,
     };
 }
 pub mod citymodel;
@@ -92,7 +92,7 @@ pub use attributes::{
 };
 pub use boundary::{
     Boundary, Boundary16, Boundary32, Boundary64, BoundaryCoordinates, BoundaryType,
-    BoundaryUniqueCoordinates,
+    BoundaryUniqueCoordinates, EwkbBoundary, EwkbType,
     nested::{
         BoundaryNestedMultiLineString, BoundaryNestedMultiLineString16,
         BoundaryNestedMultiLineString32, BoundaryNestedMultiLineString64,
