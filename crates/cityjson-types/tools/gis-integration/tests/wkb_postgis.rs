@@ -55,3 +55,44 @@ fn postgis_loads_and_roundtrips_cityjson_wkb() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+
+#[test]
+fn postgis_loads_and_roundtrips_cityjson_ewkb() -> anyhow::Result<()> {
+    let mut client = Client::connect(&cityjson_types_gis_integration::database_url(), NoTls)?;
+    client.batch_execute("CREATE EXTENSION IF NOT EXISTS postgis")?;
+
+    for case in common::cases() {
+        let ewkb = case.ewkb(Some(7415))?;
+        let row = client.query_one(
+            "
+            WITH geom AS (
+                SELECT ST_GeomFromEWKB($1) AS g
+            )
+            SELECT
+                ST_GeometryType(g) AS geometry_type,
+                ST_NDims(g)::integer AS ndims,
+                ST_NumGeometries(g)::integer AS geometries,
+                ST_SRID(g)::integer AS srid,
+                ST_AsEWKB(g, 'NDR') AS roundtrip_ewkb
+            FROM geom
+            ",
+            &[&ewkb],
+        )?;
+
+        let geometry_type: String = row.get("geometry_type");
+        let ndims: i32 = row.get("ndims");
+        let geometries: i32 = row.get("geometries");
+        let srid: i32 = row.get("srid");
+        let roundtrip_ewkb: Vec<u8> = row.get("roundtrip_ewkb");
+
+        assert_eq!(geometry_type, case.expected_type, "{}", case.name);
+        assert_eq!(ndims, case.expected_ndims, "{}", case.name);
+        assert_eq!(geometries, case.expected_geometries, "{}", case.name);
+        assert_eq!(srid, 7415, "{}", case.name);
+
+        Boundary::<u32>::from_ewkb(&roundtrip_ewkb, case.boundary.check_type())?;
+    }
+
+    Ok(())
+}

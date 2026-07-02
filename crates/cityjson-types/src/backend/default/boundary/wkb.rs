@@ -79,9 +79,64 @@ const POLYGON_Z: u32 = 1_003;
 const MULTI_POINT_Z: u32 = 1_004;
 const MULTI_LINE_STRING_Z: u32 = 1_005;
 const MULTI_POLYGON_Z: u32 = 1_006;
+const EWKB_Z_FLAG: u32 = 0x8000_0000;
+const EWKB_M_FLAG: u32 = 0x4000_0000;
+const EWKB_SRID_FLAG: u32 = 0x2000_0000;
+const EWKB_FLAG_MASK: u32 = EWKB_Z_FLAG | EWKB_M_FLAG | EWKB_SRID_FLAG;
+const EWKB_POINT: u32 = 1;
+const EWKB_LINE_STRING: u32 = 2;
+const EWKB_POLYGON: u32 = 3;
+const EWKB_MULTI_POINT: u32 = 4;
+const EWKB_MULTI_LINE_STRING: u32 = 5;
+const EWKB_MULTI_POLYGON: u32 = 6;
+const EWKB_POLYHEDRAL_SURFACE: u32 = 15;
+const EWKB_TIN: u32 = 16;
+const EWKB_TRIANGLE: u32 = 17;
 const COORDINATE_Z_BYTES: usize = 3 * std::mem::size_of::<f64>();
 const WKB_HEADER_BYTES: usize = std::mem::size_of::<u8>() + std::mem::size_of::<u32>();
 const WKB_COUNT_BYTES: usize = std::mem::size_of::<u32>();
+
+/// `PostGIS` EWKB geometry type to write or parsed from input.
+#[derive(Clone, Copy, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum EwkbType {
+    /// EWKB `MultiPointZ`.
+    MultiPoint,
+    /// EWKB `MultiLineStringZ`.
+    MultiLineString,
+    /// EWKB `MultiPolygonZ`.
+    MultiPolygon,
+    /// EWKB `PolyhedralSurfaceZ`.
+    PolyhedralSurface,
+    /// EWKB `TINZ`.
+    Tin,
+}
+
+impl std::fmt::Display for EwkbType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let value = match self {
+            EwkbType::MultiPoint => "MultiPoint",
+            EwkbType::MultiLineString => "MultiLineString",
+            EwkbType::MultiPolygon => "MultiPolygon",
+            EwkbType::PolyhedralSurface => "PolyhedralSurface",
+            EwkbType::Tin => "TIN",
+        };
+        write!(f, "{value}")
+    }
+}
+
+/// Boundary, vertices, and metadata parsed from `PostGIS` EWKB.
+#[derive(Clone, Debug)]
+pub struct EwkbBoundary<VR: VertexRef> {
+    /// Parsed boundary rebuilt with the caller-requested `CityJSON` boundary shape.
+    pub boundary: Boundary<VR>,
+    /// Parsed real-world coordinates referenced by `boundary`.
+    pub vertices: Vertices<VR, RealWorldCoordinate>,
+    /// Top-level EWKB geometry type found in the input.
+    pub ewkb_type: EwkbType,
+    /// Optional top-level EWKB SRID.
+    pub srid: Option<u32>,
+}
 
 impl<VR: VertexRef> Boundary<VR> {
     /// Converts this boundary to little-endian ISO WKB with XYZ coordinates.
@@ -116,6 +171,48 @@ impl<VR: VertexRef> Boundary<VR> {
     /// cannot be represented by `VR`.
     pub fn from_wkb(bytes: &[u8]) -> error::Result<(Self, Vertices<VR, RealWorldCoordinate>)> {
         WkbReader::new(bytes).read()
+    }
+
+    /// Converts this boundary to little-endian `PostGIS` EWKB with XYZ coordinates.
+    ///
+    /// The caller selects the EWKB geometry type explicitly because surface-backed `CityJSON`
+    /// boundaries can be represented as `MultiPolygonZ`, `PolyhedralSurfaceZ`, or `TINZ`. The
+    /// optional SRID is written only on the top-level EWKB geometry.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`error::Error::InvalidGeometry`] when the boundary is empty, inconsistent, or not
+    /// compatible with `ewkb_type`. Returns [`error::Error::InvalidReference`] when a boundary
+    /// vertex index is not present in `vertices`. Returns [`error::Error::InvalidRing`] when a
+    /// polygon/TIN ring has invalid coordinate counts. Returns index conversion errors when an
+    /// EWKB count cannot fit in `u32`.
+    pub fn to_ewkb(
+        &self,
+        vertices: &Vertices<VR, RealWorldCoordinate>,
+        ewkb_type: EwkbType,
+        srid: Option<u32>,
+    ) -> error::Result<Vec<u8>> {
+        EwkbWriter::new(self, vertices, ewkb_type, srid).write()
+    }
+
+    /// Parses little-endian `PostGIS` EWKB into a boundary and vertex pool.
+    ///
+    /// Surface-like EWKB inputs do not preserve `CityJSON` shell and solid nesting. The
+    /// `target_boundary_type` parameter controls how parsed surfaces are wrapped: as a surface
+    /// collection, one solid shell, or one multi-solid containing one shell.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`error::Error::InvalidGeometry`] for unsupported EWKB variants, big-endian input,
+    /// missing `Z`, `M`/`ZM` coordinates, malformed or truncated input, wrong child geometry types,
+    /// trailing bytes, top-level `Triangle`, child SRIDs, and incompatible target boundary types.
+    /// Returns [`error::Error::InvalidRing`] for unclosed or too-short polygon rings. Returns
+    /// index/container errors when parsed coordinate counts cannot be represented by `VR`.
+    pub fn from_ewkb(
+        bytes: &[u8],
+        target_boundary_type: BoundaryType,
+    ) -> error::Result<EwkbBoundary<VR>> {
+        EwkbReader::new(bytes).read(target_boundary_type)
     }
 }
 
@@ -585,6 +682,665 @@ impl<'a> WkbReader<'a> {
     }
 }
 
+struct EwkbWriter<'a, VR: VertexRef> {
+    boundary: &'a Boundary<VR>,
+    vertices: &'a Vertices<VR, RealWorldCoordinate>,
+    ewkb_type: EwkbType,
+    srid: Option<u32>,
+    bytes: Vec<u8>,
+}
+
+impl<'a, VR: VertexRef> EwkbWriter<'a, VR> {
+    fn new(
+        boundary: &'a Boundary<VR>,
+        vertices: &'a Vertices<VR, RealWorldCoordinate>,
+        ewkb_type: EwkbType,
+        srid: Option<u32>,
+    ) -> Self {
+        Self {
+            boundary,
+            vertices,
+            ewkb_type,
+            srid,
+            bytes: Vec::with_capacity(estimated_wkb_size(boundary) + WKB_COUNT_BYTES),
+        }
+    }
+
+    fn write(mut self) -> error::Result<Vec<u8>> {
+        if !self.boundary.is_consistent() {
+            return Err(error::Error::InvalidGeometry(
+                "inconsistent boundary offsets".to_owned(),
+            ));
+        }
+
+        match self.ewkb_type {
+            EwkbType::MultiPoint => self.write_multi_point()?,
+            EwkbType::MultiLineString => self.write_multi_line_string()?,
+            EwkbType::MultiPolygon => self.write_polygon_collection(EWKB_MULTI_POLYGON)?,
+            EwkbType::PolyhedralSurface => {
+                self.write_polygon_collection(EWKB_POLYHEDRAL_SURFACE)?;
+            }
+            EwkbType::Tin => self.write_tin()?,
+        }
+
+        Ok(self.bytes)
+    }
+
+    fn write_multi_point(&mut self) -> error::Result<()> {
+        self.ensure_boundary_type(BoundaryType::MultiPoint)?;
+        self.write_header(EWKB_MULTI_POINT, true);
+        self.write_count(self.boundary.vertices.len())?;
+
+        for vertex_index in &self.boundary.vertices {
+            self.write_header(EWKB_POINT, false);
+            self.write_coordinate(*vertex_index)?;
+        }
+
+        Ok(())
+    }
+
+    fn write_multi_line_string(&mut self) -> error::Result<()> {
+        self.ensure_boundary_type(BoundaryType::MultiLineString)?;
+        self.write_header(EWKB_MULTI_LINE_STRING, true);
+        self.write_count(self.boundary.rings.len())?;
+
+        for ring_index in 0..self.boundary.rings.len() {
+            let vertex_range = self.vertex_range_for_ring(ring_index)?;
+            self.write_header(EWKB_LINE_STRING, false);
+            self.write_count(vertex_range.len())?;
+            for vertex_index in &self.boundary.vertices[vertex_range] {
+                self.write_coordinate(*vertex_index)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn write_polygon_collection(&mut self, collection_type: u32) -> error::Result<()> {
+        let surface_indices = self.surface_indices()?;
+        self.write_header(collection_type, true);
+        self.write_count(surface_indices.len())?;
+
+        for surface_index in surface_indices {
+            self.write_polygon(surface_index, EWKB_POLYGON, false)?;
+        }
+
+        Ok(())
+    }
+
+    fn write_tin(&mut self) -> error::Result<()> {
+        let surface_indices = self.surface_indices()?;
+        self.write_header(EWKB_TIN, true);
+        self.write_count(surface_indices.len())?;
+
+        for surface_index in surface_indices {
+            self.ensure_triangle_surface(surface_index)?;
+            self.write_polygon(surface_index, EWKB_TRIANGLE, false)?;
+        }
+
+        Ok(())
+    }
+
+    fn write_polygon(
+        &mut self,
+        surface_index: usize,
+        geometry_type: u32,
+        include_srid: bool,
+    ) -> error::Result<()> {
+        let ring_range = self.ring_range_for_surface(surface_index)?;
+        if ring_range.is_empty() {
+            return Err(error::Error::InvalidGeometry(
+                "cannot write an EWKB polygon with no rings".to_owned(),
+            ));
+        }
+
+        self.write_header(geometry_type, include_srid);
+        self.write_count(ring_range.len())?;
+
+        for ring_index in ring_range {
+            let vertex_range = self.vertex_range_for_ring(ring_index)?;
+            let coordinate_count = self.closed_ring_coordinate_count(vertex_range.clone())?;
+            self.write_count(coordinate_count)?;
+            for &vertex_index in &self.boundary.vertices[vertex_range.clone()] {
+                self.write_coordinate(vertex_index)?;
+            }
+            if !self.ring_is_already_closed(vertex_range.clone()) {
+                let first_vertex_index = self.boundary.vertices[vertex_range.start];
+                self.write_coordinate(first_vertex_index)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn ensure_boundary_type(&self, expected: BoundaryType) -> error::Result<()> {
+        let actual = self.boundary.check_type();
+        if actual == BoundaryType::None {
+            return Err(error::Error::InvalidGeometry(
+                "cannot write an empty boundary as EWKB".to_owned(),
+            ));
+        }
+        if actual != expected {
+            return Err(error::Error::IncompatibleBoundary(
+                actual.to_string(),
+                expected.to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn surface_indices(&self) -> error::Result<Vec<usize>> {
+        match self.boundary.check_type() {
+            BoundaryType::MultiOrCompositeSurface => {
+                Self::ensure_non_empty_surfaces((0..self.boundary.surfaces.len()).collect())
+            }
+            BoundaryType::Solid => {
+                let mut surface_indices = Vec::with_capacity(self.boundary.surfaces.len());
+                for shell_index in 0..self.boundary.shells.len() {
+                    surface_indices.extend(self.surface_range_for_shell(shell_index)?);
+                }
+                Self::ensure_non_empty_surfaces(surface_indices)
+            }
+            BoundaryType::MultiOrCompositeSolid => {
+                let mut surface_indices = Vec::with_capacity(self.boundary.surfaces.len());
+                for solid_index in 0..self.boundary.solids.len() {
+                    for shell_index in self.shell_range_for_solid(solid_index)? {
+                        surface_indices.extend(self.surface_range_for_shell(shell_index)?);
+                    }
+                }
+                Self::ensure_non_empty_surfaces(surface_indices)
+            }
+            BoundaryType::MultiPoint | BoundaryType::MultiLineString | BoundaryType::None => {
+                Err(error::Error::IncompatibleBoundary(
+                    self.boundary.check_type().to_string(),
+                    BoundaryType::MultiOrCompositeSurface.to_string(),
+                ))
+            }
+        }
+    }
+
+    fn ensure_non_empty_surfaces(surface_indices: Vec<usize>) -> error::Result<Vec<usize>> {
+        if surface_indices.is_empty() {
+            return Err(error::Error::InvalidGeometry(
+                "cannot write a surface-backed boundary with no polygons as EWKB".to_owned(),
+            ));
+        }
+        Ok(surface_indices)
+    }
+
+    fn ensure_triangle_surface(&self, surface_index: usize) -> error::Result<()> {
+        let ring_range = self.ring_range_for_surface(surface_index)?;
+        if ring_range.len() != 1 {
+            return Err(error::Error::InvalidGeometry(
+                "TIN surfaces must contain exactly one ring".to_owned(),
+            ));
+        }
+
+        let vertex_range = self.vertex_range_for_ring(ring_range.start)?;
+        let coordinate_count = self.closed_ring_coordinate_count(vertex_range)?;
+        if coordinate_count != 4 {
+            return Err(error::Error::InvalidRing {
+                reason: "TIN triangle ring must contain exactly three distinct coordinates"
+                    .to_owned(),
+                vertex_count: coordinate_count,
+            });
+        }
+
+        Ok(())
+    }
+
+    fn vertex_range_for_ring(&self, ring_index: usize) -> error::Result<Range<usize>> {
+        let start = self.boundary.rings[ring_index].try_to_usize()?;
+        let end = self
+            .boundary
+            .rings
+            .get(ring_index + 1)
+            .map(VertexIndex::try_to_usize)
+            .transpose()?
+            .unwrap_or(self.boundary.vertices.len());
+        Ok(start..end)
+    }
+
+    fn ring_range_for_surface(&self, surface_index: usize) -> error::Result<Range<usize>> {
+        let start = self.boundary.surfaces[surface_index].try_to_usize()?;
+        let end = self
+            .boundary
+            .surfaces
+            .get(surface_index + 1)
+            .map(VertexIndex::try_to_usize)
+            .transpose()?
+            .unwrap_or(self.boundary.rings.len());
+        Ok(start..end)
+    }
+
+    fn surface_range_for_shell(&self, shell_index: usize) -> error::Result<Range<usize>> {
+        let start = self.boundary.shells[shell_index].try_to_usize()?;
+        let end = self
+            .boundary
+            .shells
+            .get(shell_index + 1)
+            .map(VertexIndex::try_to_usize)
+            .transpose()?
+            .unwrap_or(self.boundary.surfaces.len());
+        Ok(start..end)
+    }
+
+    fn shell_range_for_solid(&self, solid_index: usize) -> error::Result<Range<usize>> {
+        let start = self.boundary.solids[solid_index].try_to_usize()?;
+        let end = self
+            .boundary
+            .solids
+            .get(solid_index + 1)
+            .map(VertexIndex::try_to_usize)
+            .transpose()?
+            .unwrap_or(self.boundary.shells.len());
+        Ok(start..end)
+    }
+
+    fn closed_ring_coordinate_count(&self, vertex_range: Range<usize>) -> error::Result<usize> {
+        if vertex_range.len() < 3 {
+            return Err(error::Error::InvalidRing {
+                reason: "polygon ring must contain at least three vertices".to_owned(),
+                vertex_count: vertex_range.len(),
+            });
+        }
+
+        let coordinate_count = if self.ring_is_already_closed(vertex_range.clone()) {
+            vertex_range.len()
+        } else {
+            vertex_range.len() + 1
+        };
+
+        if coordinate_count < 4 {
+            return Err(error::Error::InvalidRing {
+                reason: "closed EWKB polygon ring must contain at least four coordinates"
+                    .to_owned(),
+                vertex_count: coordinate_count,
+            });
+        }
+
+        Ok(coordinate_count)
+    }
+
+    fn ring_is_already_closed(&self, vertex_range: Range<usize>) -> bool {
+        self.boundary.vertices[vertex_range.start] == self.boundary.vertices[vertex_range.end - 1]
+    }
+
+    fn write_coordinate(&mut self, vertex_index: VertexIndex<VR>) -> error::Result<()> {
+        let coordinate =
+            self.vertices
+                .get(vertex_index)
+                .ok_or_else(|| error::Error::InvalidReference {
+                    element_type: "vertex".to_owned(),
+                    index: vertex_index.to_usize(),
+                    max_index: self.vertices.len().saturating_sub(1),
+                })?;
+
+        self.write_f64(coordinate.x());
+        self.write_f64(coordinate.y());
+        self.write_f64(coordinate.z());
+        Ok(())
+    }
+
+    fn write_header(&mut self, geometry_type: u32, include_srid: bool) {
+        let mut type_code = geometry_type | EWKB_Z_FLAG;
+        if include_srid && self.srid.is_some() {
+            type_code |= EWKB_SRID_FLAG;
+        }
+
+        self.bytes.push(LITTLE_ENDIAN);
+        self.bytes.extend_from_slice(&type_code.to_le_bytes());
+        if include_srid && let Some(srid) = self.srid {
+            self.bytes.extend_from_slice(&srid.to_le_bytes());
+        }
+    }
+
+    fn write_count(&mut self, count: usize) -> error::Result<()> {
+        self.bytes
+            .extend_from_slice(&count_to_u32(count)?.to_le_bytes());
+        Ok(())
+    }
+
+    fn write_f64(&mut self, value: f64) {
+        self.bytes.extend_from_slice(&value.to_le_bytes());
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct EwkbHeader {
+    geometry_type: u32,
+    srid: Option<u32>,
+}
+
+struct EwkbReader<'a> {
+    bytes: &'a [u8],
+    offset: usize,
+}
+
+impl<'a> EwkbReader<'a> {
+    fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, offset: 0 }
+    }
+
+    fn read<VR: VertexRef>(
+        mut self,
+        target_boundary_type: BoundaryType,
+    ) -> error::Result<EwkbBoundary<VR>> {
+        let header = self.read_header(true)?;
+        let (boundary, vertices, ewkb_type) = match header.geometry_type {
+            EWKB_MULTI_POINT => {
+                Self::ensure_target(target_boundary_type, BoundaryType::MultiPoint)?;
+                let (boundary, vertices) = self.read_multi_point()?;
+                (boundary, vertices, EwkbType::MultiPoint)
+            }
+            EWKB_MULTI_LINE_STRING => {
+                Self::ensure_target(target_boundary_type, BoundaryType::MultiLineString)?;
+                let (boundary, vertices) = self.read_multi_line_string()?;
+                (boundary, vertices, EwkbType::MultiLineString)
+            }
+            EWKB_MULTI_POLYGON => {
+                let (boundary, vertices) =
+                    self.read_multi_polygon(EWKB_POLYGON, "MultiPolygonZ")?;
+                (
+                    wrap_surface_boundary(boundary, target_boundary_type)?,
+                    vertices,
+                    EwkbType::MultiPolygon,
+                )
+            }
+            EWKB_POLYHEDRAL_SURFACE => {
+                let (boundary, vertices) =
+                    self.read_multi_polygon(EWKB_POLYGON, "PolyhedralSurfaceZ")?;
+                (
+                    wrap_surface_boundary(boundary, target_boundary_type)?,
+                    vertices,
+                    EwkbType::PolyhedralSurface,
+                )
+            }
+            EWKB_TIN => {
+                let (boundary, vertices) = self.read_multi_polygon(EWKB_TRIANGLE, "TINZ")?;
+                (
+                    wrap_surface_boundary(boundary, target_boundary_type)?,
+                    vertices,
+                    EwkbType::Tin,
+                )
+            }
+            EWKB_TRIANGLE => return Err(invalid_ewkb("top-level TriangleZ is not supported")),
+            EWKB_POINT | EWKB_LINE_STRING | EWKB_POLYGON => {
+                return Err(invalid_ewkb(
+                    "top-level singular geometries are not supported",
+                ));
+            }
+            _ => return Err(unsupported_ewkb_type(header.geometry_type)),
+        };
+
+        if self.offset != self.bytes.len() {
+            return Err(invalid_ewkb("trailing bytes after geometry"));
+        }
+
+        Ok(EwkbBoundary {
+            boundary,
+            vertices,
+            ewkb_type,
+            srid: header.srid,
+        })
+    }
+
+    fn ensure_target(found: BoundaryType, expected: BoundaryType) -> error::Result<()> {
+        if found != expected {
+            return Err(error::Error::IncompatibleBoundary(
+                found.to_string(),
+                expected.to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn read_multi_point<VR: VertexRef>(
+        &mut self,
+    ) -> error::Result<(Boundary<VR>, Vertices<VR, RealWorldCoordinate>)> {
+        let point_count = self.read_non_empty_count("MultiPointZ")?;
+        let mut boundary = Boundary::new();
+        let mut vertices = Vertices::new();
+
+        for _ in 0..point_count {
+            self.expect_header(EWKB_POINT, "MultiPointZ child")?;
+            let coordinate = self.read_coordinate()?;
+            let vertex_index = vertices.push(coordinate)?;
+            boundary.vertices.push(vertex_index);
+        }
+
+        Ok((boundary, vertices))
+    }
+
+    fn read_multi_line_string<VR: VertexRef>(
+        &mut self,
+    ) -> error::Result<(Boundary<VR>, Vertices<VR, RealWorldCoordinate>)> {
+        let line_string_count = self.read_non_empty_count("MultiLineStringZ")?;
+        let mut boundary = Boundary::new();
+        let mut vertices = Vertices::new();
+
+        for _ in 0..line_string_count {
+            self.expect_header(EWKB_LINE_STRING, "MultiLineStringZ child")?;
+            push_offset(&mut boundary.rings, boundary.vertices.len())?;
+
+            let coordinate_count = self.read_count()?;
+            self.ensure_remaining_coordinates(coordinate_count)?;
+            for _ in 0..coordinate_count {
+                let coordinate = self.read_coordinate()?;
+                let vertex_index = vertices.push(coordinate)?;
+                boundary.vertices.push(vertex_index);
+            }
+        }
+
+        Ok((boundary, vertices))
+    }
+
+    fn read_multi_polygon<VR: VertexRef>(
+        &mut self,
+        child_type: u32,
+        geometry_name: &str,
+    ) -> error::Result<(Boundary<VR>, Vertices<VR, RealWorldCoordinate>)> {
+        let polygon_count = self.read_non_empty_count(geometry_name)?;
+        let mut boundary = Boundary::new();
+        let mut vertices = Vertices::new();
+
+        for _ in 0..polygon_count {
+            self.expect_header(child_type, geometry_name)?;
+            let ring_count = self.read_count()?;
+            if ring_count == 0 {
+                return Err(invalid_ewkb("polygon child must contain at least one ring"));
+            }
+            if child_type == EWKB_TRIANGLE && ring_count != 1 {
+                return Err(invalid_ewkb(
+                    "TIN TriangleZ child must contain exactly one ring",
+                ));
+            }
+
+            push_offset(&mut boundary.surfaces, boundary.rings.len())?;
+            for _ in 0..ring_count {
+                push_offset(&mut boundary.rings, boundary.vertices.len())?;
+                let vertex_count = self.read_polygon_ring(&mut boundary, &mut vertices)?;
+                if child_type == EWKB_TRIANGLE && vertex_count != 3 {
+                    return Err(error::Error::InvalidRing {
+                        reason: "TIN TriangleZ child must contain exactly three vertices"
+                            .to_owned(),
+                        vertex_count,
+                    });
+                }
+            }
+        }
+
+        Ok((boundary, vertices))
+    }
+
+    fn read_polygon_ring<VR: VertexRef>(
+        &mut self,
+        boundary: &mut Boundary<VR>,
+        vertices: &mut Vertices<VR, RealWorldCoordinate>,
+    ) -> error::Result<usize> {
+        let coordinate_count = self.read_count()?;
+        if coordinate_count < 4 {
+            return Err(error::Error::InvalidRing {
+                reason: "EWKB polygon ring must contain at least four coordinates".to_owned(),
+                vertex_count: coordinate_count,
+            });
+        }
+
+        self.ensure_remaining_coordinates(coordinate_count)?;
+        let first_coordinate = self.read_coordinate()?;
+        let first_vertex_index = vertices.push(first_coordinate)?;
+        boundary.vertices.push(first_vertex_index);
+
+        for _ in 1..coordinate_count - 1 {
+            let coordinate = self.read_coordinate()?;
+            let vertex_index = vertices.push(coordinate)?;
+            boundary.vertices.push(vertex_index);
+        }
+
+        let closing_coordinate = self.read_coordinate()?;
+        if closing_coordinate != first_coordinate {
+            return Err(error::Error::InvalidRing {
+                reason: "EWKB polygon ring is not closed".to_owned(),
+                vertex_count: coordinate_count,
+            });
+        }
+
+        Ok(coordinate_count - 1)
+    }
+
+    fn read_header(&mut self, allow_srid: bool) -> error::Result<EwkbHeader> {
+        let byte_order = self.read_u8()?;
+        if byte_order != LITTLE_ENDIAN {
+            return Err(invalid_ewkb("only little-endian byte order is supported"));
+        }
+
+        let type_code = self.read_u32()?;
+        if type_code & EWKB_Z_FLAG == 0 {
+            return Err(invalid_ewkb("only XYZ EWKB geometries are supported"));
+        }
+        if type_code & EWKB_M_FLAG != 0 {
+            return Err(invalid_ewkb("M coordinates are not supported"));
+        }
+        if type_code & EWKB_SRID_FLAG != 0 && !allow_srid {
+            return Err(invalid_ewkb(
+                "child geometries must not contain SRID metadata",
+            ));
+        }
+
+        let srid = if type_code & EWKB_SRID_FLAG != 0 {
+            Some(self.read_u32()?)
+        } else {
+            None
+        };
+
+        Ok(EwkbHeader {
+            geometry_type: type_code & !EWKB_FLAG_MASK,
+            srid,
+        })
+    }
+
+    fn expect_header(&mut self, expected: u32, context: &str) -> error::Result<()> {
+        let found = self.read_header(false)?;
+        if found.geometry_type != expected {
+            return Err(invalid_ewkb(format!(
+                "{context} has type {}, expected {expected}",
+                found.geometry_type
+            )));
+        }
+        Ok(())
+    }
+
+    fn read_non_empty_count(&mut self, geometry_name: &str) -> error::Result<usize> {
+        let count = self.read_count()?;
+        if count == 0 {
+            return Err(invalid_ewkb(format!(
+                "{geometry_name} must contain at least one child geometry"
+            )));
+        }
+        Ok(count)
+    }
+
+    fn read_count(&mut self) -> error::Result<usize> {
+        u32_to_usize(self.read_u32()?)
+    }
+
+    fn read_coordinate(&mut self) -> error::Result<RealWorldCoordinate> {
+        let x = self.read_f64()?;
+        let y = self.read_f64()?;
+        let z = self.read_f64()?;
+        Ok(RealWorldCoordinate::new(x, y, z))
+    }
+
+    fn ensure_remaining_coordinates(&self, coordinate_count: usize) -> error::Result<()> {
+        let Some(byte_count) = coordinate_count.checked_mul(COORDINATE_Z_BYTES) else {
+            return Err(invalid_ewkb("coordinate byte count overflows usize"));
+        };
+
+        if self.bytes.len().saturating_sub(self.offset) < byte_count {
+            return Err(invalid_ewkb("truncated coordinate sequence"));
+        }
+
+        Ok(())
+    }
+
+    fn read_u8(&mut self) -> error::Result<u8> {
+        let byte = *self
+            .bytes
+            .get(self.offset)
+            .ok_or_else(|| invalid_ewkb("truncated byte-order marker"))?;
+        self.offset += 1;
+        Ok(byte)
+    }
+
+    fn read_u32(&mut self) -> error::Result<u32> {
+        Ok(u32::from_le_bytes(self.read_array()?))
+    }
+
+    fn read_f64(&mut self) -> error::Result<f64> {
+        Ok(f64::from_le_bytes(self.read_array()?))
+    }
+
+    fn read_array<const N: usize>(&mut self) -> error::Result<[u8; N]> {
+        let end = self
+            .offset
+            .checked_add(N)
+            .ok_or_else(|| invalid_ewkb("byte offset overflows usize"))?;
+        let slice = self
+            .bytes
+            .get(self.offset..end)
+            .ok_or_else(|| invalid_ewkb("truncated EWKB payload"))?;
+
+        let mut array = [0; N];
+        array.copy_from_slice(slice);
+        self.offset = end;
+        Ok(array)
+    }
+}
+
+fn wrap_surface_boundary<VR: VertexRef>(
+    mut boundary: Boundary<VR>,
+    target_boundary_type: BoundaryType,
+) -> error::Result<Boundary<VR>> {
+    match target_boundary_type {
+        BoundaryType::MultiOrCompositeSurface => Ok(boundary),
+        BoundaryType::Solid => {
+            push_offset(&mut boundary.shells, 0)?;
+            Ok(boundary)
+        }
+        BoundaryType::MultiOrCompositeSolid => {
+            push_offset(&mut boundary.shells, 0)?;
+            push_offset(&mut boundary.solids, 0)?;
+            Ok(boundary)
+        }
+        BoundaryType::MultiPoint | BoundaryType::MultiLineString | BoundaryType::None => {
+            Err(error::Error::IncompatibleBoundary(
+                BoundaryType::MultiOrCompositeSurface.to_string(),
+                target_boundary_type.to_string(),
+            ))
+        }
+    }
+}
+
 fn count_to_u32(count: usize) -> error::Result<u32> {
     u32::try_from(count).map_err(|_| error::Error::IndexConversion {
         source_type: "usize".to_owned(),
@@ -617,8 +1373,18 @@ fn unsupported_wkb_type(geometry_type: u32) -> error::Error {
     invalid_wkb(format!("unsupported ISO WKB geometry type {geometry_type}"))
 }
 
+fn unsupported_ewkb_type(geometry_type: u32) -> error::Error {
+    invalid_ewkb(format!(
+        "unsupported PostGIS EWKB geometry type {geometry_type}"
+    ))
+}
+
 fn invalid_wkb(message: impl Into<String>) -> error::Error {
     error::Error::InvalidGeometry(format!("invalid WKB: {}", message.into()))
+}
+
+fn invalid_ewkb(message: impl Into<String>) -> error::Error {
+    error::Error::InvalidGeometry(format!("invalid EWKB: {}", message.into()))
 }
 
 fn estimated_wkb_size<VR: VertexRef>(boundary: &Boundary<VR>) -> usize {
@@ -821,6 +1587,11 @@ mod tests {
     fn assert_invalid_ring(bytes: &[u8]) {
         let error = Boundary::<u32>::from_wkb(bytes).unwrap_err();
         assert!(matches!(error, error::Error::InvalidRing { .. }));
+    }
+
+    fn assert_invalid_ewkb(bytes: &[u8]) {
+        let error = Boundary::<u32>::from_ewkb(bytes, BoundaryType::MultiPoint).unwrap_err();
+        assert!(matches!(error, error::Error::InvalidGeometry(_)));
     }
 
     #[test]
@@ -1212,5 +1983,134 @@ mod tests {
         wkb.push(0);
 
         assert_invalid_geometry(&wkb);
+    }
+
+    #[test]
+    fn writes_ewkb_multipoint_with_optional_srid() {
+        let bytes = test_cases::multipoint_repeated_refs()
+            .to_ewkb(&test_cases::vertices(), EwkbType::MultiPoint, Some(7415))
+            .unwrap();
+        let mut offset = 0;
+
+        assert_eq!(
+            read_header(&bytes, &mut offset),
+            EWKB_Z_FLAG | EWKB_SRID_FLAG | EWKB_MULTI_POINT
+        );
+        assert_eq!(read_u32(&bytes, &mut offset), 7415);
+        assert_eq!(read_u32(&bytes, &mut offset), 4);
+        assert_eq!(read_header(&bytes, &mut offset), EWKB_Z_FLAG | EWKB_POINT);
+
+        let parsed = Boundary::<u32>::from_ewkb(&bytes, BoundaryType::MultiPoint).unwrap();
+        assert_eq!(parsed.ewkb_type, EwkbType::MultiPoint);
+        assert_eq!(parsed.srid, Some(7415));
+        assert_eq!(parsed.boundary.check_type(), BoundaryType::MultiPoint);
+    }
+
+    #[test]
+    fn writes_and_reads_ewkb_polyhedral_surface() {
+        let bytes = test_cases::multi_surface_two_polygons()
+            .to_ewkb(&test_cases::vertices(), EwkbType::PolyhedralSurface, None)
+            .unwrap();
+        let mut offset = 0;
+
+        assert_eq!(
+            read_header(&bytes, &mut offset),
+            EWKB_Z_FLAG | EWKB_POLYHEDRAL_SURFACE
+        );
+        assert_eq!(read_u32(&bytes, &mut offset), 2);
+        assert_eq!(read_header(&bytes, &mut offset), EWKB_Z_FLAG | EWKB_POLYGON);
+
+        let parsed =
+            Boundary::<u32>::from_ewkb(&bytes, BoundaryType::MultiOrCompositeSurface).unwrap();
+        assert_eq!(parsed.ewkb_type, EwkbType::PolyhedralSurface);
+        assert_eq!(parsed.srid, None);
+        assert_eq!(
+            parsed.boundary.check_type(),
+            BoundaryType::MultiOrCompositeSurface
+        );
+    }
+
+    #[test]
+    fn wraps_ewkb_surface_input_as_requested_solid_boundary() {
+        let bytes = test_cases::multi_surface_two_polygons()
+            .to_ewkb(&test_cases::vertices(), EwkbType::MultiPolygon, None)
+            .unwrap();
+        let parsed = Boundary::<u32>::from_ewkb(&bytes, BoundaryType::Solid).unwrap();
+
+        assert_eq!(parsed.ewkb_type, EwkbType::MultiPolygon);
+        assert_eq!(parsed.boundary.check_type(), BoundaryType::Solid);
+        assert_eq!(raw_values(&parsed.boundary.shells), vec![0]);
+        assert!(parsed.boundary.solids.is_empty());
+    }
+
+    #[test]
+    fn writes_tin_as_triangle_children_but_rejects_top_level_triangle() {
+        let bytes = test_cases::surface_open_triangle()
+            .to_ewkb(&test_cases::vertices(), EwkbType::Tin, Some(7415))
+            .unwrap();
+        let mut offset = 0;
+
+        assert_eq!(
+            read_header(&bytes, &mut offset),
+            EWKB_Z_FLAG | EWKB_SRID_FLAG | EWKB_TIN
+        );
+        assert_eq!(read_u32(&bytes, &mut offset), 7415);
+        assert_eq!(read_u32(&bytes, &mut offset), 1);
+        assert_eq!(
+            read_header(&bytes, &mut offset),
+            EWKB_Z_FLAG | EWKB_TRIANGLE
+        );
+
+        let parsed =
+            Boundary::<u32>::from_ewkb(&bytes, BoundaryType::MultiOrCompositeSurface).unwrap();
+        assert_eq!(parsed.ewkb_type, EwkbType::Tin);
+        assert_eq!(parsed.srid, Some(7415));
+
+        let mut triangle = Vec::new();
+        push_header(&mut triangle, EWKB_Z_FLAG | EWKB_TRIANGLE);
+        assert_invalid_ewkb(&triangle);
+    }
+
+    #[test]
+    fn rejects_invalid_tin_topology_on_write() {
+        let error = test_cases::surface_with_hole()
+            .to_ewkb(&test_cases::vertices(), EwkbType::Tin, None)
+            .unwrap_err();
+
+        assert!(matches!(error, error::Error::InvalidGeometry(_)));
+    }
+
+    #[test]
+    fn from_ewkb_rejects_iso_wkb_missing_z_and_m_flag() {
+        let iso_wkb = test_cases::multipoint_repeated_refs()
+            .to_wkb(&test_cases::vertices())
+            .unwrap();
+        assert_invalid_ewkb(&iso_wkb);
+
+        let mut measured = Vec::new();
+        push_header(&mut measured, EWKB_Z_FLAG | EWKB_M_FLAG | EWKB_MULTI_POINT);
+        assert_invalid_ewkb(&measured);
+    }
+
+    #[test]
+    fn from_ewkb_rejects_child_srid() {
+        let mut ewkb = Vec::new();
+        push_header(&mut ewkb, EWKB_Z_FLAG | EWKB_MULTI_POINT);
+        push_count(&mut ewkb, 1);
+        push_header(&mut ewkb, EWKB_Z_FLAG | EWKB_SRID_FLAG | EWKB_POINT);
+        push_count(&mut ewkb, 7415);
+        push_coordinate(&mut ewkb, [0.0, 0.0, 0.0]);
+
+        assert_invalid_ewkb(&ewkb);
+    }
+
+    #[test]
+    fn from_ewkb_rejects_incompatible_target_boundary_type() {
+        let bytes = test_cases::multi_surface_two_polygons()
+            .to_ewkb(&test_cases::vertices(), EwkbType::MultiPolygon, None)
+            .unwrap();
+        let error = Boundary::<u32>::from_ewkb(&bytes, BoundaryType::MultiPoint).unwrap_err();
+
+        assert!(matches!(error, error::Error::IncompatibleBoundary(_, _)));
     }
 }
