@@ -83,6 +83,8 @@ MSRV: `1.93`. Edition: `2024`. See
 [`docs/development.md`](docs/development.md) for the full development
 contract.
 
+The Starlight docs site now lives in `~/Development/citymodel-3dgi-nl`.
+
 ## Release flow
 
 From a clean `main` checkout:

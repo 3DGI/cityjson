@@ -1,9 +1,0 @@
-node_modules/
-dist/
-.astro/
-test-results/
-playwright-report/
-.generated/
-tools/__pycache__/
-src/data/
-src/content/
