@@ -62,7 +62,8 @@
 //! Coordinates are resolved lazily from the caller-provided vertex pool, so repeated vertex
 //! references remain repeated in the WKB output. Ring order, shell order, and surface order are
 //! preserved exactly. Polygon rings are written closed, as required by WKB, by repeating the first
-//! coordinate at the end when the internal `CityJSON` ring is open. Output is little-endian ISO
+//! coordinate at the end when the internal `CityJSON` ring is open, or when an already closed
+//! three-reference ring needs a fourth serialized coordinate. Output is little-endian ISO
 //! SQL/MM WKB using the 3D type codes (`PointZ = 1001` through `MultiPolygonZ = 1006`).
 
 use super::{Boundary, BoundaryType};
@@ -95,6 +96,29 @@ const EWKB_TRIANGLE: u32 = 17;
 const COORDINATE_Z_BYTES: usize = 3 * std::mem::size_of::<f64>();
 const WKB_HEADER_BYTES: usize = std::mem::size_of::<u8>() + std::mem::size_of::<u32>();
 const WKB_COUNT_BYTES: usize = std::mem::size_of::<u32>();
+
+#[derive(Debug, Eq, PartialEq)]
+struct SerializedRing {
+    coordinate_count: usize,
+    append_first_vertex: bool,
+}
+
+fn serialized_ring<VR: VertexRef>(vertices: &[VertexIndex<VR>]) -> error::Result<SerializedRing> {
+    if vertices.len() < 3 {
+        return Err(error::Error::InvalidRing {
+            reason: "polygon ring must contain at least three vertices".to_owned(),
+            vertex_count: vertices.len(),
+        });
+    }
+
+    let append_first_vertex = vertices.first() != vertices.last() || vertices.len() == 3;
+    let coordinate_count = vertices.len() + usize::from(append_first_vertex);
+
+    Ok(SerializedRing {
+        coordinate_count,
+        append_first_vertex,
+    })
+}
 
 /// `PostGIS` EWKB geometry type to write or parsed from input.
 #[derive(Clone, Copy, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
@@ -387,12 +411,12 @@ impl<'a, VR: VertexRef> WkbWriter<'a, VR> {
                 .transpose()?
                 .unwrap_or(self.boundary.vertices.len());
             let vertex_range = vertex_start..vertex_end;
-            let coordinate_count = self.closed_ring_coordinate_count(vertex_range.clone())?;
-            self.write_count(coordinate_count)?;
+            let ring = self.serialized_ring(vertex_range.clone())?;
+            self.write_count(ring.coordinate_count)?;
             for &vertex_index in &self.boundary.vertices[vertex_range.clone()] {
                 self.write_coordinate(vertex_index)?;
             }
-            if !self.ring_is_already_closed(vertex_range.clone()) {
+            if ring.append_first_vertex {
                 let first_vertex_index = self.boundary.vertices[vertex_range.start];
                 self.write_coordinate(first_vertex_index)?;
             }
@@ -401,32 +425,8 @@ impl<'a, VR: VertexRef> WkbWriter<'a, VR> {
         Ok(())
     }
 
-    fn closed_ring_coordinate_count(&self, vertex_range: Range<usize>) -> error::Result<usize> {
-        if vertex_range.len() < 3 {
-            return Err(error::Error::InvalidRing {
-                reason: "polygon ring must contain at least three vertices".to_owned(),
-                vertex_count: vertex_range.len(),
-            });
-        }
-
-        let coordinate_count = if self.ring_is_already_closed(vertex_range.clone()) {
-            vertex_range.len()
-        } else {
-            vertex_range.len() + 1
-        };
-
-        if coordinate_count < 4 {
-            return Err(error::Error::InvalidRing {
-                reason: "closed WKB polygon ring must contain at least four coordinates".to_owned(),
-                vertex_count: coordinate_count,
-            });
-        }
-
-        Ok(coordinate_count)
-    }
-
-    fn ring_is_already_closed(&self, vertex_range: Range<usize>) -> bool {
-        self.boundary.vertices[vertex_range.start] == self.boundary.vertices[vertex_range.end - 1]
+    fn serialized_ring(&self, vertex_range: Range<usize>) -> error::Result<SerializedRing> {
+        serialized_ring(&self.boundary.vertices[vertex_range])
     }
 
     fn write_coordinate(&mut self, vertex_index: VertexIndex<VR>) -> error::Result<()> {
@@ -799,12 +799,12 @@ impl<'a, VR: VertexRef> EwkbWriter<'a, VR> {
 
         for ring_index in ring_range {
             let vertex_range = self.vertex_range_for_ring(ring_index)?;
-            let coordinate_count = self.closed_ring_coordinate_count(vertex_range.clone())?;
-            self.write_count(coordinate_count)?;
+            let ring = self.serialized_ring(vertex_range.clone())?;
+            self.write_count(ring.coordinate_count)?;
             for &vertex_index in &self.boundary.vertices[vertex_range.clone()] {
                 self.write_coordinate(vertex_index)?;
             }
-            if !self.ring_is_already_closed(vertex_range.clone()) {
+            if ring.append_first_vertex {
                 let first_vertex_index = self.boundary.vertices[vertex_range.start];
                 self.write_coordinate(first_vertex_index)?;
             }
@@ -877,11 +877,10 @@ impl<'a, VR: VertexRef> EwkbWriter<'a, VR> {
         }
 
         let vertex_range = self.vertex_range_for_ring(ring_range.start)?;
-        let coordinate_count = self.closed_ring_coordinate_count(vertex_range)?;
+        let coordinate_count = self.serialized_ring(vertex_range)?.coordinate_count;
         if coordinate_count != 4 {
             return Err(error::Error::InvalidRing {
-                reason: "TIN triangle ring must contain exactly three distinct coordinates"
-                    .to_owned(),
+                reason: "TIN triangle ring must serialize to exactly four coordinates".to_owned(),
                 vertex_count: coordinate_count,
             });
         }
@@ -937,33 +936,8 @@ impl<'a, VR: VertexRef> EwkbWriter<'a, VR> {
         Ok(start..end)
     }
 
-    fn closed_ring_coordinate_count(&self, vertex_range: Range<usize>) -> error::Result<usize> {
-        if vertex_range.len() < 3 {
-            return Err(error::Error::InvalidRing {
-                reason: "polygon ring must contain at least three vertices".to_owned(),
-                vertex_count: vertex_range.len(),
-            });
-        }
-
-        let coordinate_count = if self.ring_is_already_closed(vertex_range.clone()) {
-            vertex_range.len()
-        } else {
-            vertex_range.len() + 1
-        };
-
-        if coordinate_count < 4 {
-            return Err(error::Error::InvalidRing {
-                reason: "closed EWKB polygon ring must contain at least four coordinates"
-                    .to_owned(),
-                vertex_count: coordinate_count,
-            });
-        }
-
-        Ok(coordinate_count)
-    }
-
-    fn ring_is_already_closed(&self, vertex_range: Range<usize>) -> bool {
-        self.boundary.vertices[vertex_range.start] == self.boundary.vertices[vertex_range.end - 1]
+    fn serialized_ring(&self, vertex_range: Range<usize>) -> error::Result<SerializedRing> {
+        serialized_ring(&self.boundary.vertices[vertex_range])
     }
 
     fn write_coordinate(&mut self, vertex_index: VertexIndex<VR>) -> error::Result<()> {
@@ -1476,6 +1450,17 @@ mod tests {
         indices.iter().map(VertexIndex::value).collect()
     }
 
+    fn surface_boundary_from_ring(ring: &[u32]) -> Boundary<u32> {
+        Boundary::from_parts(
+            ring.iter().copied().map(VertexIndex::new).collect(),
+            vec![VertexIndex::new(0)],
+            vec![VertexIndex::new(0)],
+            Vec::new(),
+            Vec::new(),
+        )
+        .unwrap()
+    }
+
     fn top_level_geometry_type(boundary: &Boundary<u32>) -> u32 {
         let bytes = boundary.to_wkb(&test_cases::vertices()).unwrap();
         let mut offset = 0;
@@ -1770,6 +1755,84 @@ mod tests {
         let polygons = polygon_rings(&bytes);
 
         assert_eq!(polygons[0][0].len(), 5);
+    }
+
+    #[test]
+    fn closed_three_reference_polygon_ring_gets_minimum_wkb_closure() {
+        let bytes = surface_boundary_from_ring(&[0, 1, 0])
+            .to_wkb(&test_cases::vertices())
+            .unwrap();
+        let polygons = polygon_rings(&bytes);
+        let ring = &polygons[0][0];
+
+        assert_eq!(ring.len(), 4);
+        assert_coordinate_eq(ring[0], [0.0, 0.0, 0.0]);
+        assert_coordinate_eq(ring[1], [1.5, 0.0, -2.0]);
+        assert_coordinate_eq(ring[2], [0.0, 0.0, 0.0]);
+        assert_coordinate_eq(ring[3], [0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn repeated_open_three_reference_polygon_ring_preserves_references() {
+        let bytes = surface_boundary_from_ring(&[0, 0, 1])
+            .to_wkb(&test_cases::vertices())
+            .unwrap();
+        let polygons = polygon_rings(&bytes);
+        let ring = &polygons[0][0];
+
+        assert_eq!(ring.len(), 4);
+        assert_coordinate_eq(ring[0], [0.0, 0.0, 0.0]);
+        assert_coordinate_eq(ring[1], [0.0, 0.0, 0.0]);
+        assert_coordinate_eq(ring[2], [1.5, 0.0, -2.0]);
+        assert_coordinate_eq(ring[3], [0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn closed_three_reference_tin_ring_gets_minimum_ewkb_closure() {
+        let bytes = surface_boundary_from_ring(&[0, 1, 0])
+            .to_ewkb(&test_cases::vertices(), EwkbType::Tin, Some(7415))
+            .unwrap();
+        let mut offset = 0;
+
+        assert_eq!(
+            read_header(&bytes, &mut offset),
+            EWKB_Z_FLAG | EWKB_SRID_FLAG | EWKB_TIN
+        );
+        assert_eq!(read_u32(&bytes, &mut offset), 7415);
+        assert_eq!(read_u32(&bytes, &mut offset), 1);
+        assert_eq!(
+            read_header(&bytes, &mut offset),
+            EWKB_Z_FLAG | EWKB_TRIANGLE
+        );
+        assert_eq!(read_u32(&bytes, &mut offset), 1);
+        assert_eq!(read_u32(&bytes, &mut offset), 4);
+        assert_coordinate_eq(read_coordinate(&bytes, &mut offset), [0.0, 0.0, 0.0]);
+        assert_coordinate_eq(read_coordinate(&bytes, &mut offset), [1.5, 0.0, -2.0]);
+        assert_coordinate_eq(read_coordinate(&bytes, &mut offset), [0.0, 0.0, 0.0]);
+        assert_coordinate_eq(read_coordinate(&bytes, &mut offset), [0.0, 0.0, 0.0]);
+        assert_eq!(offset, bytes.len());
+    }
+
+    #[test]
+    fn repeated_open_three_reference_tin_ring_preserves_references() {
+        let bytes = surface_boundary_from_ring(&[0, 0, 1])
+            .to_ewkb(&test_cases::vertices(), EwkbType::Tin, None)
+            .unwrap();
+        let mut offset = 0;
+
+        assert_eq!(read_header(&bytes, &mut offset), EWKB_Z_FLAG | EWKB_TIN);
+        assert_eq!(read_u32(&bytes, &mut offset), 1);
+        assert_eq!(
+            read_header(&bytes, &mut offset),
+            EWKB_Z_FLAG | EWKB_TRIANGLE
+        );
+        assert_eq!(read_u32(&bytes, &mut offset), 1);
+        assert_eq!(read_u32(&bytes, &mut offset), 4);
+        assert_coordinate_eq(read_coordinate(&bytes, &mut offset), [0.0, 0.0, 0.0]);
+        assert_coordinate_eq(read_coordinate(&bytes, &mut offset), [0.0, 0.0, 0.0]);
+        assert_coordinate_eq(read_coordinate(&bytes, &mut offset), [1.5, 0.0, -2.0]);
+        assert_coordinate_eq(read_coordinate(&bytes, &mut offset), [0.0, 0.0, 0.0]);
+        assert_eq!(offset, bytes.len());
     }
 
     #[test]
