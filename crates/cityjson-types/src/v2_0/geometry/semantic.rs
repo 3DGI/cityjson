@@ -47,6 +47,7 @@ use crate::resources::handles::SemanticHandle;
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 use crate::v2_0::attributes::Attributes;
 use std::fmt::{Display, Formatter};
+use crate::v2_0::CityObjectType;
 
 pub type OwnedSemantic = Semantic<OwnedStringStorage>;
 pub type BorrowedSemantic<'a> = Semantic<BorrowedStringStorage<'a>>;
@@ -162,7 +163,11 @@ pub enum SemanticType<SS: StringStorage> {
 
 impl<SS: StringStorage> Display for SemanticType<SS> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
+        if let SemanticType::Extension(ext) = self {
+            write!(f, "{ext}")
+        } else {
+            write!(f, "{self:#?}")
+        }
     }
 }
 
