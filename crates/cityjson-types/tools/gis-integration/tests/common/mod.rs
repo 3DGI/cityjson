@@ -1,7 +1,7 @@
 use cityjson_types::v2_0::{
     Boundary, BoundaryNestedMultiLineString32, BoundaryNestedMultiOrCompositeSolid32,
     BoundaryNestedMultiOrCompositeSurface32, BoundaryNestedMultiPoint32, BoundaryNestedSolid32,
-    EwkbType, RealWorldCoordinate, Vertices,
+    EwkbType, EwktType, RealWorldCoordinate, Vertices,
 };
 
 #[allow(dead_code)]
@@ -20,6 +20,10 @@ impl Case {
         Ok(self.boundary.to_wkb(&vertices())?)
     }
 
+    pub fn wkt(&self) -> anyhow::Result<String> {
+        Ok(self.boundary.to_wkt(&vertices())?)
+    }
+
     #[allow(dead_code)]
     pub fn ewkb(&self, srid: Option<u32>) -> anyhow::Result<Vec<u8>> {
         let ewkb_type = match self.boundary.check_type() {
@@ -32,6 +36,18 @@ impl Case {
             boundary_type => anyhow::bail!("unsupported EWKB boundary type: {boundary_type:?}"),
         };
         Ok(self.boundary.to_ewkb(&vertices(), ewkb_type, srid)?)
+    }
+
+    #[allow(dead_code)]
+    pub fn ewkt(&self, srid: Option<u32>) -> anyhow::Result<String> {
+        let ewkt_type = match self.boundary.check_type() {
+            cityjson_types::v2_0::BoundaryType::MultiPoint => EwktType::MultiPoint,
+            cityjson_types::v2_0::BoundaryType::MultiLineString => EwktType::MultiLineString,
+            cityjson_types::v2_0::BoundaryType::MultiOrCompositeSurface | cityjson_types::v2_0::BoundaryType::Solid | cityjson_types::v2_0::BoundaryType::MultiOrCompositeSolid => EwktType::MultiPolygon,
+            cityjson_types::v2_0::BoundaryType::None => anyhow::bail!("empty boundary"),
+            boundary_type => anyhow::bail!("unsupported EWKT boundary type: {boundary_type:?}"),
+        };
+        Ok(self.boundary.to_ewkt(&vertices(), ewkt_type, srid)?)
     }
 }
 

@@ -96,3 +96,37 @@ fn postgis_loads_and_roundtrips_cityjson_ewkb() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn postgis_loads_and_roundtrips_cityjson_wkt() -> anyhow::Result<()> {
+    let mut client = Client::connect(&cityjson_types_gis_integration::database_url(), NoTls)?;
+    client.batch_execute("CREATE EXTENSION IF NOT EXISTS postgis")?;
+    for case in common::cases() {
+        let wkt = case.wkt()?;
+        let row = client.query_one("WITH geom AS (SELECT ST_GeomFromText($1) AS g) SELECT ST_GeometryType(g) AS geometry_type, ST_NDims(g)::integer AS ndims, ST_NumGeometries(g)::integer AS geometries, ST_AsText(g) AS roundtrip_wkt FROM geom", &[&wkt])?;
+        assert_eq!(row.get::<_, String>("geometry_type"), case.expected_type, "{}", case.name);
+        assert_eq!(row.get::<_, i32>("ndims"), case.expected_ndims, "{}", case.name);
+        assert_eq!(row.get::<_, i32>("geometries"), case.expected_geometries, "{}", case.name);
+        let (boundary, vertices) = Boundary::<u32>::from_wkt(&row.get::<_, String>("roundtrip_wkt"))?;
+        assert_eq!(boundary.to_wkt(&vertices)?, wkt, "{}", case.name);
+    }
+    Ok(())
+}
+
+#[test]
+fn postgis_loads_and_roundtrips_cityjson_ewkt() -> anyhow::Result<()> {
+    let mut client = Client::connect(&cityjson_types_gis_integration::database_url(), NoTls)?;
+    client.batch_execute("CREATE EXTENSION IF NOT EXISTS postgis")?;
+    for case in common::cases() {
+        let ewkt = case.ewkt(Some(7415))?;
+        let row = client.query_one("WITH geom AS (SELECT ST_GeomFromEWKT($1) AS g) SELECT ST_GeometryType(g) AS geometry_type, ST_NDims(g)::integer AS ndims, ST_NumGeometries(g)::integer AS geometries, ST_SRID(g)::integer AS srid, ST_AsEWKT(g) AS roundtrip_ewkt FROM geom", &[&ewkt])?;
+        assert_eq!(row.get::<_, String>("geometry_type"), case.expected_type, "{}", case.name);
+        assert_eq!(row.get::<_, i32>("ndims"), case.expected_ndims, "{}", case.name);
+        assert_eq!(row.get::<_, i32>("geometries"), case.expected_geometries, "{}", case.name);
+        assert_eq!(row.get::<_, i32>("srid"), 7415, "{}", case.name);
+        let parsed = Boundary::<u32>::from_ewkt(&row.get::<_, String>("roundtrip_ewkt"), case.boundary.check_type())?;
+        assert_eq!(parsed.srid, Some(7415), "{}", case.name);
+        assert_eq!(parsed.boundary.to_ewkt(&parsed.vertices, parsed.ewkt_type, parsed.srid)?, ewkt, "{}", case.name);
+    }
+    Ok(())
+}
