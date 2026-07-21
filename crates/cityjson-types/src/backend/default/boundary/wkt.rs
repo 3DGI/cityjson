@@ -94,6 +94,7 @@ impl<VR: VertexRef> Boundary<VR> {
     }
 }
 
+/// Serializes a boundary using the selected ISO WKT or EWKT dialect.
 fn write<VR: VertexRef>(
     b: &Boundary<VR>,
     v: &Vertices<VR, RealWorldCoordinate>,
@@ -201,6 +202,7 @@ fn write<VR: VertexRef>(
     }
     Ok(out)
 }
+/// Returns surface indices in their flattened `CityJSON` traversal order.
 fn flattened_surfaces<VR: VertexRef>(b: &Boundary<VR>) -> error::Result<Vec<usize>> {
     let mut out = Vec::new();
     match b.check_type() {
@@ -225,6 +227,7 @@ fn flattened_surfaces<VR: VertexRef>(b: &Boundary<VR>) -> error::Result<Vec<usiz
         Ok(out)
     }
 }
+/// Resolves one implicit-end offset entry into a child range.
 fn part<VR: VertexRef>(
     offsets: &[VertexIndex<VR>],
     len: usize,
@@ -237,6 +240,7 @@ fn part<VR: VertexRef>(
             .transpose()?
             .unwrap_or(len))
 }
+/// Validates a `CityJSON` ring and returns its serialized closed length.
 fn closed_len<VR: VertexRef>(ring: &[VertexIndex<VR>]) -> error::Result<usize> {
     if ring.len() < 3 {
         Err(error::Error::InvalidRing {
@@ -247,6 +251,7 @@ fn closed_len<VR: VertexRef>(ring: &[VertexIndex<VR>]) -> error::Result<usize> {
         Ok(ring.len() + usize::from(ring.first() != ring.last() || ring.len() == 3))
     }
 }
+/// Writes one coordinate sequence, optionally appending its closing coordinate.
 fn sequence<VR: VertexRef>(
     out: &mut String,
     vertices: &Vertices<VR, RealWorldCoordinate>,
@@ -274,6 +279,7 @@ fn sequence<VR: VertexRef>(
     out.push(')');
     Ok(())
 }
+/// Resolves and appends one finite XYZ coordinate.
 fn coord<VR: VertexRef>(
     out: &mut String,
     vertices: &Vertices<VR, RealWorldCoordinate>,
@@ -298,6 +304,7 @@ fn coord<VR: VertexRef>(
     Ok(())
 }
 
+/// Parses ISO WKT or EWKT and rebuilds a boundary plus vertex pool.
 fn parse<VR: VertexRef>(
     text: &str,
     iso: bool,
@@ -393,17 +400,20 @@ struct TextParser<'a> {
     p: usize,
 }
 impl<'a> TextParser<'a> {
+    /// Creates a parser over the geometry body after its header.
     fn new(s: &'a str) -> Self {
         Self {
             s: s.as_bytes(),
             p: 0,
         }
     }
+    /// Consumes ASCII whitespace.
     fn ws(&mut self) {
         while self.s.get(self.p).is_some_and(u8::is_ascii_whitespace) {
             self.p += 1;
         }
     }
+    /// Consumes a punctuation byte when it appears after optional whitespace.
     fn take(&mut self, c: u8) -> bool {
         self.ws();
         if self.s.get(self.p) == Some(&c) {
@@ -413,6 +423,7 @@ impl<'a> TextParser<'a> {
             false
         }
     }
+    /// Requires a punctuation byte at the current parser position.
     fn need(&mut self, c: u8) -> error::Result<()> {
         if self.take(c) {
             Ok(())
@@ -420,6 +431,7 @@ impl<'a> TextParser<'a> {
             Err(invalid("malformed WKT"))
         }
     }
+    /// Parses one finite floating-point coordinate component.
     fn number(&mut self) -> error::Result<f64> {
         self.ws();
         let start = self.p;
@@ -440,6 +452,7 @@ impl<'a> TextParser<'a> {
             Err(invalid("non-finite coordinate"))
         }
     }
+    /// Parses one XYZ coordinate tuple.
     fn c(&mut self) -> error::Result<RealWorldCoordinate> {
         Ok(RealWorldCoordinate::new(
             self.number()?,
@@ -447,6 +460,7 @@ impl<'a> TextParser<'a> {
             self.number()?,
         ))
     }
+    /// Parses either supported `MULTIPOINT` coordinate spelling.
     fn points<VR: VertexRef>(
         &mut self,
     ) -> error::Result<(Boundary<VR>, Vertices<VR, RealWorldCoordinate>)> {
@@ -466,6 +480,7 @@ impl<'a> TextParser<'a> {
         self.need(b')')?;
         Ok((b, v))
     }
+    /// Parses all line-string coordinate sequences.
     fn lines<VR: VertexRef>(
         &mut self,
     ) -> error::Result<(Boundary<VR>, Vertices<VR, RealWorldCoordinate>)> {
@@ -489,6 +504,7 @@ impl<'a> TextParser<'a> {
         self.need(b')')?;
         Ok((b, v))
     }
+    /// Parses polygon rings and validates optional TIN triangle topology.
     fn polygons<VR: VertexRef>(
         &mut self,
         tin: bool,
@@ -539,6 +555,7 @@ impl<'a> TextParser<'a> {
         self.need(b')')?;
         Ok((b, v))
     }
+    /// Rejects non-whitespace trailing input.
     fn end(&mut self) -> error::Result<()> {
         self.ws();
         if self.p == self.s.len() {
@@ -548,6 +565,7 @@ impl<'a> TextParser<'a> {
         }
     }
 }
+/// Builds a contextual invalid-WKT geometry error.
 fn invalid(message: impl Into<String>) -> error::Error {
     error::Error::InvalidGeometry(format!("invalid WKT: {}", message.into()))
 }
