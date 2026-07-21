@@ -45,9 +45,9 @@ use crate::cityjson::core::semantic::SemanticTypeTrait;
 use crate::format_option;
 use crate::resources::handles::SemanticHandle;
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
+use crate::v2_0::CityObjectType;
 use crate::v2_0::attributes::Attributes;
 use std::fmt::{Display, Formatter};
-use crate::v2_0::CityObjectType;
 
 pub type OwnedSemantic = Semantic<OwnedStringStorage>;
 pub type BorrowedSemantic<'a> = Semantic<BorrowedStringStorage<'a>>;
