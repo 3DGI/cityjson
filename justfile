@@ -43,7 +43,7 @@ test-gis:
         docker compose -f "$compose_file" down --volumes --remove-orphans
     }
     trap cleanup EXIT
-    docker compose -f "$compose_file" up --build --abort-on-container-exit --exit-code-from gis-tests
+    docker compose -f "$compose_file" up --build --remove-orphans --abort-on-container-exit --exit-code-from gis-tests
 
 # Build docs (nightly, docsrs cfg, deny warnings)
 doc:
