@@ -58,7 +58,9 @@ pub mod nested;
 #[cfg(test)]
 mod test_cases;
 mod wkb;
+mod wkt;
 pub use wkb::{EwkbBoundary, EwkbType};
+pub use wkt::{EwktBoundary, EwktType};
 
 use super::vertices::Vertices;
 use crate::cityjson::core::boundary::nested::{

@@ -1,6 +1,8 @@
 services:
   postgis:
     image: postgis/postgis:17-3.5
+    tmpfs:
+      - /var/lib/postgresql/data
     environment:
       POSTGRES_DB: cityjson_gis
       POSTGRES_USER: cityjson

@@ -135,7 +135,7 @@ fn feature_files_allow_duplicate_cityobject_keys() {
         2,
         "both duplicate CityObjects should be indexed"
     );
-    assert!(refs[0].record_id != refs[1].record_id);
+    assert_ne!(refs[0].record_id, refs[1].record_id);
     let mut package_model_ids = refs
         .iter()
         .map(|reference| {
