@@ -1,8 +1,9 @@
-//! WKB export for flattened `CityJSON` boundaries.
+//! WKB and EWKB encoding and decoding for flattened `CityJSON` boundaries.
 //!
-//! This module writes WKB directly from [`Boundary`] without building an intermediate geometry
-//! object. That is possible because the flattened boundary layout is already close to WKB's nested
-//! geometry layout: both describe the same hierarchy of points, lines, rings, and polygons, but
+//! This module encodes WKB/EWKB from, and decodes them to, [`Boundary`] directly without
+//! building an intermediate geometry object. That is possible because the flattened boundary
+//! layout is already close to WKB's nested geometry layout: both describe the same hierarchy of
+//! points, lines, rings, and polygons, but
 //! they count children differently.
 //!
 //! [`Boundary`] stores all vertex references in one flat `vertices` buffer and uses offset buffers
@@ -66,7 +67,7 @@
 //! three-reference ring needs a fourth serialized coordinate. Output is little-endian ISO
 //! SQL/MM WKB using the 3D type codes (`PointZ = 1001` through `MultiPolygonZ = 1006`).
 //!
-//! The [`super::wkt`] codec shares topology traversal, ring closing/opening, ordering,
+//! The [`super::wkt`] implementation shares topology traversal, ring closing/opening, ordering,
 //! repeated-reference handling, target-boundary reconstruction, and validation semantics.
 //! Only framing and coordinate encoding differ: WKB uses counted binary records and `f64`
 //! bytes, while WKT uses parentheses and finite decimal XYZ text.

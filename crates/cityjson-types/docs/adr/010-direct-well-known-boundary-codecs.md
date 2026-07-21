@@ -1,4 +1,4 @@
-# 010: Direct well-known boundary codecs
+# 010: Direct WKT/WKB boundary encoding and decoding
 
 Date: 2026-07-21
 
@@ -13,9 +13,10 @@ partitions vertex references, `surfaces` partitions rings, `shells` partitions
 surfaces, and `solids` partitions shells.
 
 Interoperability belongs in this foundation crate, where a third-party geometry
-model or codec would add a workspace-wide dependency, require intermediate geometry
-allocations, and impose another model's topology and dialect decisions. The
-flattened representation already contains everything required for direct codecs.
+model or geometry conversion library would add a workspace-wide dependency, require
+intermediate geometry allocations, and impose another model's topology and dialect decisions. The
+flattened representation already contains everything required for direct WKT/WKB
+encoding and decoding.
 
 ## Decision
 
@@ -27,7 +28,7 @@ records; WKT encodes them as parenthesis levels and comma-separated text. Routin
 WKT through WKB would allocate and immediately decode an unnecessary binary buffer
 and couple text formatting to irrelevant binary framing.
 
-Both codecs apply the same topology rules:
+Both format implementations apply the same topology rules:
 
 - points follow the vertex-reference buffer and lines follow ring ranges;
 - surfaces become polygons, retaining their ordered rings;
@@ -60,7 +61,7 @@ guessed at or converted lossily.
 
 ## Consequences
 
-The codecs are dependency-free and share topology behavior. WKB preserves finite
+The WKT/WKB implementations are dependency-free and share topology behavior. WKB preserves finite
 `f64` bits. WKT emits shortest round-trippable finite decimals: values round-trip,
 but original decimal spelling is lost, and other implementations need not preserve
 identical bits through decimal conversion.

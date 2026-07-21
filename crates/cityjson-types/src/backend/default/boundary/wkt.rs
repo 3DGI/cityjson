@@ -1,8 +1,8 @@
-//! WKT and EWKT conversion for flattened `CityJSON` boundaries.
+//! WKT and EWKT encoding and decoding for flattened `CityJSON` boundaries.
 //!
-//! This module converts [`Boundary`] and [`Vertices`] directly, without an
-//! intermediate geometry object, external codec, or WKB buffer. An offset starts a
-//! child whose end is the next offset or the child buffer's length. Each `rings`
+//! This module encodes and decodes [`Boundary`] and [`Vertices`] directly, without an
+//! intermediate geometry object, third-party geometry conversion library, or WKB buffer.
+//! An offset starts a child whose end is the next offset or the child buffer's length. Each `rings`
 //! range therefore becomes a coordinate-sequence parenthesis level, each `surfaces`
 //! range becomes the ring list inside a polygon, each `shells` range selects an
 //! ordered list of surfaces, and each `solids` range selects ordered shells.
