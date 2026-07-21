@@ -103,7 +103,8 @@ fn write<VR: VertexRef>(
     if !b.is_consistent() {
         return Err(invalid("inconsistent boundary offsets"));
     }
-    let kind = selected.unwrap_or(match b.check_type() {
+    let boundary_type = b.check_type();
+    let kind = selected.unwrap_or(match boundary_type {
         BoundaryType::MultiPoint => EwktType::MultiPoint,
         BoundaryType::MultiLineString => EwktType::MultiLineString,
         BoundaryType::MultiOrCompositeSurface
@@ -112,10 +113,10 @@ fn write<VR: VertexRef>(
         BoundaryType::None => return Err(invalid("empty boundary")),
     });
     let compatible = match kind {
-        EwktType::MultiPoint => b.check_type() == BoundaryType::MultiPoint,
-        EwktType::MultiLineString => b.check_type() == BoundaryType::MultiLineString,
+        EwktType::MultiPoint => boundary_type == BoundaryType::MultiPoint,
+        EwktType::MultiLineString => boundary_type == BoundaryType::MultiLineString,
         _ => matches!(
-            b.check_type(),
+            boundary_type,
             BoundaryType::MultiOrCompositeSurface
                 | BoundaryType::Solid
                 | BoundaryType::MultiOrCompositeSolid
@@ -123,7 +124,7 @@ fn write<VR: VertexRef>(
     };
     if !compatible {
         return Err(error::Error::IncompatibleBoundary(
-            b.check_type().to_string(),
+            boundary_type.to_string(),
             BoundaryType::MultiOrCompositeSurface.to_string(),
         ));
     }
