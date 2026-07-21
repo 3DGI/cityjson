@@ -1,18 +1,48 @@
 //! WKT and EWKT conversion for flattened `CityJSON` boundaries.
 //!
-//! This module converts [`Boundary`] values directly: flat `vertices`, `rings`,
-//! `surfaces`, `shells`, and `solids` offsets map straight to WKT parentheses,
-//! so no WKB buffer or external codec dependency is needed. `MultiPoint` and
-//! `MultiLineString` map directly; surface boundaries map to `MULTIPOLYGON Z`.
-//! ISO WKT has no `CityJSON` solid type, so solid shell grouping is flattened.
-//! EWKT accepts [`EwktType`] for `MULTIPOLYGON`, `POLYHEDRALSURFACE`, and `TIN`.
+//! This module converts [`Boundary`] and [`Vertices`] directly, without an
+//! intermediate geometry object, external codec, or WKB buffer. An offset starts a
+//! child whose end is the next offset or the child buffer's length. Each `rings`
+//! range therefore becomes a coordinate-sequence parenthesis level, each `surfaces`
+//! range becomes the ring list inside a polygon, each `shells` range selects an
+//! ordered list of surfaces, and each `solids` range selects ordered shells.
+//! `MultiPoint` uses the vertex-reference buffer directly; every ring range becomes
+//! one `MultiLineString` member.
 //!
-//! Coordinates preserve their boundary order and repeated references. Rings are
-//! written closed and parsed into `CityJSON`'s open-ring representation. ISO WKT
-//! uses `Z`; EWKT uses optional `SRID=<number>;` and `PostGIS`'s XYZ convention
-//! without `Z`. The parser is case-insensitive and accepts both MULTIPOINT
-//! spellings, while rejecting non-finite coordinates, malformed text, `EMPTY`,
-//! XY/M/ZM dimensions, singular geometry types, invalid rings, and trailing text.
+//! Surface boundaries map to `MULTIPOLYGON Z`. Since ISO WKT has no solid, solids
+//! flatten by ordered `solids -> shells -> surfaces` traversal (or
+//! `shells -> surfaces` for one solid), matching [`super::wkb`]'s polygon logic.
+//! EWKT takes an explicit [`EwktType`] so surface-backed boundaries can instead use
+//! `MULTIPOLYGON`, `POLYHEDRALSURFACE`, or `TIN` framing.
+//!
+//! This module and [`super::wkb`] share topology traversal, ring closing/opening,
+//! ordering, repeated-reference handling, target-boundary reconstruction, and
+//! validation semantics. Only framing and coordinate encoding differ: WKT uses
+//! parentheses and finite decimal XYZ; WKB uses counted records and `f64` bytes.
+//!
+//! ISO WKT uses explicit `Z`. EWKT uses an optional top-level `SRID=<number>;` and
+//! `PostGIS` XYZ without `Z`. Parsing is case-insensitive and accepts wrapped
+//! `MULTIPOINT` coordinates (`((x y z), ...)`) and unwrapped coordinates
+//! (`(x y z, ...)`). It rejects non-finite coordinates, malformed text, `EMPTY`,
+//! XY/M/ZM dimensions, singular types, invalid rings, and trailing text.
+//!
+//! # Example
+//!
+//! ```
+//! use cityjson_types::v2_0::{Boundary, BoundaryType};
+//!
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let text = "MULTIPOLYGON Z (((0 0 0,1 0 0,0 1 0,0 0 0)))";
+//!     let (boundary, vertices) = Boundary::<u32>::from_wkt(text)?;
+//!     assert_eq!(boundary.check_type(), BoundaryType::MultiOrCompositeSurface);
+//!     assert_eq!(
+//!         boundary.to_nested_multi_or_composite_surface()?,
+//!         vec![vec![vec![0, 1, 2]]],
+//!     );
+//!     assert_eq!(boundary.to_wkt(&vertices)?, text);
+//!     Ok(())
+//! }
+//! ```
 
 use super::{Boundary, BoundaryType};
 use crate::cityjson::core::coordinate::RealWorldCoordinate;

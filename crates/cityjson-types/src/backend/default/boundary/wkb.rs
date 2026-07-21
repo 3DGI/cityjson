@@ -65,6 +65,33 @@
 //! coordinate at the end when the internal `CityJSON` ring is open, or when an already closed
 //! three-reference ring needs a fourth serialized coordinate. Output is little-endian ISO
 //! SQL/MM WKB using the 3D type codes (`PointZ = 1001` through `MultiPolygonZ = 1006`).
+//!
+//! The [`super::wkt`] codec shares topology traversal, ring closing/opening, ordering,
+//! repeated-reference handling, target-boundary reconstruction, and validation semantics.
+//! Only framing and coordinate encoding differ: WKB uses counted binary records and `f64`
+//! bytes, while WKT uses parentheses and finite decimal XYZ text.
+//!
+//! # Example
+//!
+//! ```
+//! use cityjson_types::v2_0::boundary::nested::BoundaryNestedMultiOrCompositeSurface32;
+//! use cityjson_types::v2_0::{Boundary, BoundaryType, GeometryVertices32, RealWorldCoordinate};
+//!
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let nested: BoundaryNestedMultiOrCompositeSurface32 = vec![vec![vec![0, 1, 2]]];
+//!     let boundary: Boundary<u32> = nested.try_into()?;
+//!     let vertices = GeometryVertices32::from(vec![
+//!         RealWorldCoordinate::new(0.0, 0.0, 0.0),
+//!         RealWorldCoordinate::new(1.0, 0.0, 0.0),
+//!         RealWorldCoordinate::new(0.0, 1.0, 0.0),
+//!     ]);
+//!     let bytes = boundary.to_wkb(&vertices)?;
+//!     let (decoded, decoded_vertices) = Boundary::<u32>::from_wkb(&bytes)?;
+//!     assert_eq!(decoded.check_type(), BoundaryType::MultiOrCompositeSurface);
+//!     assert_eq!(decoded.to_wkb(&decoded_vertices)?, bytes);
+//!     Ok(())
+//! }
+//! ```
 
 use super::{Boundary, BoundaryType};
 use crate::cityjson::core::coordinate::RealWorldCoordinate;
