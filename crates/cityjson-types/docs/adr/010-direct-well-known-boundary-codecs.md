@@ -41,11 +41,16 @@ Both codecs apply the same topology rules:
 
 ISO WKB/WKT support standards-based interchange; PostGIS EWKB/EWKT support the
 extended surface types and SRID convention used by database/GIS integrations. ISO
-WKB is little-endian XYZ and ISO WKT requires explicit `Z`. EWKB/EWKT require an
-explicit multi-point, multi-line-string, multi-polygon, polyhedral-surface, or TIN
-selection because surface-backed CityJSON has several valid representations. EWKT
-uses PostGIS's `SRID=<number>;` prefix and XYZ-without-`Z` spelling. SRIDs are
-top-level only, preventing conflicting nested metadata.
+WKB is little-endian XYZ and ISO WKT requires explicit `Z`. EWKB/EWKT require the
+caller to select multi-point, multi-line-string, multi-polygon, polyhedral-surface,
+or TIN framing explicitly. Point and line boundaries have one compatible selection.
+A surface-backed boundary, however, can be represented as a generic `MultiPolygon`
+or as a `PolyhedralSurface`; it can also be a TIN when every surface is one
+triangular ring. Solid boundaries use those same surface encodings after shell
+grouping is flattened. CityJSON topology does not record which of these PostGIS
+semantic labels the caller intends. EWKT uses PostGIS's `SRID=<number>;` prefix and
+XYZ-without-`Z` spelling. SRIDs are top-level only, preventing conflicting nested
+metadata.
 
 Only finite XYZ is accepted. XY would invent height; M and ZM have no lossless
 destination in the three-coordinate vertex model. Empty and singular geometries,
