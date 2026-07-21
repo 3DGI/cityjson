@@ -31,17 +31,15 @@
 //! ```
 //! use cityjson_types::v2_0::{Boundary, BoundaryType};
 //!
-//! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let text = "MULTIPOLYGON Z (((0 0 0,1 0 0,0 1 0,0 0 0)))";
-//!     let (boundary, vertices) = Boundary::<u32>::from_wkt(text)?;
-//!     assert_eq!(boundary.check_type(), BoundaryType::MultiOrCompositeSurface);
-//!     assert_eq!(
-//!         boundary.to_nested_multi_or_composite_surface()?,
-//!         vec![vec![vec![0, 1, 2]]],
-//!     );
-//!     assert_eq!(boundary.to_wkt(&vertices)?, text);
-//!     Ok(())
-//! }
+//! let text = "MULTIPOLYGON Z (((0 0 0,1 0 0,0 1 0,0 0 0)))";
+//! let (boundary, vertices) = Boundary::<u32>::from_wkt(text)?;
+//! assert_eq!(boundary.check_type(), BoundaryType::MultiOrCompositeSurface);
+//! assert_eq!(
+//!     boundary.to_nested_multi_or_composite_surface()?,
+//!     vec![vec![vec![0, 1, 2]]],
+//! );
+//! assert_eq!(boundary.to_wkt(&vertices)?, text);
+//! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
 use super::{Boundary, BoundaryType};

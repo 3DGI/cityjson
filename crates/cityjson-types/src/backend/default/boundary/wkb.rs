@@ -77,20 +77,18 @@
 //! use cityjson_types::v2_0::boundary::nested::BoundaryNestedMultiOrCompositeSurface32;
 //! use cityjson_types::v2_0::{Boundary, BoundaryType, GeometryVertices32, RealWorldCoordinate};
 //!
-//! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let nested: BoundaryNestedMultiOrCompositeSurface32 = vec![vec![vec![0, 1, 2]]];
-//!     let boundary: Boundary<u32> = nested.try_into()?;
-//!     let vertices = GeometryVertices32::from(vec![
-//!         RealWorldCoordinate::new(0.0, 0.0, 0.0),
-//!         RealWorldCoordinate::new(1.0, 0.0, 0.0),
-//!         RealWorldCoordinate::new(0.0, 1.0, 0.0),
-//!     ]);
-//!     let bytes = boundary.to_wkb(&vertices)?;
-//!     let (decoded, decoded_vertices) = Boundary::<u32>::from_wkb(&bytes)?;
-//!     assert_eq!(decoded.check_type(), BoundaryType::MultiOrCompositeSurface);
-//!     assert_eq!(decoded.to_wkb(&decoded_vertices)?, bytes);
-//!     Ok(())
-//! }
+//! let nested: BoundaryNestedMultiOrCompositeSurface32 = vec![vec![vec![0, 1, 2]]];
+//! let boundary: Boundary<u32> = nested.try_into()?;
+//! let vertices = GeometryVertices32::from(vec![
+//!     RealWorldCoordinate::new(0.0, 0.0, 0.0),
+//!     RealWorldCoordinate::new(1.0, 0.0, 0.0),
+//!     RealWorldCoordinate::new(0.0, 1.0, 0.0),
+//! ]);
+//! let bytes = boundary.to_wkb(&vertices)?;
+//! let (decoded, decoded_vertices) = Boundary::<u32>::from_wkb(&bytes)?;
+//! assert_eq!(decoded.check_type(), BoundaryType::MultiOrCompositeSurface);
+//! assert_eq!(decoded.to_wkb(&decoded_vertices)?, bytes);
+//! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
 use super::{Boundary, BoundaryType};
