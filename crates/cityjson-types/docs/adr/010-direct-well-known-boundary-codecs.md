@@ -66,6 +66,30 @@ The WKT/WKB implementations are dependency-free and share topology behavior. WKB
 but original decimal spelling is lost, and other implementations need not preserve
 identical bits through decimal conversion.
 
+### GEOS interoperability
+
+`Boundary` can encode XYZ geometry as either little-endian ISO WKB or PostGIS
+EWKB. GEOS's WKB reader automatically detects and reads both dialects. GEOS can
+also write either dialect: since GEOS 3.10, its C API selects the output with
+`GEOSWKBWriter_setFlavor`, using `GEOS_WKB_ISO` for ISO WKB and
+`GEOS_WKB_EXTENDED` for EWKB.
+
+The safe Rust [`geos`](https://docs.rs/geos/11.1.1/geos/) wrapper does not expose
+that flavor selection. Its `WKBWriter` returns WKB bytes and exposes output
+dimension, byte order, and SRID controls, but XYZ output uses GEOS's default
+extended flavor. Consequently, the high-level Rust API can emit XYZ EWKB but
+cannot request XYZ ISO WKB. This is not a limitation of GEOS or its low-level
+Rust C bindings: `geos-sys` exposes the flavor functions for GEOS 3.10 and
+newer.
+
+The Rust `WKBWriter` predates GEOS's flavor-selection API, and the Rust project
+states that it wraps only a subset of GEOS. No documented intentional rejection
+of ISO WKB output was found, so this is treated as a missing high-level wrapper
+rather than a format or architecture constraint. Until the wrapper exposes WKB
+flavor, a safe Rust GEOS test can verify that GEOS decodes CityJSON-generated
+ISO WKB, but it cannot perform a same-dialect XYZ ISO WKB round trip without
+using `geos-sys` directly.
+
 Flattening loses solid and shell boundaries. Polygon order survives, but parsing
 cannot infer those groups; the requested target boundary supplies new grouping.
 Future dimensions, `EMPTY`, alternative byte orders, or lossless solid topology
