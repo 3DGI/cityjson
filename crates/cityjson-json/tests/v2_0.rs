@@ -8,9 +8,9 @@ use cityjson_json::{
     write_feature_stream_with_base,
 };
 use cityjson_types::v2_0::{
-    AffineTransform3D, BBox, CityModelType, CityObject, CityObjectIdentifier, CityObjectType,
-    GeometryDraft, LoD, OwnedCityModel, PointDraft, RealWorldCoordinate, Texture, Transform,
-    UVCoordinate,
+    AffineTransform3D, AttributeValue, BBox, CityModelType, CityObject, CityObjectIdentifier,
+    CityObjectType, GeometryDraft, GeometryType, LoD, OwnedCityModel, PointDraft,
+    RealWorldCoordinate, Texture, Transform, UVCoordinate,
 };
 use cityjson_types::v2_0::{ImageType, TextureType};
 use common::*;
@@ -47,6 +47,50 @@ fn assert_vertex_eq(actual: [f64; 3], expected: [f64; 3]) {
     for (actual_coord, expected_coord) in actual.into_iter().zip(expected) {
         assert!((actual_coord - expected_coord).abs() < f64::EPSILON);
     }
+}
+
+#[test]
+fn cityobject_building_address() {
+    let json_input = conformance_case_input("cityobject_building_address");
+    let expected: Value = serde_json::from_str(&json_input).unwrap();
+    let model = read_model_str(&json_input);
+    let cityobject = model.cityobjects().iter().next().unwrap().1;
+    let addresses = match cityobject
+        .extra()
+        .unwrap()
+        .get("address")
+        .expect("address should exist")
+    {
+        AttributeValue::Vec(addresses) => addresses,
+        other => panic!("expected address array, got {other:?}"),
+    };
+
+    assert_eq!(addresses.len(), 2);
+    assert_eq!(model.geometry_count(), 2);
+    for (address, expected_vertex) in addresses.iter().zip([0_u32, 1]) {
+        let location = match address {
+            AttributeValue::Map(address) => address
+                .get("location")
+                .expect("address location should exist"),
+            other => panic!("expected address object, got {other:?}"),
+        };
+        let handle = match location {
+            AttributeValue::Geometry(handle) => *handle,
+            other => panic!("expected address location geometry, got {other:?}"),
+        };
+        let geometry = model
+            .get_geometry(handle)
+            .expect("address location should resolve");
+
+        assert_eq!(geometry.type_geometry(), &GeometryType::MultiPoint);
+        assert_eq!(geometry.lod(), Some(&LoD::LoD1));
+        assert_eq!(
+            geometry.boundaries().unwrap().vertices(),
+            &[expected_vertex.into()]
+        );
+    }
+
+    assert_eq!(write_value(&model), expected);
 }
 
 #[test]
@@ -614,7 +658,6 @@ fn write_feature_stream_preserves_feature_local_ids() {
 conformance_roundtrip_tests!(
     assert_eq_roundtrip;
     appearance_complete,
-    cityobject_building_address,
     cityobject_complete,
     cityobject_extended,
     cityobject_all_types,
