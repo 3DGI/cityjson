@@ -263,8 +263,9 @@ libraries in Docker.
 
 Implemented checks include:
 
-- GEOS loads generated ISO WKB;
-- PostGIS loads generated ISO WKB through `ST_GeomFromWKB`, reports the expected
+- GEOS loads the three ISO cases (`MultiPointZ`, `MultiLineStringZ`, and `MultiPolygonZ`) and round-trips them through its SRID-bearing EWKB writer;
+- GEOS WKT tests stay ISO-only because GEOS does not preserve PostGIS extended surface dialects;
+- PostGIS loads ISO WKB/WKT for those three cases and EWKB/EWKT with SRID 7415 for the ISO cases plus `PolyhedralSurfaceZ` and `TINZ`, reports the expected
   geometry type, dimensionality, and child count, and returns parseable WKB from
   `ST_AsBinary`;
 - PostGIS loads generated EWKB through `ST_GeomFromEWKB`, preserves SRID 7415,

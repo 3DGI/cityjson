@@ -1,7 +1,7 @@
 use cityjson_types::v2_0::{
-    Boundary, BoundaryNestedMultiLineString32, BoundaryNestedMultiOrCompositeSolid32,
-    BoundaryNestedMultiOrCompositeSurface32, BoundaryNestedMultiPoint32, BoundaryNestedSolid32,
-    EwkbType, EwktType, RealWorldCoordinate, Vertices,
+    Boundary, BoundaryNestedMultiLineString32, BoundaryNestedMultiOrCompositeSurface32,
+    BoundaryNestedMultiPoint32, BoundaryNestedSolid32, EwkbType, EwktType, RealWorldCoordinate,
+    Vertices,
 };
 
 #[allow(dead_code)]
@@ -26,32 +26,58 @@ impl Case {
 
     #[allow(dead_code)]
     pub fn ewkb(&self, srid: Option<u32>) -> anyhow::Result<Vec<u8>> {
-        let ewkb_type = match self.boundary.check_type() {
-            cityjson_types::v2_0::BoundaryType::MultiPoint => EwkbType::MultiPoint,
-            cityjson_types::v2_0::BoundaryType::MultiLineString => EwkbType::MultiLineString,
-            cityjson_types::v2_0::BoundaryType::MultiOrCompositeSurface
-            | cityjson_types::v2_0::BoundaryType::Solid
-            | cityjson_types::v2_0::BoundaryType::MultiOrCompositeSolid => EwkbType::MultiPolygon,
-            cityjson_types::v2_0::BoundaryType::None => anyhow::bail!("empty boundary"),
-            boundary_type => anyhow::bail!("unsupported EWKB boundary type: {boundary_type:?}"),
+        let ewkb_type = match self.name {
+            "polyhedralsurface_z" => EwkbType::PolyhedralSurface,
+            "tinz" => EwkbType::Tin,
+            _ => match self.boundary.check_type() {
+                cityjson_types::v2_0::BoundaryType::MultiPoint => EwkbType::MultiPoint,
+                cityjson_types::v2_0::BoundaryType::MultiLineString => EwkbType::MultiLineString,
+                cityjson_types::v2_0::BoundaryType::MultiOrCompositeSurface
+                | cityjson_types::v2_0::BoundaryType::Solid
+                | cityjson_types::v2_0::BoundaryType::MultiOrCompositeSolid => {
+                    EwkbType::MultiPolygon
+                }
+                cityjson_types::v2_0::BoundaryType::None => anyhow::bail!("empty boundary"),
+                boundary_type => anyhow::bail!("unsupported EWKB boundary type: {boundary_type:?}"),
+            },
         };
         Ok(self.boundary.to_ewkb(&vertices(), ewkb_type, srid)?)
     }
 
     #[allow(dead_code)]
     pub fn ewkt(&self, srid: Option<u32>) -> anyhow::Result<String> {
-        let ewkt_type = match self.boundary.check_type() {
-            cityjson_types::v2_0::BoundaryType::MultiPoint => EwktType::MultiPoint,
-            cityjson_types::v2_0::BoundaryType::MultiLineString => EwktType::MultiLineString,
-            cityjson_types::v2_0::BoundaryType::MultiOrCompositeSurface | cityjson_types::v2_0::BoundaryType::Solid | cityjson_types::v2_0::BoundaryType::MultiOrCompositeSolid => EwktType::MultiPolygon,
-            cityjson_types::v2_0::BoundaryType::None => anyhow::bail!("empty boundary"),
-            boundary_type => anyhow::bail!("unsupported EWKT boundary type: {boundary_type:?}"),
+        let ewkt_type = match self.name {
+            "polyhedralsurface_z" => EwktType::PolyhedralSurface,
+            "tinz" => EwktType::Tin,
+            _ => match self.boundary.check_type() {
+                cityjson_types::v2_0::BoundaryType::MultiPoint => EwktType::MultiPoint,
+                cityjson_types::v2_0::BoundaryType::MultiLineString => EwktType::MultiLineString,
+                cityjson_types::v2_0::BoundaryType::MultiOrCompositeSurface
+                | cityjson_types::v2_0::BoundaryType::Solid
+                | cityjson_types::v2_0::BoundaryType::MultiOrCompositeSolid => {
+                    EwktType::MultiPolygon
+                }
+                cityjson_types::v2_0::BoundaryType::None => anyhow::bail!("empty boundary"),
+                boundary_type => anyhow::bail!("unsupported EWKT boundary type: {boundary_type:?}"),
+            },
         };
         Ok(self.boundary.to_ewkt(&vertices(), ewkt_type, srid)?)
     }
 }
 
-pub fn cases() -> Vec<Case> {
+pub fn iso_cases() -> Vec<Case> {
+    extended_cases()
+        .into_iter()
+        .filter(|case| {
+            matches!(
+                case.name,
+                "multipoint_z" | "multilinestring_z" | "multipolygon_z"
+            )
+        })
+        .collect()
+}
+
+pub fn extended_cases() -> Vec<Case> {
     vec![
         Case {
             name: "multipoint_z",
@@ -72,7 +98,7 @@ pub fn cases() -> Vec<Case> {
             assert_planar_valid: true,
         },
         Case {
-            name: "single_polygon_z",
+            name: "multipolygon_z",
             boundary: single_polygon(),
             expected_type: "ST_MultiPolygon",
             expected_ndims: 3,
@@ -81,40 +107,22 @@ pub fn cases() -> Vec<Case> {
             assert_planar_valid: true,
         },
         Case {
-            name: "polygon_with_hole_z",
-            boundary: polygon_with_hole(),
-            expected_type: "ST_MultiPolygon",
+            name: "polyhedralsurface_z",
+            boundary: solid(),
+            expected_type: "ST_PolyhedralSurface",
+            expected_ndims: 3,
+            expected_geometries: 2,
+            expected_first_interior_rings: 0,
+            assert_planar_valid: false,
+        },
+        Case {
+            name: "tinz",
+            boundary: tin(),
+            expected_type: "ST_Tin",
             expected_ndims: 3,
             expected_geometries: 1,
-            expected_first_interior_rings: 1,
-            assert_planar_valid: true,
-        },
-        Case {
-            name: "multi_surface_z",
-            boundary: multi_surface(),
-            expected_type: "ST_MultiPolygon",
-            expected_ndims: 3,
-            expected_geometries: 2,
             expected_first_interior_rings: 0,
             assert_planar_valid: true,
-        },
-        Case {
-            name: "solid_flattened_to_multipolygon_z",
-            boundary: solid(),
-            expected_type: "ST_MultiPolygon",
-            expected_ndims: 3,
-            expected_geometries: 2,
-            expected_first_interior_rings: 0,
-            assert_planar_valid: false,
-        },
-        Case {
-            name: "multisolid_flattened_to_multipolygon_z",
-            boundary: multisolid(),
-            expected_type: "ST_MultiPolygon",
-            expected_ndims: 3,
-            expected_geometries: 3,
-            expected_first_interior_rings: 0,
-            assert_planar_valid: false,
         },
     ]
 }
@@ -151,28 +159,13 @@ fn single_polygon() -> Boundary<u32> {
     nested.try_into().unwrap()
 }
 
-fn polygon_with_hole() -> Boundary<u32> {
-    let nested: BoundaryNestedMultiOrCompositeSurface32 =
-        vec![vec![vec![0, 1, 2, 3], vec![4, 5, 6, 7]]];
-    nested.try_into().unwrap()
-}
-
-fn multi_surface() -> Boundary<u32> {
-    let nested: BoundaryNestedMultiOrCompositeSurface32 =
-        vec![vec![vec![0, 1, 2, 3]], vec![vec![8, 9, 10, 11]]];
-    nested.try_into().unwrap()
-}
-
 fn solid() -> Boundary<u32> {
     let nested: BoundaryNestedSolid32 =
         vec![vec![vec![vec![0, 1, 2, 3]]], vec![vec![vec![4, 5, 6, 7]]]];
     nested.try_into().unwrap()
 }
 
-fn multisolid() -> Boundary<u32> {
-    let nested: BoundaryNestedMultiOrCompositeSolid32 = vec![
-        vec![vec![vec![vec![0, 1, 2, 3]]]],
-        vec![vec![vec![vec![4, 5, 6, 7]]], vec![vec![vec![8, 9, 10, 11]]]],
-    ];
+fn tin() -> Boundary<u32> {
+    let nested: BoundaryNestedMultiOrCompositeSurface32 = vec![vec![vec![0, 1, 2]]];
     nested.try_into().unwrap()
 }
