@@ -11,6 +11,12 @@ crate in the workspace to the same version.
 ### Changed
 - Changed the Arrow and Parquet canonical schema to `cityjson-arrow.package.v3alpha4`; geometry ownership columns are now nullable together so pooled geometries referenced by attributes, including CityJSON address locations, round-trip correctly.
 
+### Fixed
+- Fixed `cityjson-json` deserialization and serialization of
+  `CityObject.address[*].location`: address locations are imported as
+  pool-backed `AttributeValue::Geometry` references and serialized back to
+  their CityJSON `MultiPoint` geometry representation.
+
 ### Added
 - Added `cityjson-types` WKB/EWKB boundary serialization APIs: `Boundary::to_wkb`
   and `Boundary::from_wkb` for little-endian ISO WKB, plus `Boundary::to_ewkb`,
