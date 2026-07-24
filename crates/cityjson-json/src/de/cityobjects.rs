@@ -8,10 +8,14 @@ use serde_json::value::RawValue;
 
 use cityjson_types::resources::handles::CityObjectHandle;
 use cityjson_types::resources::storage::StringStorage;
-use cityjson_types::v2_0::{Attributes, BBox, CityModel, CityObject, CityObjectIdentifier};
+use cityjson_types::v2_0::{
+    AttributeValue, Attributes, BBox, CityModel, CityObject, CityObjectIdentifier,
+};
 
 use crate::de::attributes::{AttributeValueSeed, OptionalAttributesSeed};
-use crate::de::geometry::{GeometryResources, StreamingGeometry, import_stream_geometry};
+use crate::de::geometry::{
+    GeometryResources, StreamingGeometry, import_address_location, import_stream_geometry,
+};
 use crate::de::parse::ParseStringStorage;
 use crate::de::profiling::timed;
 use crate::de::validation::parse_cityobject_type;
@@ -21,10 +25,63 @@ pub(crate) struct StreamingCityObject<'de, SS: StringStorage> {
     pub(crate) type_name: &'de str,
     pub(crate) geographical_extent: Option<[f64; 6]>,
     pub(crate) attributes: Option<Attributes<SS>>,
+    address: Option<Vec<StreamingAddress<'de, SS>>>,
     pub(crate) parents: Vec<&'de str>,
     pub(crate) children: Vec<&'de str>,
     pub(crate) geometry: Option<Vec<StreamingGeometry<'de>>>,
     pub(crate) extra: Attributes<SS>,
+}
+
+struct StreamingAddress<'de, SS: StringStorage> {
+    values: HashMap<SS::String, AttributeValue<SS>>,
+    location: Option<StreamingGeometry<'de>>,
+}
+
+impl<'de, SS> Deserialize<'de> for StreamingAddress<'de, SS>
+where
+    SS: ParseStringStorage<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_map(StreamingAddressVisitor::<SS>(PhantomData))
+    }
+}
+
+struct StreamingAddressVisitor<SS>(PhantomData<SS>);
+
+impl<'de, SS> Visitor<'de> for StreamingAddressVisitor<SS>
+where
+    SS: ParseStringStorage<'de>,
+{
+    type Value = StreamingAddress<'de, SS>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a CityObject address")
+    }
+
+    fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        let mut values = HashMap::with_capacity(map.size_hint().unwrap_or(0));
+        let mut location = None;
+
+        while let Some(key) = map.next_key::<&'de str>()? {
+            if key == "location" {
+                if location.is_some() {
+                    return Err(de::Error::duplicate_field("location"));
+                }
+                location = Some(map.next_value()?);
+            } else {
+                let value = map.next_value_seed(AttributeValueSeed::<SS>::new())?;
+                values.insert(SS::store(key), value);
+            }
+        }
+
+        Ok(StreamingAddress { values, location })
+    }
 }
 
 impl<'de, SS> Deserialize<'de> for StreamingCityObject<'de, SS>
@@ -58,6 +115,7 @@ where
         let mut type_name = None;
         let mut geographical_extent = None;
         let mut attributes = None;
+        let mut address = None;
         let mut parents = None;
         let mut children = None;
         let mut geometry = None;
@@ -85,6 +143,12 @@ where
                         map.next_value_seed(OptionalAttributesSeed::<SS>::new())
                             .map_err(de::Error::custom)
                     })?);
+                }
+                "address" => {
+                    if address.is_some() {
+                        return Err(de::Error::duplicate_field("address"));
+                    }
+                    address = Some(map.next_value()?);
                 }
                 "parents" => {
                     if parents.is_some() {
@@ -118,6 +182,7 @@ where
             type_name: type_name.ok_or_else(|| de::Error::missing_field("type"))?,
             geographical_extent: geographical_extent.flatten(),
             attributes: attributes.flatten(),
+            address,
             parents: parents.unwrap_or_default(),
             children: children.unwrap_or_default(),
             geometry: geometry.flatten(),
@@ -244,6 +309,22 @@ where
     }
     if !raw_object.extra.is_empty() {
         *cityobject.extra_mut() = raw_object.extra;
+    }
+    if let Some(addresses) = raw_object.address {
+        let mut values = Vec::with_capacity(addresses.len());
+        for address in addresses {
+            let mut address_values = address.values;
+            if let Some(location) = address.location {
+                let handle = timed("cityobjects.address.location", || {
+                    import_address_location::<SS>(location, model, resources)
+                })?;
+                address_values.insert(SS::store("location"), AttributeValue::Geometry(handle));
+            }
+            values.push(AttributeValue::Map(address_values));
+        }
+        cityobject
+            .extra_mut()
+            .insert(SS::store("address"), AttributeValue::Vec(values));
     }
     if let Some(geometries) = raw_object.geometry {
         if geometries.is_empty() {

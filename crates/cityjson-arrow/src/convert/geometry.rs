@@ -7,19 +7,31 @@ pub(super) fn geometry_tables(
 ) -> Result<ExportedGeometryTables> {
     let mut exported = ExportedGeometryTables::default();
     let context = GeometryExportContext { relational };
+    let mut attachments = HashMap::new();
 
     for (cityobject_ix, (_, object)) in relational.cityobjects().iter().enumerate() {
         if let Some(geometries) = object.geometry() {
             for (ordinal, geometry_handle) in geometries.iter().enumerate() {
-                append_geometry_tables(
-                    &context,
+                let attachment = (
                     u64::try_from(cityobject_ix).expect("cityobject index fits into u64"),
-                    *geometry_handle,
-                    ordinal,
-                    &mut exported,
-                )?;
+                    usize_to_u32(ordinal, "geometry ordinal")?,
+                );
+                if attachments.insert(*geometry_handle, attachment).is_some() {
+                    return Err(Error::Conversion(format!(
+                        "geometry handle {geometry_handle:?} is attached more than once"
+                    )));
+                }
             }
         }
+    }
+
+    for (geometry_handle, _) in relational.model().iter_geometries() {
+        append_geometry_tables(
+            &context,
+            geometry_handle,
+            attachments.get(&geometry_handle).copied(),
+            &mut exported,
+        )?;
     }
 
     Ok(exported)
@@ -27,9 +39,8 @@ pub(super) fn geometry_tables(
 
 pub(super) fn append_geometry_tables(
     context: &GeometryExportContext<'_>,
-    cityobject_ix: u64,
     geometry_handle: cityjson_types::prelude::GeometryHandle,
-    ordinal: usize,
+    attachment: Option<(u64, u32)>,
     exported: &mut ExportedGeometryTables,
 ) -> Result<()> {
     let geometry_id = raw_id_from_handle(geometry_handle);
@@ -44,26 +55,26 @@ pub(super) fn append_geometry_tables(
             Error::Conversion(format!("missing geometry for handle {geometry_handle:?}"))
         })?;
     if *geometry.type_geometry() == GeometryType::GeometryInstance {
-        return append_geometry_instance(cityobject_ix, geometry_id, geometry, ordinal, exported);
+        return append_geometry_instance(geometry_id, geometry, attachment, exported);
     }
-    append_boundary_geometry_tables(cityobject_ix, geometry_id, geometry, ordinal, exported)
+    append_boundary_geometry_tables(geometry_id, geometry, attachment, exported)
 }
 
 pub(super) fn append_geometry_instance(
-    cityobject_ix: u64,
     geometry_id: u64,
     geometry: &Geometry<u32, cityjson_types::prelude::OwnedStringStorage>,
-    ordinal: usize,
+    attachment: Option<(u64, u32)>,
     exported: &mut ExportedGeometryTables,
 ) -> Result<()> {
     let instance = geometry.instance().ok_or_else(|| {
         Error::Conversion("geometry instance missing instance payload".to_string())
     })?;
     let template_geometry_id = raw_id_from_handle(instance.template());
+    let (cityobject_ix, geometry_ordinal) = attachment.unzip();
     exported.instances.push(
         geometry_id,
         cityobject_ix,
-        usize_to_u32(ordinal, "geometry ordinal")?,
+        geometry_ordinal,
         geometry.lod().map(ToString::to_string),
         template_geometry_id,
         u64::from(instance.reference_point().value()),
@@ -73,10 +84,9 @@ pub(super) fn append_geometry_instance(
 }
 
 pub(super) fn append_boundary_geometry_tables(
-    cityobject_ix: u64,
     geometry_id: u64,
     geometry: &Geometry<u32, cityjson_types::prelude::OwnedStringStorage>,
-    ordinal: usize,
+    attachment: Option<(u64, u32)>,
     exported: &mut ExportedGeometryTables,
 ) -> Result<()> {
     let boundary = geometry.boundaries().ok_or_else(|| {
@@ -98,10 +108,11 @@ pub(super) fn append_boundary_geometry_tables(
         geometry.textures(),
         exported,
     )?;
+    let (cityobject_ix, geometry_ordinal) = attachment.unzip();
     exported.geometries.push(
         geometry_id,
         cityobject_ix,
-        usize_to_u32(ordinal, "geometry ordinal")?,
+        geometry_ordinal,
         &geometry.type_geometry().to_string(),
         geometry.lod().map(ToString::to_string),
     );

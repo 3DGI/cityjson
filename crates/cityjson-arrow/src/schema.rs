@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display, Formatter};
 use std::sync::Arc;
 
-pub const PACKAGE_SCHEMA_ID: &str = "cityjson-arrow.package.v3alpha3";
+pub const PACKAGE_SCHEMA_ID: &str = "cityjson-arrow.package.v3alpha4";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CityArrowPackageVersion {
-    #[serde(rename = "cityjson-arrow.package.v3alpha3")]
-    V3Alpha3,
+    #[serde(rename = "cityjson-arrow.package.v3alpha4")]
+    V3Alpha4,
 }
 
 impl CityArrowPackageVersion {
@@ -206,7 +206,7 @@ impl PackageManifest {
         projection: ProjectionLayout,
     ) -> Self {
         Self {
-            package_schema: CityArrowPackageVersion::V3Alpha3,
+            package_schema: CityArrowPackageVersion::V3Alpha4,
             cityjson_version: cityjson_version.into(),
             citymodel_id: citymodel_id.into(),
             projection,
@@ -419,8 +419,8 @@ fn cityobject_children_fields() -> Vec<Field> {
 fn geometries_fields(layout: &ProjectionLayout) -> Vec<Field> {
     let mut fields = vec![
         Field::new("geometry_id", DataType::UInt64, false),
-        Field::new("cityobject_ix", DataType::UInt64, false),
-        Field::new("geometry_ordinal", DataType::UInt32, false),
+        Field::new("cityobject_ix", DataType::UInt64, true),
+        Field::new("geometry_ordinal", DataType::UInt32, true),
         Field::new("geometry_type", DataType::Utf8, false),
         Field::new("lod", DataType::Utf8, true),
     ];
@@ -445,8 +445,8 @@ fn geometry_boundaries_fields() -> Vec<Field> {
 fn geometry_instances_fields(layout: &ProjectionLayout) -> Vec<Field> {
     let mut fields = vec![
         Field::new("geometry_id", DataType::UInt64, false),
-        Field::new("cityobject_ix", DataType::UInt64, false),
-        Field::new("geometry_ordinal", DataType::UInt32, false),
+        Field::new("cityobject_ix", DataType::UInt64, true),
+        Field::new("geometry_ordinal", DataType::UInt32, true),
         Field::new("lod", DataType::Utf8, true),
         Field::new("template_geometry_id", DataType::UInt64, false),
         Field::new("reference_point_vertex_id", DataType::UInt64, false),

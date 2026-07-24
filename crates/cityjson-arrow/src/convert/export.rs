@@ -182,7 +182,7 @@ fn build_export_context<'a>(relational: &'a ModelRelationalView<'a>) -> Result<E
     Ok(ExportContext {
         relational,
         header: CityArrowHeader::new(
-            CityArrowPackageVersion::V3Alpha3,
+            CityArrowPackageVersion::V3Alpha4,
             citymodel_id,
             model
                 .version()

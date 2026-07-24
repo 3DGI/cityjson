@@ -48,7 +48,7 @@ impl ParquetDatasetManifest {
         projection: ProjectionLayout,
     ) -> Self {
         Self {
-            package_schema: CityArrowPackageVersion::V3Alpha3,
+            package_schema: CityArrowPackageVersion::V3Alpha4,
             cityjson_version: cityjson_version.into(),
             citymodel_id: citymodel_id.into(),
             projection,

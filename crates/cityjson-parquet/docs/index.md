@@ -35,7 +35,7 @@ tests compare decoded CityJSON semantics rather than binary equality.
 
 ## Package format
 
-- Format version: `cityjson-arrow.package.v3alpha3`
+- Format version: `cityjson-arrow.package.v3alpha4`
 - File extension: `.cityjson-parquet` by convention
 - The format is a seekable single-file container backed by Arrow IPC payloads.
   Despite the name, it is not a Parquet columnar file.

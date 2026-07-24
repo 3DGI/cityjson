@@ -457,6 +457,24 @@ where
     })
 }
 
+pub(crate) fn import_address_location<'de, SS>(
+    raw: StreamingGeometry<'de>,
+    model: &mut CityModel<u32, SS>,
+    resources: &GeometryResources,
+) -> Result<GeometryHandle>
+where
+    SS: ParseStringStorage<'de>,
+    SS::String: From<&'de str>,
+{
+    if !matches!(raw.kind, GeometryKind::MultiPoint) {
+        return Err(Error::InvalidValue(format!(
+            "CityObject address location must be a MultiPoint, got '{}'",
+            raw.kind.type_name()
+        )));
+    }
+    import_stream_geometry(raw, model, resources)
+}
+
 /// Import a geometry as a template (not a regular city object geometry).
 ///
 /// Template geometries cannot be `GeometryInstance`.

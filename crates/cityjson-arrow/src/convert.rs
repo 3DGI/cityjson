@@ -193,8 +193,8 @@ impl U64ListBatchBuffer {
 #[derive(Default)]
 struct GeometryTableBuffer {
     geometry_id: Vec<u64>,
-    cityobject_ix: Vec<u64>,
-    geometry_ordinal: Vec<u32>,
+    cityobject_ix: Vec<Option<u64>>,
+    geometry_ordinal: Vec<Option<u32>>,
     geometry_type: Vec<String>,
     lod: Vec<Option<String>>,
 }
@@ -203,8 +203,8 @@ impl GeometryTableBuffer {
     fn push(
         &mut self,
         geometry_id: u64,
-        cityobject_ix: u64,
-        geometry_ordinal: u32,
+        cityobject_ix: Option<u64>,
+        geometry_ordinal: Option<u32>,
         geometry_type: &str,
         lod: Option<String>,
     ) {
@@ -253,8 +253,8 @@ impl GeometryBoundaryTableBuffer {
 #[derive(Default)]
 struct GeometryInstanceTableBuffer {
     geometry_id: Vec<u64>,
-    cityobject_ix: Vec<u64>,
-    geometry_ordinal: Vec<u32>,
+    cityobject_ix: Vec<Option<u64>>,
+    geometry_ordinal: Vec<Option<u32>>,
     lod: Vec<Option<String>>,
     template_geometry_id: Vec<u64>,
     reference_point_vertex_id: Vec<u64>,
@@ -266,8 +266,8 @@ impl GeometryInstanceTableBuffer {
     fn push(
         &mut self,
         geometry_id: u64,
-        cityobject_ix: u64,
-        geometry_ordinal: u32,
+        cityobject_ix: Option<u64>,
+        geometry_ordinal: Option<u32>,
         lod: Option<String>,
         template_geometry_id: u64,
         reference_point_vertex_id: u64,
@@ -737,6 +737,31 @@ struct GeometryInstanceColumns<'a> {
     template_geometry_id: &'a UInt64Array,
     reference_point_vertex_id: &'a UInt64Array,
     transform_matrix: &'a FixedSizeListArray,
+}
+
+trait GeometryAttachmentColumns {
+    fn cityobject_ix(&self) -> &UInt64Array;
+    fn geometry_ordinal(&self) -> &UInt32Array;
+}
+
+impl GeometryAttachmentColumns for GeometryColumns<'_> {
+    fn cityobject_ix(&self) -> &UInt64Array {
+        self.cityobject_ix
+    }
+
+    fn geometry_ordinal(&self) -> &UInt32Array {
+        self.geometry_ordinal
+    }
+}
+
+impl GeometryAttachmentColumns for GeometryInstanceColumns<'_> {
+    fn cityobject_ix(&self) -> &UInt64Array {
+        self.cityobject_ix
+    }
+
+    fn geometry_ordinal(&self) -> &UInt32Array {
+        self.geometry_ordinal
+    }
 }
 
 struct CityObjectColumns<'a> {
