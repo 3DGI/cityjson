@@ -11,14 +11,14 @@ use std::io::{Read, Write};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SchemaVersion {
-    V3Alpha3,
+    V3Alpha4,
 }
 
 impl SchemaVersion {
     #[must_use]
     pub const fn package_version(self) -> CityArrowPackageVersion {
         match self {
-            Self::V3Alpha3 => CityArrowPackageVersion::V3Alpha3,
+            Self::V3Alpha4 => CityArrowPackageVersion::V3Alpha4,
         }
     }
 }
@@ -33,7 +33,7 @@ pub struct ExportOptions {
 impl Default for ExportOptions {
     fn default() -> Self {
         Self {
-            schema_version: SchemaVersion::V3Alpha3,
+            schema_version: SchemaVersion::V3Alpha4,
             batch_row_limit: 65_536,
             dictionary_encode_strings: true,
         }
@@ -50,7 +50,7 @@ pub struct ImportOptions {
 impl Default for ImportOptions {
     fn default() -> Self {
         Self {
-            expected_schema_version: Some(SchemaVersion::V3Alpha3),
+            expected_schema_version: Some(SchemaVersion::V3Alpha4),
             symbol_storage: cityjson_types::symbols::SymbolStorageOptions::default(),
             validate_schema: true,
         }
@@ -188,7 +188,7 @@ pub fn read_stream<R: Read>(reader: R, options: &ImportOptions) -> Result<OwnedC
 }
 
 fn validate_export_schema_version(options: &ExportOptions) -> Result<()> {
-    if options.schema_version == SchemaVersion::V3Alpha3 {
+    if options.schema_version == SchemaVersion::V3Alpha4 {
         Ok(())
     } else {
         Err(Error::Unsupported(format!(

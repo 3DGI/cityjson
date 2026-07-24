@@ -26,7 +26,7 @@ dataset/
 
 | Field | Type | Description |
 |---|---|---|
-| `package_schema` | string | Always `cityjson-arrow.package.v3alpha3` |
+| `package_schema` | string | Always `cityjson-arrow.package.v3alpha4` |
 | `cityjson_version` | string | CityJSON version of the source data |
 | `citymodel_id` | string | Identifier for the source city model |
 | `projection` | object | Attribute projection layout |

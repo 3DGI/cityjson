@@ -848,9 +848,6 @@ fn import_boundary_geometries_batch(
     )?;
     state.geometry_handle_by_id.reserve(batch.num_rows());
     let columns = bind_geometry_columns(batch)?;
-    if batch.num_rows() > 0 {
-        ensure_cityobject_slots_for_ix(state, columns.cityobject_ix.value(batch.num_rows() - 1))?;
-    }
     let mut previous_id = None;
     for row in 0..batch.num_rows() {
         let geometry_id = columns.geometry_id.value(row);
@@ -909,12 +906,7 @@ fn import_boundary_geometries_batch(
             geometry_id,
             state.model.add_geometry(geometry)?,
         )?;
-        push_pending_geometry_attachment(
-            state,
-            columns.cityobject_ix.value(row),
-            columns.geometry_ordinal.value(row),
-            geometry_id,
-        )?;
+        import_geometry_attachment(state, &columns, row, geometry_id)?;
     }
     Ok(())
 }
@@ -929,9 +921,6 @@ fn import_instance_geometries_batch(batch: &RecordBatch, state: &mut ImportState
     )?;
     state.geometry_handle_by_id.reserve(batch.num_rows());
     let columns = bind_geometry_instance_columns(batch)?;
-    if batch.num_rows() > 0 {
-        ensure_cityobject_slots_for_ix(state, columns.cityobject_ix.value(batch.num_rows() - 1))?;
-    }
     let mut previous_id = None;
     for row in 0..batch.num_rows() {
         let geometry_id = columns.geometry_id.value(row);
@@ -980,14 +969,32 @@ fn import_instance_geometries_batch(batch: &RecordBatch, state: &mut ImportState
             geometry_id,
             state.model.add_geometry(geometry)?,
         )?;
-        push_pending_geometry_attachment(
-            state,
-            columns.cityobject_ix.value(row),
-            columns.geometry_ordinal.value(row),
-            geometry_id,
-        )?;
+        import_geometry_attachment(state, &columns, row, geometry_id)?;
     }
     Ok(())
+}
+
+fn import_geometry_attachment(
+    state: &mut ImportState,
+    columns: &impl GeometryAttachmentColumns,
+    row: usize,
+    geometry_id: u64,
+) -> Result<()> {
+    match (
+        columns.cityobject_ix().is_null(row),
+        columns.geometry_ordinal().is_null(row),
+    ) {
+        (true, true) => Ok(()),
+        (false, false) => push_pending_geometry_attachment(
+            state,
+            columns.cityobject_ix().value(row),
+            columns.geometry_ordinal().value(row),
+            geometry_id,
+        ),
+        _ => Err(Error::Conversion(format!(
+            "geometry {geometry_id} must have cityobject_ix and geometry_ordinal both null or both populated"
+        ))),
+    }
 }
 
 fn insert_unique_geometry_handle(

@@ -12,7 +12,7 @@ interpreted as described in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119).
 
 | Field | Value |
 |---|---|
-| Schema id | `cityjson-arrow.package.v3alpha3` |
+| Schema id | `cityjson-arrow.package.v3alpha4` |
 | Data model | `cityjson_types::v2_0::OwnedCityModel` |
 
 ## Canonical tables
@@ -60,7 +60,7 @@ source-model metadata derived from `CityArrowHeader`.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `package_version` | string | REQUIRED | Always `"cityjson-arrow.package.v3alpha3"` |
+| `package_version` | string | REQUIRED | Always `"cityjson-arrow.package.v3alpha4"` |
 | `citymodel_id` | string | REQUIRED | Identifier for the source city model |
 | `cityjson_version` | string | REQUIRED | CityJSON version of the source data, e.g. `"2.0"` |
 
@@ -90,7 +90,7 @@ Minimal example:
 ```json
 {
   "header": {
-    "package_version": "cityjson-arrow.package.v3alpha3",
+    "package_version": "cityjson-arrow.package.v3alpha4",
     "citymodel_id": "NL.IMBAG.Pand",
     "cityjson_version": "2.0"
   },
@@ -105,7 +105,7 @@ file after all table payloads. It MUST contain:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `package_schema` | string | REQUIRED | Always `"cityjson-arrow.package.v3alpha3"` |
+| `package_schema` | string | REQUIRED | Always `"cityjson-arrow.package.v3alpha4"` |
 | `cityjson_version` | string | REQUIRED | CityJSON version of the source data |
 | `citymodel_id` | string | REQUIRED | Identifier for the source city model |
 | `projection` | object | REQUIRED | A `ProjectionLayout` object |
@@ -128,7 +128,7 @@ Minimal example (five required tables only):
 
 ```json
 {
-  "package_schema": "cityjson-arrow.package.v3alpha3",
+  "package_schema": "cityjson-arrow.package.v3alpha4",
   "cityjson_version": "2.0",
   "citymodel_id": "NL.IMBAG.Pand",
   "projection": {},
@@ -149,7 +149,7 @@ The native Parquet dataset manifest is a UTF-8 JSON object stored at
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `package_schema` | string | REQUIRED | Always `"cityjson-arrow.package.v3alpha3"` |
+| `package_schema` | string | REQUIRED | Always `"cityjson-arrow.package.v3alpha4"` |
 | `cityjson_version` | string | REQUIRED | CityJSON version of the source data |
 | `citymodel_id` | string | REQUIRED | Identifier for the source city model |
 | `projection` | object | REQUIRED | A `ProjectionLayout` object |
@@ -506,8 +506,8 @@ One row per geometry that is a template instance. References a template from
 | Column | Type | Nullable | Description |
 |--------|------|----------|-------------|
 | `geometry_id` | `uint64` | No | Unique geometry identifier |
-| `cityobject_ix` | `uint64` | No | Index of the owning city object (matches `cityobject_ix` in `cityobjects`) |
-| `geometry_ordinal` | `uint32` | No | Ordinal position of this geometry within the city object's geometry list |
+| `cityobject_ix` | `uint64` | Yes | Index of the owning city object; null together with `geometry_ordinal` for a pooled geometry referenced outside `CityObject.geometry` |
+| `geometry_ordinal` | `uint32` | Yes | Ordinal within the city object's geometry list; null together with `cityobject_ix` for a pooled geometry referenced outside `CityObject.geometry` |
 | `lod` | `utf8` | Yes | Level of detail string; null if not specified |
 | `template_geometry_id` | `uint64` | No | References a row in `template_geometries` |
 | `reference_point_vertex_id` | `uint64` | No | References a vertex in `vertices` used as the instance placement origin |
@@ -524,8 +524,8 @@ in `geometry_boundaries`.
 | Column | Type | Nullable | Description |
 |--------|------|----------|-------------|
 | `geometry_id` | `uint64` | No | Unique geometry identifier (matches `geometry_id` in `geometry_boundaries`) |
-| `cityobject_ix` | `uint64` | No | Index of the owning city object (matches `cityobject_ix` in `cityobjects`) |
-| `geometry_ordinal` | `uint32` | No | Ordinal position of this geometry within the city object's geometry list |
+| `cityobject_ix` | `uint64` | Yes | Index of the owning city object; null together with `geometry_ordinal` for a pooled geometry referenced outside `CityObject.geometry` |
+| `geometry_ordinal` | `uint32` | Yes | Ordinal within the city object's geometry list; null together with `cityobject_ix` for a pooled geometry referenced outside `CityObject.geometry` |
 | `geometry_type` | `utf8` | No | CityJSON geometry type string (e.g. `"Solid"`, `"MultiSurface"`) |
 | `lod` | `utf8` | Yes | Level of detail string; null if not specified |
 | `extra` | `struct{...}` | Yes | **Projection-dependent** (`geometry_extra`): extra geometry attributes |

@@ -286,6 +286,9 @@ fn compute_fallback_bboxes(parts: &CityModelArrowParts) -> HashMap<u64, [f64; 6]
     let geometry_cityobject_ix_arr = col_u64(gb, "cityobject_ix");
     let mut geom_to_obj: HashMap<u64, u64> = HashMap::with_capacity(gb.num_rows());
     for i in 0..gb.num_rows() {
+        if geometry_cityobject_ix_arr.is_null(i) {
+            continue;
+        }
         geom_to_obj.insert(
             geometry_id_arr.value(i),
             geometry_cityobject_ix_arr.value(i),

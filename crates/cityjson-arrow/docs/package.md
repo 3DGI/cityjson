@@ -4,7 +4,7 @@
 package.
 
 It uses the same canonical table schema as `cityjson-arrow` and produces files that
-are compatible with the `cityjson-arrow.package.v3alpha3` format version.
+are compatible with the `cityjson-arrow.package.v3alpha4` format version.
 
 ## Public API
 

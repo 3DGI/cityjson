@@ -33,4 +33,4 @@ This site covers the transport layer only, not the CityJSON data model itself.
 - `cityjson-arrow` owns the live Arrow stream and batch codec surface.
 - `cityjson-parquet` owns the persistent package I/O surface.
 - Both crates share the same canonical table schema and reconstruction rules.
-- The current package format version is `cityjson-arrow.package.v3alpha3`.
+- The current package format version is `cityjson-arrow.package.v3alpha4`.
