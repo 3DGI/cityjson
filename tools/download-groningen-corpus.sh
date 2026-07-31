@@ -14,7 +14,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Default paths
 DEFAULT_CORPUS_ROOT="${REPO_ROOT}/target/benchmarks/groningen-182"
-DEFAULT_CSV_PATH="${REPO_ROOT}/../Data/3D-basisvoorziening/2025/selection-groningen-182.csv"
+DEFAULT_CSV_PATH="${REPO_ROOT}/crates/cityjson-index/tools/selection-groningen-182.csv"
 
 # Override from environment
 CORPUS_ROOT="${CITYJSON_GRONINGEN_CORPUS:-${DEFAULT_CORPUS_ROOT}}"
@@ -53,7 +53,7 @@ command -v cjindex >/dev/null 2>&1 || die "cjindex is required but not installed
 
 # Validate CSV
 if [ ! -f "${CSV_PATH}" ]; then
-    die "CSV file not found at ${CSV_PATH}. Set CITYJSON_GRONINGEN_CSV or place file at ${DEFAULT_CSV_PATH}"
+    die "CSV file not found at ${CSV_PATH}. Set CITYJSON_GRONINGEN_CSV or ensure the CSV is at ${DEFAULT_CSV_PATH}"
 fi
 
 log_info "Using CSV: ${CSV_PATH}"
@@ -166,29 +166,18 @@ if [ $ACTUAL_FILES -eq 0 ]; then
     die "No CityJSON files found after extraction. Check ZIP contents."
 fi
 
-# Validate with cjindex
-log_info "Validating corpus with cjindex..."
+# Index and validate the corpus with cjindex
+log_info "Indexing and validating corpus with cjindex..."
 
-VALID_COUNT=0
-INVALID_COUNT=0
-
-for cityjson_file in "${CITYJSON_DIR}"/*.city.json; do
-    [ -f "${cityjson_file}" ] || continue
-    
-    dirname=$(dirname "${cityjson_file}")
-    if cjindex validate "${dirname}" >/dev/null 2>&1; then
-        VALID_COUNT=$((VALID_COUNT + 1))
-    else
-        INVALID_COUNT=$((INVALID_COUNT + 1))
-        log_warn "Validation failed: ${cityjson_file}"
-    fi
-done
-
-log_info "Validation complete: ${VALID_COUNT} valid, ${INVALID_COUNT} invalid"
-
-if [ $INVALID_COUNT -gt 0 ]; then
-    die "Some files failed validation."
+if ! cjindex index "${CITYJSON_DIR}" >/dev/null 2>&1; then
+    die "Failed to index corpus at ${CITYJSON_DIR}"
 fi
+
+if ! cjindex validate "${CITYJSON_DIR}" >/dev/null 2>&1; then
+    die "Corpus validation failed at ${CITYJSON_DIR}"
+fi
+
+log_info "Corpus indexed and validated successfully"
 
 log_info "Groningen corpus setup complete!"
 log_info "Corpus location: ${CORPUS_ROOT}"

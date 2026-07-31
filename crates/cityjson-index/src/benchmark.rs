@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::io::Write;
@@ -11,15 +12,34 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::profile;
-use crate::{BBox, CityIndex, resolve_dataset};
+use crate::{BBox, CityIndex, IndexedPackageRef, ResolvedDataset, resolve_dataset};
 
 const DEFAULT_CORPUS_ROOT: &str = "/home/balazs/Development/cityjson-corpus";
 const DEFAULT_BASISVOORZIENING_ARTIFACT: &str =
     "artifacts/acquired/basisvoorziening-3d/2022/3d_volledig_84000_450000.city.json";
 const DEFAULT_WORK_ROOT: &str = "target/benchmarks/basisvoorziening-3d";
+const DEFAULT_GRONINGEN_CORPUS_ROOT: &str = "target/benchmarks/groningen-182/cityjson";
 const DEFAULT_SUBSET_SIZES: &[usize] = &[1_000, 5_000, 10_000, 25_000];
 const DEFAULT_MULTI_SOURCE_SHARDS: usize = 4;
 const DEFAULT_MULTI_SOURCE_FEATURES_PER_SHARD: usize = 1_000;
+const DEFAULT_TYLER_TILE_COUNT: usize = 182;
+const DEFAULT_BATCH_SIZES: &[usize] = &[1, 16, 256, 4096];
+const DEFAULT_CONCURRENT_READERS: &[usize] = &[1, 4];
+// Tyler's constants for matching its pipeline exactly
+const BENCH_CJINDEX_PARALLEL_CHUNK_SIZE: usize = 2_048;
+
+// Thread-local storage for CityIndex caching (matching Tyler's CJINDEX_THREAD_LOCAL pattern)
+thread_local! {
+    static BENCH_INDEX_THREAD_LOCAL: RefCell<Option<(PathBuf, CityIndex)>> = 
+        const { RefCell::new(None) };
+}
+
+/// Clear thread-local `CityIndex` cache
+fn clear_thread_local_index() {
+    BENCH_INDEX_THREAD_LOCAL.with(|cell| {
+        *cell.borrow_mut() = None;
+    });
+}
 
 #[derive(Debug, Clone, Parser)]
 #[command(
@@ -27,9 +47,9 @@ const DEFAULT_MULTI_SOURCE_FEATURES_PER_SHARD: usize = 1_000;
     about = "Run JSON-emitting CityJSON indexing benchmarks",
     long_about = r#"Run JSON-emitting CityJSON indexing benchmarks.
 
-The benchmark runner prepares Basisvoorziening 3D inputs from the pinned corpus artifact and records one JSON object per measured operation. Default cases include single-source full/subset datasets plus a deterministic multi-source dataset derived from the same pinned artifact. NDJSON and regular CityJSON parallel indexing currently scales across source files; the generated multi-source case is the default parallelism signal. Feature-file datasets scale across feature files under each metadata source.
+The benchmark runner focuses on large multi-file corpus performance measurement. The primary benchmark uses the Groningen corpus (182 tiles) to simulate production workloads matching tyler's usage patterns. Each worker-count measurement uses a fresh SQLite index path. Prefer repeated benchmark invocations over a single pass when comparing timings. RSS fields report Linux /proc/self/status snapshots: current_rss_bytes is VmRSS, process_peak_rss_bytes is process-lifetime VmHWM, and peak_rss_bytes is a deprecated compatibility alias for that same process-lifetime peak.
 
-Each worker-count measurement uses a fresh SQLite index path. Prefer repeated benchmark invocations over a single pass when comparing timings. RSS fields report Linux /proc/self/status snapshots: current_rss_bytes is VmRSS, process_peak_rss_bytes is process-lifetime VmHWM, and peak_rss_bytes is a deprecated compatibility alias for that same process-lifetime peak.
+Note: When warmth is specified without positions, all positions are tested on the SAME warmed index. This is intentional - it measures the effect of warmup across different source positions. In production (tyler), the application typically reuses the same index for multiple queries.
 "#
 )]
 pub struct BenchmarkCli {
@@ -64,6 +84,30 @@ pub struct BenchmarkCli {
     /// Optional root directory containing additional Basisvoorziening tiles.
     #[arg(long)]
     pub multi_tile_root: Option<PathBuf>,
+
+    /// Override Groningen corpus path for Tyler pipeline benchmark.
+    #[arg(long)]
+    pub groningen_corpus: Option<PathBuf>,
+
+    /// Number of Groningen tiles to use for Tyler pipeline benchmark.
+    #[arg(long, default_value_t = DEFAULT_TYLER_TILE_COUNT)]
+    pub tyler_tile_count: usize,
+
+    /// Benchmark warmth (cold = fresh index for each operation, warm = reuse existing index).
+    #[arg(long, value_enum)]
+    pub warmth: Vec<BenchmarkWarmth>,
+
+    /// Source position for scalar reconstruction benchmarks.
+    #[arg(long, value_enum)]
+    pub source_position: Vec<SourcePosition>,
+
+    /// Batch sizes for same-source batch reconstruction benchmarks.
+    #[arg(long, value_name = "SIZES")]
+    pub batch_size: Vec<usize>,
+
+    /// Number of concurrent readers for concurrency benchmarks.
+    #[arg(long, value_name = "COUNT")]
+    pub concurrent_readers: Vec<usize>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -72,6 +116,7 @@ pub enum BenchmarkCaseKind {
     SingleTileSubsets,
     MultiSource,
     MultiTile,
+    TylerPipeline,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
@@ -83,6 +128,7 @@ pub enum BenchmarkLayoutKind {
 }
 
 impl BenchmarkLayoutKind {
+    #[allow(dead_code)]
     const ALL: [Self; 3] = [Self::CityJson, Self::CityJsonSeq, Self::FeatureFiles];
 
     fn as_label(self) -> &'static str {
@@ -92,6 +138,19 @@ impl BenchmarkLayoutKind {
             Self::FeatureFiles => "feature-files",
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum BenchmarkWarmth {
+    Cold,
+    Warm,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ValueEnum)]
+pub enum SourcePosition {
+    First,
+    Middle,
+    Last,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -120,6 +179,7 @@ struct BenchmarkRecordInput {
     cityobject_relationship_count: usize,
     multi_geometry_cityobject_count: usize,
     query_hit_count: Option<usize>,
+    operation_local_peak_rss_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -147,6 +207,8 @@ pub struct BenchmarkOperationRecord {
     pub cityobject_relationship_count: usize,
     pub multi_geometry_cityobject_count: usize,
     pub query_hit_count: Option<usize>,
+    /// Operation-local peak RSS bytes, measured as the increment above pre-operation baseline.
+    pub operation_local_peak_rss_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -198,9 +260,7 @@ pub fn run(cli: &BenchmarkCli) -> Result<BenchmarkReport> {
 
     let cases = if cli.case.is_empty() {
         vec![
-            BenchmarkCaseKind::SingleTileFull,
-            BenchmarkCaseKind::SingleTileSubsets,
-            BenchmarkCaseKind::MultiSource,
+            BenchmarkCaseKind::TylerPipeline, // Large corpus simulation (primary)
         ]
     } else {
         cli.case.clone()
@@ -214,7 +274,13 @@ pub fn run(cli: &BenchmarkCli) -> Result<BenchmarkReport> {
             for dataset in prepare_case(cli, case, *layout, &artifact)? {
                 for worker_count in &worker_counts {
                     runs.extend(with_worker_count_env(*worker_count, || {
-                        run_dataset(&dataset)
+                        run_dataset(
+                            &dataset,
+                            &cli.warmth,
+                            &cli.source_position,
+                            &cli.batch_size,
+                            &cli.concurrent_readers,
+                        )
                     })?);
                 }
             }
@@ -291,6 +357,20 @@ fn prepare_case(
             Ok(vec![prepare_multi_source_dataset(cli, layout, artifact)?])
         }
         BenchmarkCaseKind::MultiTile => prepare_multi_tile_dataset(cli, layout),
+        BenchmarkCaseKind::TylerPipeline => {
+            let groningen_root = cli.groningen_corpus.clone().unwrap_or_else(|| {
+                std::env::var("CITYJSON_GRONINGEN_CORPUS").map_or_else(
+                    |_| PathBuf::from(DEFAULT_GRONINGEN_CORPUS_ROOT),
+                    PathBuf::from,
+                )
+            });
+            Ok(vec![prepare_tyler_dataset(
+                cli,
+                layout,
+                &groningen_root,
+                cli.tyler_tile_count,
+            )?])
+        }
     }
 }
 
@@ -466,6 +546,205 @@ fn prepare_multi_tile_dataset(
     Ok(vec![PreparedDataset { manifest }])
 }
 
+#[allow(clippy::too_many_lines)]
+#[allow(clippy::implicit_clone)]
+fn prepare_tyler_dataset(
+    cli: &BenchmarkCli,
+    layout: BenchmarkLayoutKind,
+    groningen_root: &Path,
+    tile_count: usize,
+) -> Result<PreparedDataset> {
+    let prepared_root = cli.work_root.join(layout.as_label()).join("tyler-pipeline");
+    reset_dir(&prepared_root)?;
+    fs::create_dir_all(&prepared_root)?;
+
+    // Validate that Groningen corpus exists
+    if !groningen_root.exists() {
+        return Err(Error::Import(format!(
+            "Groningen corpus root {} does not exist. Run tools/download-groningen-corpus.sh first or set CITYJSON_GRONINGEN_CORPUS",
+            groningen_root.display()
+        )));
+    }
+
+    // Collect all CityJSON files from the Groningen corpus
+    let mut cityjson_files: Vec<PathBuf> = Vec::new();
+    for entry in WalkBuilder::new(groningen_root)
+        .hidden(false)
+        .follow_links(true)
+        .build()
+        .filter_map(std::result::Result::ok)
+    {
+        if entry.file_type().is_some_and(|ft| ft.is_file())
+            && entry.path().extension().is_some_and(|ext| ext == "json")
+            && entry
+                .path()
+                .file_name()
+                .is_some_and(|name| name.to_string_lossy().ends_with(".city.json"))
+        {
+            cityjson_files.push(entry.path().to_path_buf());
+        }
+    }
+
+    if cityjson_files.is_empty() {
+        return Err(Error::Import(format!(
+            "no CityJSON files found in Groningen corpus at {}",
+            groningen_root.display()
+        )));
+    }
+
+    // Sort files for deterministic ordering
+    cityjson_files.sort();
+
+    // Limit to requested tile count
+    let max_files = tile_count.min(cityjson_files.len());
+    let selected_files = cityjson_files
+        .into_iter()
+        .take(max_files)
+        .collect::<Vec<_>>();
+
+    // For Tyler pipeline, copy files to prepared directory and extract statistics
+    // For CityJson layout, copy files directly without transformation
+    // For other layouts, transform and write to prepared directory
+    let mut feature_count = 0usize;
+    let mut cityobject_count = 0usize;
+    let mut relationship_count = 0usize;
+    let mut multi_geometry_count = 0usize;
+    let mut all_ids = Vec::new();
+    let mut bbox: Option<BBox> = None;
+    let mut byte_size = 0u64;
+
+    if layout == BenchmarkLayoutKind::CityJson {
+        // For CityJson layout: copy files directly and extract stats
+        for file_path in &selected_files {
+            let bytes = fs::read(file_path)?;
+            let file_size = u64::try_from(bytes.len())
+                .map_err(|_| Error::Import("file size does not fit in u64".to_owned()))?;
+            byte_size = byte_size
+                .checked_add(file_size)
+                .ok_or_else(|| Error::Import("total byte size overflowed u64".to_owned()))?;
+
+            // Copy file to prepared directory
+            let dest_path = prepared_root.join(file_path.file_name().unwrap());
+            fs::write(&dest_path, &bytes)?;
+
+            // Parse and extract statistics
+            let document: Value =
+                serde_json::from_slice(&bytes).map_err(|error| Error::Import(error.to_string()))?;
+
+            let ids = extract_root_ids(&document)?;
+            feature_count += ids.len();
+            cityobject_count += count_cityobjects(&document)?;
+            relationship_count += count_cityobject_relationships(&document)?;
+            multi_geometry_count += count_multi_geometry_cityobjects(&document)?;
+            all_ids.extend(ids);
+            bbox = Some(match bbox {
+                None => bbox_for_cityjson_document(&document)?,
+                Some(existing) => existing.union(&bbox_for_cityjson_document(&document)?),
+            });
+        }
+    } else {
+        // For CityJsonSeq and FeatureFiles: process files one at a time to avoid OOM
+        for (index, file_path) in selected_files.iter().enumerate() {
+            let bytes = fs::read(file_path)?;
+            let file_size = u64::try_from(bytes.len())
+                .map_err(|_| Error::Import("file size does not fit in u64".to_owned()))?;
+            byte_size = byte_size
+                .checked_add(file_size)
+                .ok_or_else(|| Error::Import("total byte size overflowed u64".to_owned()))?;
+
+            let document: Value =
+                serde_json::from_slice(&bytes).map_err(|error| Error::Import(error.to_string()))?;
+
+            let stem = file_path
+                .file_stem()
+                .unwrap_or_else(|| file_path.as_os_str());
+            let stem_str = stem.to_string_lossy();
+            let file_stem = format!("tile-{index:03}-{stem_str}");
+
+            // Write transformed output immediately to avoid keeping all in memory
+            match layout {
+                BenchmarkLayoutKind::CityJsonSeq => {
+                    let path = prepared_root.join(format!("{file_stem}.city.jsonl"));
+                    if let Some(parent) = path.parent() {
+                        fs::create_dir_all(parent)?;
+                    }
+                    let mut file = fs::File::create(&path)?;
+                    write_json_line(&mut file, &cityjson_base_document(&document)?)?;
+                    for feature in feature_documents_for_roots(&document)? {
+                        write_json_line(&mut file, &feature)?;
+                    }
+                }
+                BenchmarkLayoutKind::FeatureFiles => {
+                    let source_root = if selected_files.len() == 1 {
+                        prepared_root.to_path_buf()
+                    } else {
+                        prepared_root.join(&file_stem)
+                    };
+                    fs::create_dir_all(source_root.join("features"))?;
+                    let metadata_path = source_root.join("metadata.json");
+                    let metadata = cityjson_base_document(&document)?;
+                    fs::write(
+                        metadata_path,
+                        serde_json::to_vec(&metadata)
+                            .map_err(|error| Error::Import(error.to_string()))?,
+                    )?;
+                    for feature in feature_documents_for_roots(&document)? {
+                        let feature_id =
+                            feature.get("id").and_then(Value::as_str).ok_or_else(|| {
+                                Error::Import("CityJSONFeature is missing id".to_owned())
+                            })?;
+                        let path = source_root
+                            .join("features")
+                            .join(format!("{}.city.jsonl", safe_file_stem(feature_id)));
+                        write_json_line(&mut fs::File::create(path)?, &feature)?;
+                    }
+                }
+                BenchmarkLayoutKind::CityJson => unreachable!(),
+            }
+
+            // Extract statistics while document is still in memory
+            let ids = extract_root_ids(&document)?;
+            feature_count += ids.len();
+            cityobject_count += count_cityobjects(&document)?;
+            relationship_count += count_cityobject_relationships(&document)?;
+            multi_geometry_count += count_multi_geometry_cityobjects(&document)?;
+            all_ids.extend(ids);
+            bbox = Some(match bbox {
+                None => bbox_for_cityjson_document(&document)?,
+                Some(existing) => existing.union(&bbox_for_cityjson_document(&document)?),
+            });
+
+            // document is dropped here, freeing memory before next iteration
+        }
+    }
+
+    let dataset_bbox = bbox.unwrap_or(BBox {
+        min_x: 0.0,
+        max_x: 0.0,
+        min_y: 0.0,
+        max_y: 0.0,
+    });
+
+    let manifest = BenchmarkManifest {
+        dataset_label: format!("tyler-pipeline-{}", layout.as_label()),
+        source_artifact: groningen_root.to_path_buf(),
+        prepared_dataset: prepared_root.to_path_buf(),
+        subset_size: None,
+        layout,
+        byte_size,
+        feature_count,
+        source_count: selected_files.len(),
+        cityobject_count,
+        cityobject_relationship_count: relationship_count,
+        multi_geometry_cityobject_count: multi_geometry_count,
+        dataset_bbox,
+        representative_feature_ids: representative_feature_ids(&all_ids),
+        query_windows: build_query_windows(dataset_bbox),
+    };
+    write_manifest(&prepared_root.join("benchmark-manifest.json"), &manifest)?;
+    Ok(PreparedDataset { manifest })
+}
+
 #[derive(Debug, Clone)]
 struct CityJsonSourceDocument {
     file_stem: String,
@@ -475,7 +754,13 @@ struct CityJsonSourceDocument {
 
 fn benchmark_layouts(requested: &[BenchmarkLayoutKind]) -> Vec<BenchmarkLayoutKind> {
     if requested.is_empty() {
-        return BenchmarkLayoutKind::ALL.to_vec();
+        // Exclude FeatureFiles from defaults to avoid file descriptor exhaustion
+        // with large datasets (e.g., Basisvoorziening with 49k+ features).
+        // Users can explicitly request FeatureFiles with --layout feature-files.
+        return vec![
+            BenchmarkLayoutKind::CityJson,
+            BenchmarkLayoutKind::CityJsonSeq,
+        ];
     }
     let mut layouts = requested.to_vec();
     layouts.sort_by_key(|layout| match layout {
@@ -756,8 +1041,26 @@ fn total_file_size(root: &Path) -> Result<u64> {
     clippy::too_many_lines,
     reason = "benchmark orchestration keeps measured run order explicit"
 )]
-fn run_dataset(dataset: &PreparedDataset) -> Result<Vec<BenchmarkOperationRecord>> {
+fn run_dataset(
+    dataset: &PreparedDataset,
+    warmth_options: &[BenchmarkWarmth],
+    source_positions: &[SourcePosition],
+    batch_sizes: &[usize],
+    concurrent_reader_counts: &[usize],
+) -> Result<Vec<BenchmarkOperationRecord>> {
     let manifest = &dataset.manifest;
+
+    // Check if this is a Tyler pipeline dataset
+    if manifest.dataset_label.contains("tyler-pipeline") {
+        return run_tyler_dataset(
+            dataset,
+            warmth_options,
+            source_positions,
+            batch_sizes,
+            concurrent_reader_counts,
+        );
+    }
+
     let worker_count = crate::configured_worker_count()?;
     let index_path = fresh_benchmark_index_path(manifest, worker_count)?;
     let resolved = resolve_dataset(&manifest.prepared_dataset, Some(index_path))?;
@@ -801,6 +1104,7 @@ fn run_dataset(dataset: &PreparedDataset) -> Result<Vec<BenchmarkOperationRecord
             cityobject_relationship_count: manifest.cityobject_relationship_count,
             multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
             query_hit_count: None,
+            operation_local_peak_rss_bytes: None,
         }),
         build_record(BenchmarkRecordInput {
             dataset_label: manifest.dataset_label.clone(),
@@ -822,6 +1126,7 @@ fn run_dataset(dataset: &PreparedDataset) -> Result<Vec<BenchmarkOperationRecord
             cityobject_relationship_count: manifest.cityobject_relationship_count,
             multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
             query_hit_count: None,
+            operation_local_peak_rss_bytes: None,
         }),
     ];
 
@@ -906,6 +1211,566 @@ fn run_dataset(dataset: &PreparedDataset) -> Result<Vec<BenchmarkOperationRecord
         &sampled_refs,
     )?);
 
+    // Add reconstruction benchmarks only when CLI options are explicitly provided
+    // This prevents the default benchmarks from running the expensive reconstruction suite
+    let run_reconstruction_benchmarks = !warmth_options.is_empty()
+        || !source_positions.is_empty()
+        || !batch_sizes.is_empty()
+        || !concurrent_reader_counts.is_empty();
+
+    if run_reconstruction_benchmarks {
+        let effective_warmth = if warmth_options.is_empty() {
+            &[BenchmarkWarmth::Cold, BenchmarkWarmth::Warm]
+        } else {
+            warmth_options
+        };
+
+        let effective_positions = if source_positions.is_empty() {
+            &[
+                SourcePosition::First,
+                SourcePosition::Middle,
+                SourcePosition::Last,
+            ]
+        } else {
+            source_positions
+        };
+
+        let effective_batch_sizes = if batch_sizes.is_empty() {
+            DEFAULT_BATCH_SIZES
+        } else {
+            batch_sizes
+        };
+
+        let effective_concurrent_readers = if concurrent_reader_counts.is_empty() {
+            DEFAULT_CONCURRENT_READERS
+        } else {
+            concurrent_reader_counts
+        };
+
+        // Cold scalar reconstruction benchmarks
+        if effective_warmth.contains(&BenchmarkWarmth::Cold) && !effective_positions.is_empty() {
+            runs.extend(run_cold_scalar_reconstruction(
+                manifest,
+                worker_count,
+                feature_count,
+                source_count,
+                cityobject_count,
+                effective_positions,
+            )?);
+        }
+
+        // Warm scalar reconstruction benchmarks
+        if effective_warmth.contains(&BenchmarkWarmth::Warm) && !effective_positions.is_empty() {
+            runs.extend(run_warm_scalar_reconstruction(
+                manifest,
+                worker_count,
+                feature_count,
+                source_count,
+                cityobject_count,
+                effective_positions,
+            )?);
+        }
+
+        // Same-source batch reconstruction benchmarks
+        if !effective_batch_sizes.is_empty() {
+            runs.extend(run_same_source_batches(
+                &index,
+                manifest,
+                worker_count,
+                feature_count,
+                source_count,
+                cityobject_count,
+                effective_batch_sizes,
+            )?);
+        }
+
+        // Duplicate batch reconstruction benchmark
+        if effective_batch_sizes.contains(&256) {
+            runs.push(run_duplicate_batch_reconstruction(
+                &index,
+                manifest,
+                worker_count,
+                feature_count,
+                source_count,
+                cityobject_count,
+            )?);
+        }
+
+        // Bbox queries with materialization
+        runs.extend(run_bbox_queries_with_materialization(
+            &index,
+            manifest,
+            worker_count,
+            feature_count,
+            source_count,
+            cityobject_count,
+        )?);
+
+        // Concurrent readers benchmarks
+        if !effective_concurrent_readers.is_empty() {
+            runs.extend(run_concurrent_readers(
+                &index,
+                manifest,
+                worker_count,
+                feature_count,
+                source_count,
+                cityobject_count,
+                effective_concurrent_readers,
+            )?);
+        }
+    }
+
+    Ok(runs)
+}
+
+/// Run Tyler pipeline dataset with Tyler-specific benchmarks
+#[allow(
+    clippy::too_many_lines,
+    reason = "Tyler pipeline dataset benchmark includes comprehensive reconstruction benchmarks"
+)]
+fn run_tyler_dataset(
+    dataset: &PreparedDataset,
+    warmth_options: &[BenchmarkWarmth],
+    source_positions: &[SourcePosition],
+    batch_sizes: &[usize],
+    concurrent_reader_counts: &[usize],
+) -> Result<Vec<BenchmarkOperationRecord>> {
+    let manifest = &dataset.manifest;
+    let worker_count = crate::configured_worker_count()?;
+    let index_path = fresh_benchmark_index_path(manifest, worker_count)?;
+    let resolved = resolve_dataset(&manifest.prepared_dataset, Some(index_path))?;
+
+    let open_started = Instant::now();
+    let mut index = CityIndex::open(resolved.storage_layout(), &resolved.index_path)?;
+    let open_elapsed = u64::try_from(open_started.elapsed().as_nanos())
+        .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
+    let open_ended = profile::current_memory_snapshot()?;
+
+    let index_started = Instant::now();
+    index.reindex()?;
+    let index_elapsed = u64::try_from(index_started.elapsed().as_nanos())
+        .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
+    let index_ended = profile::current_memory_snapshot()?;
+
+    let feature_count = index.package_count()?;
+    let source_count = index.source_count()?;
+    let cityobject_count = index.cityobject_count()?;
+    let sidecar_byte_size = fs::metadata(&resolved.index_path).map_or(0, |metadata| metadata.len());
+
+    let mut runs = vec![
+        build_record(BenchmarkRecordInput {
+            dataset_label: manifest.dataset_label.clone(),
+            source_artifact: manifest.source_artifact.clone(),
+            prepared_dataset: manifest.prepared_dataset.clone(),
+            subset_size: manifest.subset_size,
+            layout: manifest.layout,
+            byte_size: manifest.byte_size,
+            sidecar_byte_size,
+            worker_count,
+            operation: "dataset_open".to_owned(),
+            variant: None,
+            elapsed_ns: open_elapsed,
+            memory: open_ended,
+            feature_count,
+            package_count: feature_count,
+            source_count,
+            cityobject_count,
+            cityobject_relationship_count: manifest.cityobject_relationship_count,
+            multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
+            query_hit_count: None,
+            operation_local_peak_rss_bytes: None,
+        }),
+        build_record(BenchmarkRecordInput {
+            dataset_label: manifest.dataset_label.clone(),
+            source_artifact: manifest.source_artifact.clone(),
+            prepared_dataset: manifest.prepared_dataset.clone(),
+            subset_size: manifest.subset_size,
+            layout: manifest.layout,
+            byte_size: manifest.byte_size,
+            sidecar_byte_size,
+            worker_count,
+            operation: "index_reindex".to_owned(),
+            variant: None,
+            elapsed_ns: index_elapsed,
+            memory: index_ended,
+            feature_count,
+            package_count: feature_count,
+            source_count,
+            cityobject_count,
+            cityobject_relationship_count: manifest.cityobject_relationship_count,
+            multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
+            query_hit_count: None,
+            operation_local_peak_rss_bytes: None,
+        }),
+    ];
+
+    // Add Tyler pipeline specific benchmarks
+    runs.extend(run_tyler_pipeline(
+        &index,
+        manifest,
+        worker_count,
+        feature_count,
+        source_count,
+        cityobject_count,
+    )?);
+
+    // Add reconstruction benchmarks for Tyler pipeline - always included for multi-file corpora
+    // This ensures reconstruction benchmarks work with multi-file corpora
+    let run_reconstruction_benchmarks = true;
+
+    if run_reconstruction_benchmarks {
+        let effective_warmth = if warmth_options.is_empty() {
+            &[BenchmarkWarmth::Cold, BenchmarkWarmth::Warm]
+        } else {
+            warmth_options
+        };
+
+        let effective_positions = if source_positions.is_empty() {
+            &[
+                SourcePosition::First,
+                SourcePosition::Middle,
+                SourcePosition::Last,
+            ]
+        } else {
+            source_positions
+        };
+
+        let effective_batch_sizes = if batch_sizes.is_empty() {
+            DEFAULT_BATCH_SIZES
+        } else {
+            batch_sizes
+        };
+
+        let effective_concurrent_readers = if concurrent_reader_counts.is_empty() {
+            DEFAULT_CONCURRENT_READERS
+        } else {
+            concurrent_reader_counts
+        };
+
+        // Cold scalar reconstruction benchmarks
+        if effective_warmth.contains(&BenchmarkWarmth::Cold) && !effective_positions.is_empty() {
+            runs.extend(run_cold_scalar_reconstruction(
+                manifest,
+                worker_count,
+                feature_count,
+                source_count,
+                cityobject_count,
+                effective_positions,
+            )?);
+        }
+
+        // Warm scalar reconstruction benchmarks
+        if effective_warmth.contains(&BenchmarkWarmth::Warm) && !effective_positions.is_empty() {
+            runs.extend(run_warm_scalar_reconstruction(
+                manifest,
+                worker_count,
+                feature_count,
+                source_count,
+                cityobject_count,
+                effective_positions,
+            )?);
+        }
+
+        // Same-source batch reconstruction benchmarks
+        if !effective_batch_sizes.is_empty() {
+            runs.extend(run_same_source_batches(
+                &index,
+                manifest,
+                worker_count,
+                feature_count,
+                source_count,
+                cityobject_count,
+                effective_batch_sizes,
+            )?);
+        }
+
+        // Concurrent readers benchmarks
+        if !effective_concurrent_readers.is_empty() {
+            runs.extend(run_concurrent_readers(
+                &index,
+                manifest,
+                worker_count,
+                feature_count,
+                source_count,
+                cityobject_count,
+                effective_concurrent_readers,
+            )?);
+        }
+    }
+
+    Ok(runs)
+}
+
+/// Simulates the Tyler 3-stage pipeline: extent construction, grid indexing, and feature processing
+#[allow(
+    clippy::too_many_lines,
+    reason = "Tyler pipeline simulation requires explicit step sequencing for accurate benchmarking"
+)]
+fn run_tyler_pipeline(
+    index: &CityIndex,
+    manifest: &BenchmarkManifest,
+    worker_count: usize,
+    feature_count: usize,
+    source_count: usize,
+    cityobject_count: usize,
+) -> Result<Vec<BenchmarkOperationRecord>> {
+    use rayon::prelude::*;
+
+    let mut runs = Vec::new();
+
+    // Stage 1: Extent construction - full scan to compute bbox
+    // This simulates Tyler's first pass to compute extent
+    let extent_started = Instant::now();
+    let mut extent_bbox: Option<BBox> = None;
+    let mut extent_feature_count = 0usize;
+
+    let mut after_record_id = None;
+    loop {
+        let page = index.package_ref_page_after_record_id(after_record_id, 512)?;
+        if page.is_empty() {
+            break;
+        }
+
+        for package_ref in &page {
+            if let Some(bounds) = package_ref.bounds {
+                let package_bbox = BBox {
+                    min_x: bounds.min_x,
+                    max_x: bounds.max_x,
+                    min_y: bounds.min_y,
+                    max_y: bounds.max_y,
+                };
+                extent_bbox = Some(match extent_bbox {
+                    None => package_bbox,
+                    Some(existing) => BBox {
+                        min_x: existing.min_x.min(package_bbox.min_x),
+                        max_x: existing.max_x.max(package_bbox.max_x),
+                        min_y: existing.min_y.min(package_bbox.min_y),
+                        max_y: existing.max_y.max(package_bbox.max_y),
+                    },
+                });
+            }
+            extent_feature_count += 1;
+        }
+
+        after_record_id = page.last().map(|package| package.record_id);
+    }
+
+    let extent_elapsed = u64::try_from(extent_started.elapsed().as_nanos())
+        .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
+    let extent_memory = profile::current_memory_snapshot()?;
+
+    runs.push(build_record(BenchmarkRecordInput {
+        dataset_label: manifest.dataset_label.clone(),
+        source_artifact: manifest.source_artifact.clone(),
+        prepared_dataset: manifest.prepared_dataset.clone(),
+        subset_size: manifest.subset_size,
+        layout: manifest.layout,
+        byte_size: manifest.byte_size,
+        sidecar_byte_size: fs::metadata(
+            manifest
+                .prepared_dataset
+                .join(format!(".cityjson-index.worker-{worker_count}.sqlite")),
+        )
+        .map_or(0, |metadata| metadata.len()),
+        worker_count,
+        operation: "tyler_extent_construction".to_owned(),
+        variant: None,
+        elapsed_ns: extent_elapsed,
+        memory: extent_memory,
+        feature_count,
+        package_count: feature_count,
+        source_count,
+        cityobject_count,
+        cityobject_relationship_count: manifest.cityobject_relationship_count,
+        multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
+        query_hit_count: Some(extent_feature_count),
+        operation_local_peak_rss_bytes: None,
+    }));
+
+    // Stage 2: Grid indexing - parallel processing of features for grid assignment
+    // This simulates Tyler's second pass where features are assigned to grid cells
+    let grid_started = Instant::now();
+    let all_refs = index.package_ref_page_after_record_id(None, feature_count)?;
+
+    // Process in parallel chunks using rayon (simulating Tyler's parallelism)
+    let chunk_size = 256;
+    let grid_feature_count: usize = all_refs
+        .chunks(chunk_size)
+        .par_bridge()
+        .map(|chunk| {
+            let mut chunk_count = 0usize;
+            for package_ref in chunk {
+                // Simulate grid assignment work
+                if let Some(bounds) = package_ref.bounds {
+                    let _ = BBox {
+                        min_x: bounds.min_x,
+                        max_x: bounds.max_x,
+                        min_y: bounds.min_y,
+                        max_y: bounds.max_y,
+                    };
+                    // In Tyler, this would compute grid cell assignments
+                }
+                chunk_count += 1;
+            }
+            chunk_count
+        })
+        .sum();
+
+    let grid_elapsed = u64::try_from(grid_started.elapsed().as_nanos())
+        .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
+    let grid_memory = profile::current_memory_snapshot()?;
+
+    runs.push(build_record(BenchmarkRecordInput {
+        dataset_label: manifest.dataset_label.clone(),
+        source_artifact: manifest.source_artifact.clone(),
+        prepared_dataset: manifest.prepared_dataset.clone(),
+        subset_size: manifest.subset_size,
+        layout: manifest.layout,
+        byte_size: manifest.byte_size,
+        sidecar_byte_size: fs::metadata(
+            manifest
+                .prepared_dataset
+                .join(format!(".cityjson-index.worker-{worker_count}.sqlite")),
+        )
+        .map_or(0, |metadata| metadata.len()),
+        worker_count,
+        operation: "tyler_grid_indexing".to_owned(),
+        variant: Some(format!("chunk_size-{chunk_size}")),
+        elapsed_ns: grid_elapsed,
+        memory: grid_memory,
+        feature_count,
+        package_count: feature_count,
+        source_count,
+        cityobject_count,
+        cityobject_relationship_count: manifest.cityobject_relationship_count,
+        multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
+        query_hit_count: Some(grid_feature_count),
+        operation_local_peak_rss_bytes: None,
+    }));
+
+    // Stage 3: Feature materialization - Tyler's pattern with thread-local caching
+    // This matches Tyler's pipeline pattern which causes OOM with thread-local CityIndex caching
+    let index_path = manifest
+        .prepared_dataset
+        .join(format!(".cityjson-index.worker-{worker_count}.sqlite"));
+    let resolved = resolve_dataset(&manifest.prepared_dataset, Some(index_path.clone()))?;
+
+    // Clear any existing thread-local indexes to start fresh
+    clear_thread_local_index();
+
+    // Use Tyler's exact constants for parallel processing
+    let chunk_size = BENCH_CJINDEX_PARALLEL_CHUNK_SIZE;
+    let layout = resolved.storage_layout();
+    let resolved_index_path = resolved.index_path.clone();
+
+    let read_started = Instant::now();
+    let all_refs_cloned = all_refs.clone();
+    let read_count: usize = all_refs
+        .chunks(chunk_size)
+        .par_bridge()
+        .map(|chunk| {
+            BENCH_INDEX_THREAD_LOCAL.with(|cell| {
+                let needs_open = {
+                    let slot = cell.borrow();
+                    slot.as_ref().is_none()
+                };
+                
+                if needs_open {
+                    // Open index once per thread and cache it
+                    let index = CityIndex::open(layout.clone(), &resolved_index_path).unwrap();
+                    *cell.borrow_mut() = Some((resolved_index_path.clone(), index));
+                }
+                
+                let slot = cell.borrow();
+                let Some((_, thread_index)) = slot.as_ref() else {
+                    // This should not happen if needs_open worked, but fallback to opening new index
+                    let index = CityIndex::open(layout.clone(), &resolved_index_path).unwrap();
+                    *cell.borrow_mut() = Some((resolved_index_path.clone(), index));
+                    return 0;
+                };
+                
+                let mut count = 0usize;
+                for package_ref in chunk {
+                    let _model = thread_index.read_package(package_ref).unwrap();
+                    count += 1;
+                }
+                count
+            })
+        })
+        .sum();
+
+    let read_elapsed = u64::try_from(read_started.elapsed().as_nanos())
+        .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
+    let read_memory = profile::current_memory_snapshot()?;
+
+    // Measure operation-local peak RSS for parallel processing
+    let operation_local_peak = measure_operation_local_peak_rss(|| {
+        // Clear thread-local cache to measure fresh peak
+        clear_thread_local_index();
+        let _: usize = all_refs_cloned
+            .chunks(chunk_size)
+            .par_bridge()
+            .map(|chunk| {
+                BENCH_INDEX_THREAD_LOCAL.with(|cell| {
+                    let needs_open = {
+                        let slot = cell.borrow();
+                        slot.as_ref().is_none()
+                    };
+                    
+                    if needs_open {
+                        // Open index once per thread and cache it
+                        let index = CityIndex::open(layout.clone(), &resolved_index_path).unwrap();
+                        *cell.borrow_mut() = Some((resolved_index_path.clone(), index));
+                    }
+                    
+                    let slot = cell.borrow();
+                    let Some((_, thread_index)) = slot.as_ref() else {
+                        // Fallback to opening new index
+                        let index = CityIndex::open(layout.clone(), &resolved_index_path).unwrap();
+                        *cell.borrow_mut() = Some((resolved_index_path.clone(), index));
+                        return 0;
+                    };
+                    
+                    let mut count = 0usize;
+                    for package_ref in chunk {
+                        let _model = thread_index.read_package(package_ref).unwrap();
+                        count += 1;
+                    }
+                    count
+                })
+            })
+            .sum();
+        Ok(())
+    })?;
+
+    runs.push(build_record(BenchmarkRecordInput {
+        dataset_label: manifest.dataset_label.clone(),
+        source_artifact: manifest.source_artifact.clone(),
+        prepared_dataset: manifest.prepared_dataset.clone(),
+        subset_size: manifest.subset_size,
+        layout: manifest.layout,
+        byte_size: manifest.byte_size,
+        sidecar_byte_size: fs::metadata(
+            manifest
+                .prepared_dataset
+                .join(format!(".cityjson-index.worker-{worker_count}.sqlite")),
+        )
+        .map_or(0, |metadata| metadata.len()),
+        worker_count,
+        operation: "tyler_feature_materialization".to_owned(),
+        variant: None,
+        elapsed_ns: read_elapsed,
+        memory: read_memory,
+        feature_count,
+        package_count: feature_count,
+        source_count,
+        cityobject_count,
+        cityobject_relationship_count: manifest.cityobject_relationship_count,
+        multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
+        query_hit_count: Some(read_count),
+        operation_local_peak_rss_bytes: operation_local_peak,
+    }));
+
     Ok(runs)
 }
 
@@ -977,6 +1842,7 @@ fn run_full_scan(
         cityobject_relationship_count: manifest.cityobject_relationship_count,
         multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
         query_hit_count: Some(count),
+        operation_local_peak_rss_bytes: None,
     })])
 }
 
@@ -1027,6 +1893,7 @@ fn run_cityobject_full_scan(
         cityobject_relationship_count: manifest.cityobject_relationship_count,
         multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
         query_hit_count: Some(count),
+        operation_local_peak_rss_bytes: None,
     })])
 }
 
@@ -1070,6 +1937,7 @@ fn run_gets(
             cityobject_relationship_count: manifest.cityobject_relationship_count,
             multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
             query_hit_count: Some(hit.len()),
+            operation_local_peak_rss_bytes: None,
         }));
     }
     Ok(runs)
@@ -1118,6 +1986,7 @@ fn run_cityobject_id_lookup(
         cityobject_relationship_count: manifest.cityobject_relationship_count,
         multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
         query_hit_count: Some(hits.len()),
+        operation_local_peak_rss_bytes: None,
     }))
 }
 
@@ -1161,6 +2030,7 @@ fn run_package_bbox_lookup_only(
             cityobject_relationship_count: manifest.cityobject_relationship_count,
             multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
             query_hit_count: Some(hits.len()),
+            operation_local_peak_rss_bytes: None,
         }));
     }
     Ok(runs)
@@ -1206,6 +2076,7 @@ fn run_cityobject_queries(
             cityobject_relationship_count: manifest.cityobject_relationship_count,
             multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
             query_hit_count: Some(hits.len()),
+            operation_local_peak_rss_bytes: None,
         }));
     }
     Ok(runs)
@@ -1252,6 +2123,7 @@ fn run_queries(
             cityobject_relationship_count: manifest.cityobject_relationship_count,
             multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
             query_hit_count: Some(hits.len()),
+            operation_local_peak_rss_bytes: None,
         }));
     }
     Ok(runs)
@@ -1300,6 +2172,7 @@ fn run_read_package(
         cityobject_relationship_count: manifest.cityobject_relationship_count,
         multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
         query_hit_count: Some(reconstructed),
+        operation_local_peak_rss_bytes: None,
     }))
 }
 
@@ -1342,6 +2215,7 @@ fn run_read_packages(
         cityobject_relationship_count: manifest.cityobject_relationship_count,
         multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
         query_hit_count: Some(packages.len()),
+        operation_local_peak_rss_bytes: None,
     }))
 }
 
@@ -1368,6 +2242,7 @@ fn build_record(input: BenchmarkRecordInput) -> BenchmarkOperationRecord {
         cityobject_relationship_count: input.cityobject_relationship_count,
         multi_geometry_cityobject_count: input.multi_geometry_cityobject_count,
         query_hit_count: input.query_hit_count,
+        operation_local_peak_rss_bytes: input.operation_local_peak_rss_bytes,
     }
 }
 
@@ -1873,6 +2748,633 @@ impl BBox {
     }
 }
 
+/// Measures operation-local peak RSS by comparing `VmHWM` before and after the operation.
+/// Returns the difference (operation-local peak) if measurement is successful.
+/// On non-Linux platforms or if measurement fails, returns None.
+fn measure_operation_local_peak_rss<F, R>(f: F) -> Result<Option<u64>>
+where
+    F: FnOnce() -> Result<R>,
+{
+    #[cfg(target_os = "linux")]
+    {
+        use std::fs::File;
+        use std::io::{BufRead, BufReader};
+
+        fn read_vm_hwm_value() -> Result<u64> {
+            let status = File::open("/proc/self/status")?;
+            let reader = BufReader::new(status);
+
+            for line in reader.lines() {
+                let line = line?;
+                if let Some(value) = line.strip_prefix("VmHWM:") {
+                    let kib = value
+                        .split_whitespace()
+                        .find_map(|part| part.parse::<u64>().ok())
+                        .ok_or_else(|| Error::Import("failed to parse VmHWM value".to_owned()))?;
+                    return kib
+                        .checked_mul(1024)
+                        .ok_or_else(|| Error::Import("VmHWM value overflowed bytes".to_owned()));
+                }
+            }
+            Err(Error::Import(
+                "VmHWM was not present in /proc/self/status".to_owned(),
+            ))
+        }
+
+        let before_hwm = read_vm_hwm_value()?;
+        let _result = f()?;
+        let after_hwm = read_vm_hwm_value()?;
+
+        // Operation-local peak is the difference between after and before
+        // If after >= before, the operation increased the peak by (after - before)
+        // If after < before, the operation didn't increase the peak (or peak was from elsewhere)
+        let operation_local_peak = if after_hwm >= before_hwm {
+            Some(after_hwm - before_hwm)
+        } else {
+            Some(0) // No operation-local increase
+        };
+
+        Ok(operation_local_peak)
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        // On non-Linux platforms, we can't measure operation-local peak RSS
+        let _ = f();
+        Ok(None)
+    }
+}
+
+/// Helper function to get source position packages for benchmarking.
+/// For a given index and source position, returns a vector of package references
+/// that can be used for scalar reconstruction benchmarks.
+fn get_source_position_packages(
+    index: &CityIndex,
+    position: SourcePosition,
+    package_count: usize,
+) -> Result<Vec<IndexedPackageRef>> {
+    let total_packages = index.package_count()?;
+
+    if total_packages == 0 {
+        return Ok(Vec::new());
+    }
+
+    match position {
+        SourcePosition::First => {
+            // Get the first package
+            let refs = index.package_ref_page_after_record_id(None, 1)?;
+            Ok(refs.into_iter().take(package_count.min(1)).collect())
+        }
+        SourcePosition::Last => {
+            // Get the last package
+            if total_packages == 1 {
+                let refs = index.package_ref_page_after_record_id(None, 1)?;
+                Ok(refs)
+            } else {
+                // Try to get packages near the end
+                let page_size = package_count.min(256);
+                let start_offset = total_packages.saturating_sub(page_size);
+                let refs =
+                    index.package_ref_page_after_record_id(
+                        Some(start_offset.try_into().map_err(|_| {
+                            Error::Import("record ID conversion failed".to_owned())
+                        })?),
+                        page_size,
+                    )?;
+                Ok(refs.into_iter().take(package_count).collect())
+            }
+        }
+        SourcePosition::Middle => {
+            // Get a package from the middle
+            let middle_offset = total_packages / 2;
+            let limit = package_count.min(256);
+            let refs = index.package_ref_page_after_record_id(
+                Some(
+                    middle_offset
+                        .try_into()
+                        .map_err(|_| Error::Import("record ID conversion failed".to_owned()))?,
+                ),
+                limit,
+            )?;
+            Ok(refs.into_iter().take(1).collect())
+        }
+    }
+}
+
+/// Helper function to create a warm index for benchmarking.
+/// This creates an index and performs an initial reindex to warm it up.
+fn create_warm_index(resolved: &ResolvedDataset, worker_count: usize) -> Result<CityIndex> {
+    // Set worker count for this operation
+    with_worker_count_env(worker_count, || {
+        let mut index = CityIndex::open(resolved.storage_layout(), &resolved.index_path)?;
+        index.reindex()?;
+        Ok(index)
+    })
+}
+
+/// Run cold scalar reconstruction benchmarks for different source positions.
+/// Uses fresh `CityIndex` for each measurement to simulate cold reads.
+fn run_cold_scalar_reconstruction(
+    manifest: &BenchmarkManifest,
+    worker_count: usize,
+    feature_count: usize,
+    source_count: usize,
+    cityobject_count: usize,
+    positions: &[SourcePosition],
+) -> Result<Vec<BenchmarkOperationRecord>> {
+    let mut runs = Vec::new();
+
+    // Create fresh index for each position measurement
+    for &position in positions {
+        let index_path = fresh_benchmark_index_path(manifest, worker_count)?;
+        let resolved = resolve_dataset(&manifest.prepared_dataset, Some(index_path))?;
+
+        let mut index = CityIndex::open(resolved.storage_layout(), &resolved.index_path)?;
+        index.reindex()?;
+
+        // Get packages for this position
+        let position_refs = get_source_position_packages(&index, position, 1)?;
+
+        if position_refs.is_empty() {
+            continue;
+        }
+
+        let sidecar_byte_size =
+            fs::metadata(&resolved.index_path).map_or(0, |metadata| metadata.len());
+
+        // Measure timing and memory
+        let started = Instant::now();
+        for package in &position_refs {
+            let _model = index.read_package(package)?;
+        }
+        let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
+            .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
+        let memory = profile::current_memory_snapshot()?;
+
+        // Measure operation-local peak RSS
+        let operation_local_peak = measure_operation_local_peak_rss(|| {
+            for package in &position_refs {
+                let _model = index.read_package(package)?;
+            }
+            Ok(())
+        })?;
+
+        runs.push(build_record(BenchmarkRecordInput {
+            dataset_label: manifest.dataset_label.clone(),
+            source_artifact: manifest.source_artifact.clone(),
+            prepared_dataset: manifest.prepared_dataset.clone(),
+            subset_size: manifest.subset_size,
+            layout: manifest.layout,
+            byte_size: manifest.byte_size,
+            sidecar_byte_size,
+            worker_count,
+            operation: "cold_scalar_reconstruction".to_owned(),
+            variant: Some(format!("position-{position:?}")),
+            elapsed_ns,
+            memory,
+            feature_count,
+            package_count: feature_count,
+            source_count,
+            cityobject_count,
+            cityobject_relationship_count: manifest.cityobject_relationship_count,
+            multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
+            query_hit_count: Some(position_refs.len()),
+            operation_local_peak_rss_bytes: operation_local_peak,
+        }));
+    }
+
+    Ok(runs)
+}
+
+/// Run warm scalar reconstruction benchmarks for different source positions.
+/// Uses a single warmed-up `CityIndex` for all measurements.
+fn run_warm_scalar_reconstruction(
+    manifest: &BenchmarkManifest,
+    worker_count: usize,
+    feature_count: usize,
+    source_count: usize,
+    cityobject_count: usize,
+    positions: &[SourcePosition],
+) -> Result<Vec<BenchmarkOperationRecord>> {
+    let mut runs = Vec::new();
+
+    // Create and warm up the index once
+    let index_path = fresh_benchmark_index_path(manifest, worker_count)?;
+    let resolved = resolve_dataset(&manifest.prepared_dataset, Some(index_path.clone()))?;
+    let index = create_warm_index(&resolved, worker_count)?;
+
+    let sidecar_byte_size = fs::metadata(&index_path).map_or(0, |metadata| metadata.len());
+
+    // Get packages for each position
+    let mut position_refs_map = HashMap::new();
+    for &position in positions {
+        let refs = get_source_position_packages(&index, position, 1)?;
+        position_refs_map.insert(position, refs);
+    }
+
+    // Measure warm scalar reconstruction for each position
+    for &position in positions {
+        let position_refs = position_refs_map
+            .get(&position)
+            .cloned()
+            .unwrap_or_default();
+
+        if position_refs.is_empty() {
+            continue;
+        }
+
+        // Warm up by reading once
+        for package in &position_refs {
+            let _ = index.read_package(package)?;
+        }
+
+        // Measure timing and memory
+        let started = Instant::now();
+        for package in &position_refs {
+            let _model = index.read_package(package)?;
+        }
+        let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
+            .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
+        let memory = profile::current_memory_snapshot()?;
+
+        // Measure operation-local peak RSS
+        let operation_local_peak = measure_operation_local_peak_rss(|| {
+            for package in &position_refs {
+                let _model = index.read_package(package)?;
+            }
+            Ok(())
+        })?;
+
+        runs.push(build_record(BenchmarkRecordInput {
+            dataset_label: manifest.dataset_label.clone(),
+            source_artifact: manifest.source_artifact.clone(),
+            prepared_dataset: manifest.prepared_dataset.clone(),
+            subset_size: manifest.subset_size,
+            layout: manifest.layout,
+            byte_size: manifest.byte_size,
+            sidecar_byte_size,
+            worker_count,
+            operation: "warm_scalar_reconstruction".to_owned(),
+            variant: Some(format!("position-{position:?}")),
+            elapsed_ns,
+            memory,
+            feature_count,
+            package_count: feature_count,
+            source_count,
+            cityobject_count,
+            cityobject_relationship_count: manifest.cityobject_relationship_count,
+            multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
+            query_hit_count: Some(position_refs.len()),
+            operation_local_peak_rss_bytes: operation_local_peak,
+        }));
+    }
+
+    Ok(runs)
+}
+
+/// Run same-source batch reconstruction benchmarks with different batch sizes.
+fn run_same_source_batches(
+    index: &CityIndex,
+    manifest: &BenchmarkManifest,
+    worker_count: usize,
+    feature_count: usize,
+    source_count: usize,
+    cityobject_count: usize,
+    batch_sizes: &[usize],
+) -> Result<Vec<BenchmarkOperationRecord>> {
+    let mut runs = Vec::new();
+
+    let sidecar_byte_size = fs::metadata(
+        manifest
+            .prepared_dataset
+            .join(format!(".cityjson-index.worker-{worker_count}.sqlite")),
+    )
+    .map_or(0, |metadata| metadata.len());
+
+    // Get package references for benchmarking across all sources
+    // Use feature_count to get a representative sample across all sources
+    let all_refs = index.package_ref_page_after_record_id(None, feature_count)?;
+
+    for &batch_size in batch_sizes {
+        let batch_limit = batch_size.min(all_refs.len());
+        let batch_refs: Vec<_> = all_refs.iter().take(batch_limit).cloned().collect();
+
+        if batch_refs.is_empty() {
+            continue;
+        }
+
+        // Measure timing and memory
+        let started = Instant::now();
+        let _packages = index.read_packages(&batch_refs)?;
+        let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
+            .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
+        let memory = profile::current_memory_snapshot()?;
+
+        // Measure operation-local peak RSS
+        let operation_local_peak = measure_operation_local_peak_rss(|| {
+            let batch_refs_cloned = batch_refs.clone();
+            let _packages = index.read_packages(&batch_refs_cloned)?;
+            Ok(())
+        })?;
+
+        runs.push(build_record(BenchmarkRecordInput {
+            dataset_label: manifest.dataset_label.clone(),
+            source_artifact: manifest.source_artifact.clone(),
+            prepared_dataset: manifest.prepared_dataset.clone(),
+            subset_size: manifest.subset_size,
+            layout: manifest.layout,
+            byte_size: manifest.byte_size,
+            sidecar_byte_size,
+            worker_count,
+            operation: "same_source_batch_reconstruction".to_owned(),
+            variant: Some(format!("batch_size-{batch_size},multi_source")),
+            elapsed_ns,
+            memory,
+            feature_count,
+            package_count: feature_count,
+            source_count,
+            cityobject_count,
+            cityobject_relationship_count: manifest.cityobject_relationship_count,
+            multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
+            query_hit_count: Some(batch_refs.len()),
+            operation_local_peak_rss_bytes: operation_local_peak,
+        }));
+    }
+
+    Ok(runs)
+}
+
+/// Run duplicate batch reconstruction benchmark with 50% duplicates.
+fn run_duplicate_batch_reconstruction(
+    index: &CityIndex,
+    manifest: &BenchmarkManifest,
+    worker_count: usize,
+    feature_count: usize,
+    source_count: usize,
+    cityobject_count: usize,
+) -> Result<BenchmarkOperationRecord> {
+    let sidecar_byte_size = fs::metadata(
+        manifest
+            .prepared_dataset
+            .join(format!(".cityjson-index.worker-{worker_count}.sqlite")),
+    )
+    .map_or(0, |metadata| metadata.len());
+
+    // Get package references
+    let all_refs = index.package_ref_page_after_record_id(None, feature_count)?;
+
+    // Create a batch with 50% duplicates (256 requests with 128 unique + 128 duplicates)
+    let unique_count = 128.min(all_refs.len());
+    let unique_refs: Vec<_> = all_refs.iter().take(unique_count).cloned().collect();
+
+    let mut batch_refs = Vec::with_capacity(256);
+    // Add unique refs
+    batch_refs.extend_from_slice(&unique_refs);
+    // Add duplicates (repeat the same refs)
+    batch_refs.extend_from_slice(&unique_refs);
+
+    if batch_refs.is_empty() {
+        // Fallback to smaller batch if we don't have enough packages
+        let small_batch_size = unique_count.min(256);
+        let small_refs: Vec<_> = all_refs.iter().take(small_batch_size).cloned().collect();
+        batch_refs = small_refs;
+    }
+
+    // Measure timing and memory
+    let started = Instant::now();
+    let _packages = index.read_packages(&batch_refs)?;
+    let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
+        .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
+    let memory = profile::current_memory_snapshot()?;
+
+    // Measure operation-local peak RSS
+    let operation_local_peak = measure_operation_local_peak_rss(|| {
+        let batch_refs_cloned = batch_refs.clone();
+        let _packages = index.read_packages(&batch_refs_cloned)?;
+        Ok(())
+    })?;
+
+    Ok(build_record(BenchmarkRecordInput {
+        dataset_label: manifest.dataset_label.clone(),
+        source_artifact: manifest.source_artifact.clone(),
+        prepared_dataset: manifest.prepared_dataset.clone(),
+        subset_size: manifest.subset_size,
+        layout: manifest.layout,
+        byte_size: manifest.byte_size,
+        sidecar_byte_size,
+        worker_count,
+        operation: "duplicate_batch_reconstruction".to_owned(),
+        variant: Some("50_percent_duplicates".to_owned()),
+        elapsed_ns,
+        memory,
+        feature_count,
+        package_count: feature_count,
+        source_count,
+        cityobject_count,
+        cityobject_relationship_count: manifest.cityobject_relationship_count,
+        multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
+        query_hit_count: Some(batch_refs.len()),
+        operation_local_peak_rss_bytes: operation_local_peak,
+    }))
+}
+
+/// Run bbox queries with materialization benchmarks for different window sizes.
+fn run_bbox_queries_with_materialization(
+    index: &CityIndex,
+    manifest: &BenchmarkManifest,
+    worker_count: usize,
+    feature_count: usize,
+    source_count: usize,
+    cityobject_count: usize,
+) -> Result<Vec<BenchmarkOperationRecord>> {
+    let mut runs = Vec::new();
+
+    let sidecar_byte_size = fs::metadata(
+        manifest
+            .prepared_dataset
+            .join(format!(".cityjson-index.worker-{worker_count}.sqlite")),
+    )
+    .map_or(0, |metadata| metadata.len());
+
+    // Define different bbox window sizes: small, medium, large, full
+    let window_labels = ["small", "medium", "large", "full"];
+
+    // Create fallback windows if needed
+    let fallback_windows: Vec<QueryWindow> = window_labels
+        .iter()
+        .enumerate()
+        .map(|(i, _)| QueryWindow {
+            label: format!("window-{}", window_labels[i]),
+            bbox: manifest.dataset_bbox,
+        })
+        .collect();
+
+    for i in 0..window_labels.len() {
+        let label = window_labels[i];
+        let window = if i < manifest.query_windows.len() {
+            &manifest.query_windows[i]
+        } else {
+            &fallback_windows[i]
+        };
+
+        // Query packages for this bbox
+        let started = Instant::now();
+        let package_refs = index.query_package_refs(&window.bbox)?;
+
+        // Materialize the packages
+        let packages = index.read_packages(&package_refs)?;
+        let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
+            .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
+        let memory = profile::current_memory_snapshot()?;
+
+        runs.push(build_record(BenchmarkRecordInput {
+            dataset_label: manifest.dataset_label.clone(),
+            source_artifact: manifest.source_artifact.clone(),
+            prepared_dataset: manifest.prepared_dataset.clone(),
+            subset_size: manifest.subset_size,
+            layout: manifest.layout,
+            byte_size: manifest.byte_size,
+            sidecar_byte_size,
+            worker_count,
+            operation: "bbox_query_with_materialization".to_owned(),
+            variant: Some(format!("window-{label}")),
+            elapsed_ns,
+            memory,
+            feature_count,
+            package_count: feature_count,
+            source_count,
+            cityobject_count,
+            cityobject_relationship_count: manifest.cityobject_relationship_count,
+            multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
+            query_hit_count: Some(packages.len()),
+            operation_local_peak_rss_bytes: None,
+        }));
+    }
+
+    Ok(runs)
+}
+
+/// Run concurrent readers benchmark with independent `CityIndex` instances.
+fn run_concurrent_readers(
+    index: &CityIndex,
+    manifest: &BenchmarkManifest,
+    worker_count: usize,
+    feature_count: usize,
+    source_count: usize,
+    cityobject_count: usize,
+    reader_counts: &[usize],
+) -> Result<Vec<BenchmarkOperationRecord>> {
+    use rayon::prelude::*;
+
+    let mut runs = Vec::new();
+
+    for &reader_count in reader_counts {
+        let sidecar_byte_size = fs::metadata(
+            manifest
+                .prepared_dataset
+                .join(format!(".cityjson-index.worker-{worker_count}.sqlite")),
+        )
+        .map_or(0, |metadata| metadata.len());
+
+        // Get some package references to read
+        let all_refs = index.package_ref_page_after_record_id(None, feature_count.min(256))?;
+
+        let refs: Vec<_> = all_refs
+            .iter()
+            .take(reader_count.min(all_refs.len()))
+            .collect();
+
+        if refs.is_empty() {
+            continue;
+        }
+
+        // Get the index path - all threads will open the same database read-only
+        let index_path = manifest
+            .prepared_dataset
+            .join(format!(".cityjson-index.worker-{worker_count}.sqlite"));
+
+        // Measure timing and memory
+        let started = Instant::now();
+
+        // Shared index with thread-local cache simulation
+        // This matches tyler's pattern where each thread has its own cached index
+        let index_path_clone = index_path.clone();
+        let chunk_size = refs.len() / reader_count.max(1);
+        let _results: Vec<_> = refs
+            .chunks(chunk_size.max(1))
+            .par_bridge()
+            .map(|chunk| {
+                // Each thread opens the same index database (read-only, no reindex)
+                // This simulates tyler's thread-local caching pattern
+                let resolved =
+                    resolve_dataset(&manifest.prepared_dataset, Some(index_path_clone.clone()))
+                        .unwrap();
+                let thread_index =
+                    CityIndex::open(resolved.storage_layout(), &resolved.index_path).unwrap();
+
+                for package in chunk {
+                    let _ = thread_index.read_package(package).unwrap();
+                }
+                Ok::<(), Error>(())
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
+            .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
+        let memory = profile::current_memory_snapshot()?;
+
+        // Measure operation-local peak RSS
+        let operation_local_peak = measure_operation_local_peak_rss(|| {
+            let index_path_clone = index_path.clone();
+            let chunk_size = refs.len() / reader_count.max(1);
+            let _results: Vec<_> = refs
+                .chunks(chunk_size.max(1))
+                .par_bridge()
+                .map(|chunk| {
+                    // Each thread opens the same index database (read-only, no reindex)
+                    // This simulates tyler's thread-local caching pattern
+                    let resolved =
+                        resolve_dataset(&manifest.prepared_dataset, Some(index_path_clone.clone()))
+                            .unwrap();
+                    let thread_index =
+                        CityIndex::open(resolved.storage_layout(), &resolved.index_path).unwrap();
+
+                    for package in chunk {
+                        let _ = thread_index.read_package(package).unwrap();
+                    }
+                    Ok::<(), Error>(())
+                })
+                .collect::<Result<Vec<_>>>()?;
+            Ok(())
+        })?;
+
+        runs.push(build_record(BenchmarkRecordInput {
+            dataset_label: manifest.dataset_label.clone(),
+            source_artifact: manifest.source_artifact.clone(),
+            prepared_dataset: manifest.prepared_dataset.clone(),
+            subset_size: manifest.subset_size,
+            layout: manifest.layout,
+            byte_size: manifest.byte_size,
+            sidecar_byte_size,
+            worker_count,
+            operation: "concurrent_readers".to_owned(),
+            variant: Some(format!("reader_count-{reader_count}")),
+            elapsed_ns,
+            memory,
+            feature_count,
+            package_count: feature_count,
+            source_count,
+            cityobject_count,
+            cityobject_relationship_count: manifest.cityobject_relationship_count,
+            multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
+            query_hit_count: Some(refs.len() * reader_count),
+            operation_local_peak_rss_bytes: operation_local_peak,
+        }));
+    }
+
+    Ok(runs)
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -1899,6 +3401,12 @@ mod tests {
             layout: Vec::new(),
             workers: vec![1],
             multi_tile_root: None,
+            groningen_corpus: None,
+            tyler_tile_count: DEFAULT_TYLER_TILE_COUNT,
+            warmth: Vec::new(),
+            source_position: Vec::new(),
+            batch_size: Vec::new(),
+            concurrent_readers: Vec::new(),
         };
 
         for layout in BenchmarkLayoutKind::ALL {
@@ -1945,6 +3453,12 @@ mod tests {
             layout: vec![BenchmarkLayoutKind::CityJson],
             workers: vec![1],
             multi_tile_root: None,
+            groningen_corpus: None,
+            tyler_tile_count: DEFAULT_TYLER_TILE_COUNT,
+            warmth: Vec::new(),
+            source_position: Vec::new(),
+            batch_size: Vec::new(),
+            concurrent_readers: Vec::new(),
         };
 
         let prepared = prepare_case(
@@ -1987,6 +3501,12 @@ mod tests {
             layout: vec![BenchmarkLayoutKind::CityJson],
             workers: vec![1],
             multi_tile_root: None,
+            groningen_corpus: None,
+            tyler_tile_count: DEFAULT_TYLER_TILE_COUNT,
+            warmth: Vec::new(),
+            source_position: Vec::new(),
+            batch_size: Vec::new(),
+            concurrent_readers: Vec::new(),
         };
 
         let prepared = prepare_single_tile_dataset(
@@ -2028,6 +3548,12 @@ mod tests {
             layout: vec![BenchmarkLayoutKind::CityJson],
             workers: vec![4],
             multi_tile_root: None,
+            groningen_corpus: None,
+            tyler_tile_count: DEFAULT_TYLER_TILE_COUNT,
+            warmth: Vec::new(),
+            source_position: Vec::new(),
+            batch_size: Vec::new(),
+            concurrent_readers: Vec::new(),
         };
 
         let prepared = prepare_case(

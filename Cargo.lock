@@ -708,6 +708,7 @@ dependencies = [
  "ignore",
  "lru",
  "memmap2",
+ "rayon",
  "reqwest",
  "rusqlite",
  "serde",

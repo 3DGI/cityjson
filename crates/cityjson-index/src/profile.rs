@@ -248,6 +248,40 @@ pub fn current_memory_snapshot() -> Result<MemorySnapshot> {
     }
 }
 
+/// Returns the current `VmHWM` (peak RSS) value for operation-local peak tracking.
+///
+/// This reads the process-lifetime peak RSS from /proc/self/status and is used
+/// to compute operation-local peaks by comparing before/after values.
+///
+/// # Errors
+///
+/// Returns an error if the Linux memory status file cannot be read or parsed.
+#[cfg(target_os = "linux")]
+pub fn read_vm_hwm() -> Result<u64> {
+    let status = File::open("/proc/self/status")?;
+    let reader = BufReader::new(status);
+
+    for line in reader.lines() {
+        let line = line?;
+        if let Some(value) = line.strip_prefix("VmHWM:") {
+            return parse_linux_kib_to_bytes(value);
+        }
+    }
+
+    Err(Error::Import(
+        "VmHWM was not present in /proc/self/status".to_owned(),
+    ))
+}
+
+/// Returns the current `VmHWM` (peak RSS) value for operation-local peak tracking.
+/// On non-Linux platforms, returns an error.
+#[cfg(not(target_os = "linux"))]
+pub fn read_vm_hwm() -> Result<u64> {
+    Err(Error::UnsupportedFeature(
+        "profiling is only supported on Linux".to_owned(),
+    ))
+}
+
 /// Serializes a profile payload to the requested file path.
 ///
 /// # Errors

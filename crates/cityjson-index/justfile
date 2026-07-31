@@ -44,11 +44,17 @@ test:
 
 # Run the benchmark harness with human-readable output.
 bench-index *args:
-    cargo run --release -p cityjson-index --bin bench-index --target-dir target -- {{args}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export CITYJSON_GRONINGEN_CORPUS="${CITYJSON_GRONINGEN_CORPUS:-../../target/benchmarks/groningen-182/cityjson}"
+    cargo run --release -p cityjson-index --bin bench-index --target-dir ../../target -- {{args}}
 
 # Run the benchmark harness with JSON output.
 bench-index-json *args:
-    cargo run --release -p cityjson-index --bin bench-index --target-dir target -- --json {{args}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export CITYJSON_GRONINGEN_CORPUS="${CITYJSON_GRONINGEN_CORPUS:-../../target/benchmarks/groningen-182/cityjson}"
+    cargo run --release -p cityjson-index --bin bench-index --target-dir ../../target -- --json {{args}}
 
 # Build the shared library and run the Python install smoke tests through tox and tox-uv.
 test-python:
