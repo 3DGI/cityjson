@@ -16,6 +16,9 @@ crate in the workspace to the same version.
   `CityObject.address[*].location`: address locations are imported as
   pool-backed `AttributeValue::Geometry` references and serialized back to
   their CityJSON `MultiPoint` geometry representation.
+- Fixed geometry-filtered selection with relatives so structurally required
+  CityObjects are retained without leaking their geometries. Empty geometry
+  intersections on the same CityObject now retain that object without geometry.
 
 ### Added
 - Added `cityjson-types` WKB/EWKB boundary serialization APIs: `Boundary::to_wkb`

@@ -338,8 +338,9 @@ int main() {
   assert(count_occurrences(whole_first_document, "\"transformationMatrix\"") == 1U);
 
   const auto disjoint = first_geometry.intersection_with(second_geometry);
-  assert(disjoint.is_empty());
-  assert(merge_left.extract_selection(disjoint).summary().cityobject_count == 0U);
+  assert(!disjoint.is_empty());
+  const auto disjoint_document = merge_left.extract_selection(disjoint).serialize_document();
+  assert(count_occurrences(disjoint_document, "\"transformationMatrix\"") == 0U);
 
   const std::array<const cityjson_lib::Model* const, 2> merge_models{&merge_left, &merge_right};
   const auto merged = cityjson_lib::Model::merge_models(merge_models);

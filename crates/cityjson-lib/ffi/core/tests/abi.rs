@@ -1250,13 +1250,17 @@ fn model_selection_geometry_union_and_intersection_exports_work() {
         cj_model_selection_is_empty(disjoint, &raw mut is_empty),
         cj_status_t::CJ_STATUS_SUCCESS
     );
-    assert!(is_empty);
+    assert!(!is_empty);
     let mut disjoint_extract = ptr::null_mut();
     assert_eq!(
         cj_model_extract_selection(model, disjoint, &raw mut disjoint_extract),
         cj_status_t::CJ_STATUS_SUCCESS
     );
-    assert_eq!(model_summary(disjoint_extract).cityobject_count, 0);
+    assert_eq!(model_summary(disjoint_extract).cityobject_count, 1);
+    assert_eq!(
+        cityobject_geometry_count(disjoint_extract, "shared-furniture"),
+        0
+    );
 
     assert_eq!(
         cj_model_free(disjoint_extract),

@@ -48,7 +48,9 @@ Geometry-level selection uses `cj_geometry_selection_spec_t`, pairing a
 CityObject id with the geometry index inside that CityObject. Selection handles
 can be combined with `cj_model_selection_union(...)` and
 `cj_model_selection_intersection(...)`; `cj_model_selection_is_empty(...)`
-reports whether a selection has no retained CityObjects or geometries.
+reports whether a selection has no retained CityObjects. A retained CityObject
+with no selected geometry is not empty and extracts as a geometry-free
+CityObject.
 
 Multiple complete models can be merged through `cj_model_merge_models(...)`.
 The array must contain at least one non-null `cj_model_t*`; the returned model

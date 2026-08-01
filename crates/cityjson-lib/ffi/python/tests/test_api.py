@@ -64,6 +64,7 @@ FAKE_COMPLETE_FIXTURE_PATH = (
 )
 OPS_FIXTURE_DIR = Path(__file__).resolve().parents[3] / "tests" / "data" / "v2_0" / "ops"
 SUBSET_FIXTURE_PATH = OPS_FIXTURE_DIR / "subset_source.city.json"
+LOD_RELATIVES_FIXTURE_PATH = OPS_FIXTURE_DIR / "selection_lod_relatives.city.json"
 MERGE_LEFT_FIXTURE_PATH = OPS_FIXTURE_DIR / "merge_left.city.json"
 MERGE_RIGHT_FIXTURE_PATH = OPS_FIXTURE_DIR / "merge_right.city.json"
 
@@ -300,6 +301,27 @@ class PythonBindingSmokeTest(unittest.TestCase):
         self.addCleanup(empty.close)
         self.assertTrue(empty.is_empty())
 
+    def test_geometry_selection_with_relatives_does_not_leak_parent_geometry(self) -> None:
+        model = CityModel.parse_document_bytes(LOD_RELATIVES_FIXTURE_PATH.read_bytes())
+        self.addCleanup(model.close)
+
+        selection = ModelSelection.select_geometries_by_cityobject_id_and_index(
+            model,
+            [GeometrySelectionSpec("child", 0)],
+        )
+        self.addCleanup(selection.close)
+        with_relatives = selection.include_relatives(model)
+        self.addCleanup(with_relatives.close)
+        extracted = model.extract_selection(with_relatives)
+        self.addCleanup(extracted.close)
+
+        self.assertEqual(sorted(extracted.cityobject_ids()), ["child", "parent"])
+        self.assertEqual(self.geometry_count(extracted, "child"), 1)
+        self.assertEqual(self.geometry_count(extracted, "parent"), 0)
+        document = json.loads(extracted.serialize_document())
+        self.assertEqual(document["CityObjects"]["parent"]["children"], ["child"])
+        self.assertEqual(document["CityObjects"]["child"]["parents"], ["parent"])
+
     def test_geometry_selection_set_operations_and_merge_models(self) -> None:
         model = CityModel.parse_document_bytes(MERGE_LEFT_FIXTURE_PATH.read_bytes())
         self.addCleanup(model.close)
@@ -331,10 +353,11 @@ class PythonBindingSmokeTest(unittest.TestCase):
 
         disjoint = first.intersection(second)
         self.addCleanup(disjoint.close)
-        self.assertTrue(disjoint.is_empty())
+        self.assertFalse(disjoint.is_empty())
         disjoint_extract = model.extract_selection(disjoint)
         self.addCleanup(disjoint_extract.close)
-        self.assertEqual(disjoint_extract.summary().cityobject_count, 0)
+        self.assertEqual(disjoint_extract.summary().cityobject_count, 1)
+        self.assertEqual(self.geometry_count(disjoint_extract, "shared-furniture"), 0)
 
         left = CityModel.parse_document_bytes(MERGE_LEFT_FIXTURE_PATH.read_bytes())
         right = CityModel.parse_document_bytes(MERGE_RIGHT_FIXTURE_PATH.read_bytes())

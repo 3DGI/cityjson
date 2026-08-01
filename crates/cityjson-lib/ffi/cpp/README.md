@@ -54,7 +54,7 @@ const auto second_geometry =
 
 const auto combined = first_geometry.union_with(second_geometry);
 const auto overlap = first_geometry.intersection_with(second_geometry);
-const bool empty = overlap.is_empty();
+const bool retains_cityobject = !overlap.is_empty();
 
 const auto geometry_extract = model.extract_selection(combined);
 const std::array<const cityjson_lib::Model* const, 2> models{

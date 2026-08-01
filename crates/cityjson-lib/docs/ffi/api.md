@@ -91,7 +91,7 @@ second = ModelSelection.select_geometries_by_cityobject_id_and_index(
 )
 combined = first.union(second)
 overlap = first.intersection(second)
-is_empty = overlap.is_empty()
+retains_cityobject = not overlap.is_empty()
 
 merged = merge_models([model, extracted])
     ```
@@ -122,7 +122,7 @@ const auto second = cityjson_lib::ModelSelection::select_geometries_by_cityobjec
     std::array{cityjson_lib::GeometrySelectionSpec{"building-1", 1U}});
 const auto combined = first.union_with(second);
 const auto overlap = first.intersection_with(second);
-const auto is_empty = overlap.is_empty();
+const auto retains_cityobject = !overlap.is_empty();
 
 const std::array<const cityjson_lib::Model* const, 2> models{&model, &extracted};
 const auto merged = cityjson_lib::Model::merge_models(models);

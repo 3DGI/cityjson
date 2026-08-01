@@ -68,7 +68,7 @@ second_geometry = ModelSelection.select_geometries_by_cityobject_id_and_index(
 
 combined = first_geometry.union(second_geometry)
 overlap = first_geometry.intersection(second_geometry)
-assert overlap.is_empty()
+assert not overlap.is_empty()  # The CityObject remains, without geometry.
 
 geometry_extract = model.extract_selection(combined)
 merged = merge_models([extracted, geometry_extract])

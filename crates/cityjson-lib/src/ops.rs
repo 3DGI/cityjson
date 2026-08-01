@@ -148,6 +148,9 @@ impl ModelSelection {
     }
 
     /// Expand the selection through parent and child relations.
+    ///
+    /// Newly reached relatives are retained without geometry. Geometry already selected on an
+    /// object is preserved.
     pub fn include_relatives(self, model: &CityModel) -> Result<Self> {
         let mut selection = self;
         let roots = selection.cityobjects.keys().copied().collect::<Vec<_>>();
@@ -157,7 +160,7 @@ impl ModelSelection {
             selection
                 .cityobjects
                 .entry(handle)
-                .or_insert(CityObjectSelection::Whole);
+                .or_insert(CityObjectSelection::Partial(HashSet::new()));
         }
 
         Ok(selection)
@@ -192,6 +195,9 @@ impl ModelSelection {
     }
 
     /// Keep only the overlap between two selections.
+    ///
+    /// When both selections retain the same CityObject but select disjoint geometries, the
+    /// CityObject remains selected without geometry.
     pub fn intersection(&self, other: &Self) -> Self {
         let mut cityobjects = HashMap::new();
 
@@ -210,9 +216,6 @@ impl ModelSelection {
                 }
                 (CityObjectSelection::Partial(lhs), CityObjectSelection::Partial(rhs)) => {
                     let geometries = lhs.intersection(rhs).copied().collect::<HashSet<_>>();
-                    if geometries.is_empty() {
-                        continue;
-                    }
                     CityObjectSelection::Partial(geometries)
                 }
             };
@@ -224,6 +227,8 @@ impl ModelSelection {
     }
 
     /// Return `true` when no CityObjects are selected.
+    ///
+    /// A retained CityObject with no selected geometry is not empty.
     pub fn is_empty(&self) -> bool {
         self.cityobjects.is_empty()
     }
@@ -1189,10 +1194,6 @@ fn rebuild_model_with_selection(
         };
 
         let geometry_handles = selected_geometry_handles(model, cityobject, state)?;
-        if matches!(state, CityObjectSelection::Partial(_)) && geometry_handles.is_empty() {
-            continue;
-        }
-
         let mut cloned = cityobject.clone();
         cloned.clear_children();
         cloned.clear_parents();
