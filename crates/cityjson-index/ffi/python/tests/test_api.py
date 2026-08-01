@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import json
 import tempfile
 import unittest
@@ -76,6 +78,24 @@ class OpenedIndexApiTests(unittest.TestCase):
                 bbox = Bounds2D(bounds.min_x, bounds.max_x, bounds.min_y, bounds.max_y)
                 self.assertTrue(index.package_ref_bbox_page(bbox, None, 10))
                 self.assertTrue(index.cityobject_ref_bbox_page(bbox, None, 10))
+
+    def test_package_source_paths_preserve_order_and_report_missing_records(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            index_path = Path(tmpdir) / ".cityjson_index.sqlite"
+            with OpenedIndex.open(CITYJSON_DATASET, index_path) as index:
+                index.reindex()
+                first = index.package_ref_page_after_record_id(None, 1)[0]
+
+                self.assertEqual(index.package_source_paths([]), [])
+                self.assertEqual(
+                    index.package_source_paths([first, first]),
+                    [
+                        str(CITYJSON_DATASET / "a" / "fixtures.city.json"),
+                        str(CITYJSON_DATASET / "a" / "fixtures.city.json"),
+                    ],
+                )
+                with self.assertRaisesRegex(RuntimeError, str(2**63 - 1)):
+                    index.package_source_paths([replace(first, record_id=2**63 - 1)])
 
     def test_read_filtered_packages_reports_package_reports(self) -> None:
         """Input: two package refs filtered for Building geometry at the highest LoD.

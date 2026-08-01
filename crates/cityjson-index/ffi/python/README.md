@@ -35,6 +35,18 @@ with OpenedIndex.open("city.idx") as index:
     print(package.id, len(package.payload))
 ```
 
+## Package source paths
+
+Resolve one persisted backing path per package page while preserving order and duplicates:
+
+```python
+with OpenedIndex.open("dataset") as index:
+    refs = index.package_ref_page_after_record_id(None, 512)
+    paths = index.package_source_paths(refs)
+    for ref, source_path in zip(refs, paths, strict=True):
+        print(ref.record_id, source_path)
+```
+
 ## Filtered reads
 
 ```python

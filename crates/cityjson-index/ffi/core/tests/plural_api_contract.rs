@@ -8,6 +8,7 @@ fn ffi_cityobject_lookup_is_plural_only() {
         "cjx_index_lookup_cityobject_refs",
         "cjx_index_package_refs_for_cityobject",
         "cjx_index_read_package_model_bytes",
+        "cjx_index_package_source_paths",
         "cjx_index_read_filtered_packages",
         "cjx_filtered_packages_free",
     ] {

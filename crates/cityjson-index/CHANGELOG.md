@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added ordered, batched `package_source_paths()` APIs for Rust, C, and Python callers that need storage-layout-aware package provenance.
+
 - Added normalized package indexing with source, package, CityObject,
   package-membership, relationship, and 3D bbox tables so every supported
   storage layout can expose stable package-level reads and spatial queries.

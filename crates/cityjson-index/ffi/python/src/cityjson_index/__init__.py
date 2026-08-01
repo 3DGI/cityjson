@@ -442,6 +442,13 @@ class OpenedIndex:
             return None
         return IndexedPackage(reference=ref, model=_parse_citymodel_bytes(payload))
 
+    def package_source_paths(self, refs: list[PackageRef]) -> list[str]:
+        """Return persisted source paths in input order, preserving duplicates.
+
+        An empty input returns an empty list. A missing package record raises an error identifying the record id.
+        """
+        return _native.package_source_paths(self._require_handle(), refs)
+
     def read_packages(self, refs: list[PackageRef]) -> list[IndexedPackage]:
         payloads = _native.read_packages_model_bytes(self._require_handle(), refs)
         return [
