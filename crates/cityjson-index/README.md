@@ -65,6 +65,12 @@ let resolved = resolve_dataset(Path::new("/data/3dbag"), None)?;
 let index = CityIndex::open(resolved.storage_layout(), &resolved.index_path)?;
 let status = index.status()?;
 assert!(status.exists);
+
+let refs = index.package_ref_page_after_record_id(None, 512)?;
+let source_paths = index.package_source_paths(&refs)?;
+for (package, source_path) in refs.iter().zip(source_paths) {
+    println!("{}: {}", package.record_id, source_path.display());
+}
 # Ok::<(), cityjson_lib::Error>(())
 ```
 

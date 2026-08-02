@@ -1697,6 +1697,65 @@ impl CityIndex {
             .collect()
     }
 
+    /// Resolves the persisted source path for each package reference.
+    ///
+    /// Regular `CityJSON` packages resolve to their shared `.city.json` file,
+    /// `CityJSONSeq` packages to their shared `.city.jsonl` stream, and
+    /// feature-files packages to the individual feature file. Input order and
+    /// duplicates are preserved. Resolve paths once per page or batch.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use cityjson_index::{CityIndex, StorageLayout};
+    /// # use std::path::Path;
+    /// # fn example() -> cityjson_lib::Result<()> {
+    /// let index = CityIndex::open(
+    ///     StorageLayout::CityJson { paths: vec![] },
+    ///     Path::new("index.sqlite"),
+    /// )?;
+    /// let refs = index.package_ref_page_after_record_id(None, 512)?;
+    /// let paths = index.package_source_paths(&refs)?;
+    /// for (package, source_path) in refs.iter().zip(paths) {
+    ///     println!("{}: {}", package.record_id, source_path.display());
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error identifying the record id if any package record is
+    /// missing, or if the batched `SQLite` lookup fails.
+    pub fn package_source_paths(&self, packages: &[IndexedPackageRef]) -> Result<Vec<PathBuf>> {
+        if packages.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let record_ids = packages
+            .iter()
+            .map(|package| package.record_id)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let locations = self.package_locations_for_record_ids(&record_ids)?;
+
+        packages
+            .iter()
+            .map(|package| {
+                locations
+                    .get(&package.record_id)
+                    .map(|location| location.path.clone())
+                    .ok_or_else(|| {
+                        import_error(format!(
+                            "package record {} was not found",
+                            package.record_id
+                        ))
+                    })
+            })
+            .collect()
+    }
+
     /// Reads and filters packages while preserving input order.
     ///
     /// # Errors

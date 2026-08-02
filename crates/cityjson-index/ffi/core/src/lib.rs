@@ -472,6 +472,23 @@ impl OpenedIndex {
             .collect()
     }
 
+    fn package_source_paths(
+        &self,
+        packages: &[cjx_package_ref_t],
+    ) -> Result<Vec<cj_bytes_t>, AbiError> {
+        let packages = packages
+            .iter()
+            .map(IndexedPackageRef::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(self
+            .index
+            .package_source_paths(&packages)
+            .map_err(AbiError::from)?
+            .into_iter()
+            .map(|path| bytes_from_string(path.to_string_lossy().into_owned()))
+            .collect())
+    }
+
     fn read_filtered_packages(
         &self,
         packages: &[cjx_package_ref_t],
@@ -1264,6 +1281,32 @@ pub extern "C" fn cjx_index_read_packages_model_bytes(
             unsafe { slice::from_raw_parts(refs.as_ptr(), ref_count) }
         };
         let items = handle.read_packages_model_bytes(refs)?;
+        write_ref_slice(out_items, out_count, items)
+    }) {
+        Ok(()) => cj_status_t::CJ_STATUS_SUCCESS,
+        Err(status) => status,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cjx_index_package_source_paths(
+    handle: *const cjx_index_t,
+    refs: *const cjx_package_ref_t,
+    ref_count: usize,
+    out_items: *mut *mut cj_bytes_t,
+    out_count: *mut usize,
+) -> cj_status_t {
+    match run_ffi(|| {
+        let handle = required_handle(handle)?;
+        let refs = if ref_count == 0 {
+            &[]
+        } else {
+            let refs = NonNull::new(refs.cast_mut()).ok_or_else(|| {
+                AbiError::invalid_argument("refs must not be null when ref_count is non-zero")
+            })?;
+            unsafe { slice::from_raw_parts(refs.as_ptr(), ref_count) }
+        };
+        let items = handle.package_source_paths(refs)?;
         write_ref_slice(out_items, out_count, items)
     }) {
         Ok(()) => cj_status_t::CJ_STATUS_SUCCESS,

@@ -21,6 +21,7 @@ crate in the workspace to the same version.
   intersections on the same CityObject now retain that object without geometry.
 
 ### Added
+- Added `cityjson-index` ordered, batched package-provenance lookup across Rust, C, and Python APIs, exposing persisted source paths without exposing the private SQLite schema.
 - Added `cityjson-types` WKB/EWKB boundary serialization APIs: `Boundary::to_wkb`
   and `Boundary::from_wkb` for little-endian ISO WKB, plus `Boundary::to_ewkb`,
   `Boundary::from_ewkb`, `EwkbType`, and `EwkbBoundary` for PostGIS EWKB.

@@ -420,6 +420,68 @@ fn package_filter_reports_merge_for_batch_lod_validation() {
     assert!(!report.missing_lods.is_empty());
 }
 
+/// Input: package refs from all three storage layouts, including duplicates and a missing record.
+/// Assertions: source paths match persisted backing files, preserve order/duplicates, and missing ids error.
+#[test]
+fn package_source_paths_cover_layouts_order_duplicates_and_missing_records() {
+    let feature = cityjson_feature(
+        "fixture",
+        json!({"fixture": {"type": "Building"}}),
+        json!([]),
+    );
+    let cases = [
+        (
+            write_cityjson_fixture(
+                "source-path-cityjson",
+                json!({"fixture": {"type": "Building"}}),
+                json!([]),
+            ),
+            "fixture.city.json",
+            open_cityjson_index as fn(&std::path::Path, &std::path::Path) -> CityIndex,
+        ),
+        (
+            write_cityjson_seq_fixture("source-path-seq", std::slice::from_ref(&feature)),
+            "fixture.city.jsonl",
+            open_cityjson_seq_index,
+        ),
+        (
+            write_feature_files_fixture("source-path-features", &feature),
+            "features/fixture.city.jsonl",
+            open_feature_files_index,
+        ),
+    ];
+
+    for (root, relative_path, open) in cases {
+        let index_path = temp_index_path("source-paths");
+        let mut index = open(&root, &index_path);
+        index.reindex().expect("fixture should reindex");
+        let package = index
+            .package_ref_page_after_record_id(None, 1)
+            .expect("package page")
+            .remove(0);
+        let paths = index
+            .package_source_paths(&[package.clone(), package.clone()])
+            .expect("source paths");
+        assert_eq!(
+            paths,
+            vec![root.join(relative_path), root.join(relative_path)]
+        );
+        assert!(
+            index
+                .package_source_paths(&[])
+                .expect("empty lookup")
+                .is_empty()
+        );
+
+        let mut missing = package;
+        missing.record_id = i64::MAX;
+        let error = index
+            .package_source_paths(&[missing])
+            .expect_err("missing record should fail");
+        assert!(error.to_string().contains(&i64::MAX.to_string()));
+    }
+}
+
 fn hierarchy_index() -> CityIndex {
     let index_path = temp_index_path("normalized-api-hierarchy");
     let root = write_cityjson_fixture(

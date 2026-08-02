@@ -355,6 +355,14 @@ class FfiLibrary:
             POINTER(c_size_t),
         ]
         self._lib.cjx_index_read_packages_model_bytes.restype = c_int
+        self._lib.cjx_index_package_source_paths.argtypes = [
+            c_void_p,
+            POINTER(_PackageRef),
+            c_size_t,
+            POINTER(POINTER(_Bytes)),
+            POINTER(c_size_t),
+        ]
+        self._lib.cjx_index_package_source_paths.restype = c_int
         self._lib.cjx_index_read_filtered_packages.argtypes = [
             c_void_p,
             POINTER(_PackageRef),
@@ -597,6 +605,21 @@ class FfiLibrary:
         )
         try:
             return [_bytes_to_py(out[index]) for index in range(count.value)]
+        finally:
+            self._check_status(self._lib.cjx_bytes_array_free(out, count.value))
+
+    def package_source_paths(self, handle: c_void_p, refs: list[object]) -> list[str]:
+        keepalive: list[Any] = []
+        native_refs = _package_ref_array(refs, keepalive)
+        out = POINTER(_Bytes)()
+        count = c_size_t()
+        self._check_status(
+            self._lib.cjx_index_package_source_paths(
+                handle, native_refs, len(refs), byref(out), byref(count)
+            )
+        )
+        try:
+            return [_bytes_to_py(out[index]).decode("utf-8") for index in range(count.value)]
         finally:
             self._check_status(self._lib.cjx_bytes_array_free(out, count.value))
 
@@ -899,6 +922,9 @@ def read_package_by_record_id_model_bytes(handle: c_void_p, record_id: int) -> b
 def read_packages_model_bytes(handle: c_void_p, refs: list[object]) -> list[bytes]:
     return _ffi.read_packages_model_bytes(handle, refs)
 
+
+def package_source_paths(handle: c_void_p, refs: list[object]) -> list[str]:
+    return _ffi.package_source_paths(handle, refs)
 
 def read_filtered_packages(handle: c_void_p, refs: list[object], filter: object) -> list[object]:
     return _ffi.read_filtered_packages(handle, refs, filter)
