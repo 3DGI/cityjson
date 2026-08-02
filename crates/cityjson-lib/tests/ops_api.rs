@@ -70,6 +70,12 @@ fn fixture_subset_model() -> cityjson_lib::Result<cityjson_lib::CityModel> {
     json::from_slice(include_bytes!("data/v2_0/ops/subset_source.city.json"))
 }
 
+fn fixture_lod_relatives() -> cityjson_lib::Result<cityjson_lib::CityModel> {
+    json::from_slice(include_bytes!(
+        "data/v2_0/ops/selection_lod_relatives.city.json"
+    ))
+}
+
 fn fixture_merge_left() -> cityjson_lib::Result<cityjson_lib::CityModel> {
     json::from_slice(include_bytes!("data/v2_0/ops/merge_left.city.json"))
 }
@@ -352,7 +358,36 @@ fn ops_select_geometries_keeps_only_matching_geometry_handles() {
 }
 
 #[test]
-fn ops_model_selection_union_and_intersection_handle_whole_and_partial_selections() {
+fn ops_geometry_selection_with_relatives_does_not_leak_parent_geometry() {
+    use cityjson_lib::cityjson_types::v2_0::LoD;
+
+    let model = fixture_lod_relatives().expect("LoD relative fixture should parse");
+
+    let selection =
+        ops::select_geometries(&model, |ctx| ctx.geometry().lod() == Some(&LoD::LoD2_2))
+            .expect("LoD 2.2 selection should succeed")
+            .include_relatives(&model)
+            .expect("relative expansion should succeed");
+    let extracted = ops::extract(&model, &selection).expect("extract should succeed");
+
+    assert_eq!(
+        cityobject_ids(&extracted),
+        BTreeSet::from([String::from("child"), String::from("parent")])
+    );
+    assert_eq!(geometry_count(&extracted, "child"), 1);
+    assert_eq!(geometry_count(&extracted, "parent"), 0);
+    assert_eq!(
+        related_cityobject_ids(&extracted, "parent", CityObject::children),
+        BTreeSet::from([String::from("child")])
+    );
+    assert_eq!(
+        related_cityobject_ids(&extracted, "child", CityObject::parents),
+        BTreeSet::from([String::from("parent")])
+    );
+}
+
+#[test]
+fn ops_model_selection_whole_and_partial_set_operations() {
     let model = fixture_merge_left().expect("geometry fixture should parse");
 
     let whole = ops::select_cityobjects(&model, |ctx| ctx.id() == "shared-furniture")
@@ -361,10 +396,6 @@ fn ops_model_selection_union_and_intersection_handle_whole_and_partial_selection
         ctx.cityobject_id() == "shared-furniture" && ctx.geometry_index() == 0
     })
     .expect("first partial selection should succeed");
-    let second_geometry = ops::select_geometries(&model, |ctx| {
-        ctx.cityobject_id() == "shared-furniture" && ctx.geometry_index() == 1
-    })
-    .expect("second partial selection should succeed");
 
     let union = whole.union(&first_geometry);
     let union_extract = ops::extract(&model, &union).expect("union extract should succeed");
@@ -377,12 +408,45 @@ fn ops_model_selection_union_and_intersection_handle_whole_and_partial_selection
         geometry_count(&whole_intersection_extract, "shared-furniture"),
         1
     );
+}
+
+#[test]
+fn ops_model_selection_disjoint_geometries_retain_cityobject_without_geometry() {
+    let model = fixture_merge_left().expect("geometry fixture should parse");
+
+    let first_geometry = ops::select_geometries(&model, |ctx| {
+        ctx.cityobject_id() == "shared-furniture" && ctx.geometry_index() == 0
+    })
+    .expect("first partial selection should succeed");
+    let second_geometry = ops::select_geometries(&model, |ctx| {
+        ctx.cityobject_id() == "shared-furniture" && ctx.geometry_index() == 1
+    })
+    .expect("second partial selection should succeed");
 
     let disjoint = first_geometry.intersection(&second_geometry);
-    assert!(disjoint.is_empty());
+    assert!(!disjoint.is_empty());
     let disjoint_extract = ops::extract(&model, &disjoint)
-        .expect("empty intersection should extract to an empty model");
-    assert!(disjoint_extract.cityobjects().is_empty());
+        .expect("disjoint geometry intersection should extract the CityObject");
+    assert_eq!(
+        cityobject_ids(&disjoint_extract),
+        BTreeSet::from([String::from("shared-furniture")])
+    );
+    assert_eq!(geometry_count(&disjoint_extract, "shared-furniture"), 0);
+}
+
+#[test]
+fn ops_model_selection_without_common_cityobject_is_empty() {
+    let model = fixture_merge_left().expect("geometry fixture should parse");
+
+    let shared = ops::select_cityobjects(&model, |ctx| ctx.id() == "shared-furniture")
+        .expect("shared selection should succeed");
+    let left_only = ops::select_cityobjects(&model, |ctx| ctx.id() == "left-only")
+        .expect("left-only selection should succeed");
+
+    let disjoint = shared.intersection(&left_only);
+    assert!(disjoint.is_empty());
+    let extracted = ops::extract(&model, &disjoint).expect("empty extract should succeed");
+    assert!(extracted.cityobjects().is_empty());
 }
 
 #[test]

@@ -16,6 +16,12 @@ The current release line ships these helpers:
 - `append(&mut CityModel, &CityModel) -> Result<()>`
 - `merge(models) -> Result<CityModel>`
 
+Selection emptiness is CityObject-level. `include_relatives` retains newly
+reached relatives without geometry, and intersecting disjoint geometry subsets
+on the same CityObject retains that object without geometry. `extract`
+materializes these geometry-free CityObjects so their structural relationships
+can remain valid.
+
 ## Examples
 
 ```rust

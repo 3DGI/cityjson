@@ -1,0 +1,36 @@
+{
+  "type": "CityJSON",
+  "version": "2.0",
+  "transform": {
+    "scale": [1, 1, 1],
+    "translate": [0, 0, 0]
+  },
+  "CityObjects": {
+    "parent": {
+      "type": "Building",
+      "children": ["child"],
+      "geometry": [
+        {
+          "type": "MultiPoint",
+          "lod": "0",
+          "boundaries": [0]
+        }
+      ]
+    },
+    "child": {
+      "type": "BuildingPart",
+      "parents": ["parent"],
+      "geometry": [
+        {
+          "type": "MultiPoint",
+          "lod": "2.2",
+          "boundaries": [1]
+        }
+      ]
+    }
+  },
+  "vertices": [
+    [0, 0, 0],
+    [1, 1, 1]
+  ]
+}
