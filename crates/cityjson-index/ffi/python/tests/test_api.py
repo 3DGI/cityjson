@@ -87,13 +87,12 @@ class OpenedIndexApiTests(unittest.TestCase):
                 first = index.package_ref_page_after_record_id(None, 1)[0]
 
                 self.assertEqual(index.package_source_paths([]), [])
-                self.assertEqual(
-                    index.package_source_paths([first, first]),
-                    [
-                        str(CITYJSON_DATASET / "a" / "fixtures.city.json"),
-                        str(CITYJSON_DATASET / "a" / "fixtures.city.json"),
-                    ],
-                )
+                source_paths = index.package_source_paths([first, first])
+                self.assertEqual(len(source_paths), 2)
+                expected_path = CITYJSON_DATASET / "a" / "fixtures.city.json"
+                for source_path in source_paths:
+                    # Rust canonical paths may use Windows extended-length syntax.
+                    self.assertTrue(Path(source_path).samefile(expected_path))
                 with self.assertRaisesRegex(RuntimeError, str(2**63 - 1)):
                     index.package_source_paths([replace(first, record_id=2**63 - 1)])
 

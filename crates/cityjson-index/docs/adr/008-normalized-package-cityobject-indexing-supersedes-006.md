@@ -176,6 +176,26 @@ Package mapping:
 | `cityjson-seq` | One `.city.jsonl` stream and cached header | One original feature line. |
 | `feature-files` | Nearest ancestor metadata context | One standalone feature file. |
 
+#### Persisted Path Representation
+
+Dataset roots are canonicalized before indexing, and the resulting paths are
+used to scan and reconstruct source files. The `sources.path`, `packages.path`,
+and `cityobjects.path` columns therefore store operational filesystem locators,
+not user-facing display values or portable string identifiers.
+
+On Windows, [`std::fs::canonicalize`](https://doc.rust-lang.org/std/fs/fn.canonicalize.html)
+returns extended-length paths such as `\\?\D:\dataset\file.city.json`. This
+syntax is documented by Microsoft in [Naming Files, Paths, and
+Namespaces](https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file).
+An extended-length path and a conventional path such as
+`D:\dataset\file.city.json` can identify the same file while remaining unequal
+as strings.
+
+Application code and tests must use filesystem path operations when identity
+matters rather than relying on textual equality across platforms or runtimes.
+APIs that expose a persisted package path return the stored locator without
+presentation-oriented normalization.
+
 Package byte ranges follow the fastest semantically correct read path:
 
 | Type | `packages.offset` and `packages.length` | Reason |
