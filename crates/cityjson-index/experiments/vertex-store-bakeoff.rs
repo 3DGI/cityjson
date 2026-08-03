@@ -7,17 +7,16 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use cityjson_index::vertex_store_bakeoff::{
     BakeoffProvenance, BakeoffResult, READ_BATCH_SIZE, SAMPLE_SIZE, VertexStore,
-    VertexStoreStrategy, VertexStoreTelemetry, candidate, deterministic_stratified_sample,
-    open_matching_read_sidecar, write_result,
+    VertexStoreStrategy, VertexStoreTelemetry, candidate, open_matching_read_sidecar, write_result,
 };
-use cityjson_index::{CityIndex, IndexedPackageRef, ResolvedDataset, resolve_dataset};
+use cityjson_index::{CityIndex, IndexedPackageRef, PackageType, ResolvedDataset, resolve_dataset};
 use cityjson_lib::{Error, Result};
 use clap::{Args, Parser, Subcommand};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-const SAMPLE_SCHEMA_VERSION: u32 = 1;
+const SAMPLE_SCHEMA_VERSION: u32 = 2;
 const PAGE_SIZE: usize = 4_096;
 
 #[derive(Debug, Parser)]
@@ -93,12 +92,21 @@ struct MeasuredArgs {
     runtime_configuration: Vec<(String, String)>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+struct StablePackageIdentity {
+    source_path: String,
+    model_id: String,
+    package_path: String,
+    offset: Option<i64>,
+    length: Option<i64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SampleFile {
     schema_version: u32,
     corpus_identity: String,
     sample_identity: String,
-    record_ids: Vec<i64>,
+    packages: Vec<StablePackageIdentity>,
 }
 
 #[derive(Debug, Serialize)]
@@ -199,9 +207,8 @@ fn sample(args: &SampleArgs) -> Result<()> {
     let strategy = active_strategy()?;
     let _resolved = resolved(&args.dataset)?;
     let connection = open_matching_read_sidecar(&args.dataset.sidecar, strategy)?;
-    let record_ids =
-        deterministic_stratified_sample(&package_ids_by_source(&connection)?, args.limit);
-    if record_ids.is_empty() {
+    let packages = stable_stratified_sample(&connection, args.limit)?;
+    if packages.is_empty() {
         return Err(import_error(
             "the sidecar contains no regular CityJSON packages",
         ));
@@ -209,8 +216,8 @@ fn sample(args: &SampleArgs) -> Result<()> {
     let sample = SampleFile {
         schema_version: SAMPLE_SCHEMA_VERSION,
         corpus_identity: args.corpus_identity.clone(),
-        sample_identity: sample_identity(&args.corpus_identity, &record_ids),
-        record_ids,
+        sample_identity: sample_identity(&args.corpus_identity, &packages)?,
+        packages,
     };
     write_json_atomically(&args.output, &sample)
 }
@@ -218,13 +225,13 @@ fn sample(args: &SampleArgs) -> Result<()> {
 fn correctness_storage(args: &MeasuredArgs) -> Result<()> {
     let context = MeasurementContext::open(args, true)?;
     let sample = context.sample.as_ref().expect("sample was required");
-    let refs = refs_for_ids(&context.index, &sample.record_ids)?;
+    let connection = open_matching_read_sidecar(&args.dataset.sidecar, context.strategy)?;
+    let refs = refs_for_sample(&context.index, &connection, &sample.packages)?;
     let started = Instant::now();
     let (packages, telemetry) = context
         .index
         .read_packages_with_vertex_store(&refs, context.store.as_ref())?;
     let materialization = summarize_packages(&packages, started.elapsed().as_nanos())?;
-    let connection = open_matching_read_sidecar(&args.dataset.sidecar, context.strategy)?;
     let payload = CorrectnessStorageResult {
         sample_identity: sample.sample_identity.clone(),
         materialization,
@@ -241,7 +248,8 @@ fn read_latency(args: &MeasuredArgs) -> Result<()> {
     }
     let context = MeasurementContext::open(args, true)?;
     let sample = context.sample.as_ref().expect("sample was required");
-    let refs = refs_for_ids(&context.index, &sample.record_ids)?;
+    let connection = open_matching_read_sidecar(&args.dataset.sidecar, context.strategy)?;
+    let refs = refs_for_sample(&context.index, &connection, &sample.packages)?;
     let (singleton_first, first_single_telemetry) =
         materialize_singletons(&context.index, context.store.as_ref(), &refs)?;
     let (singleton_repeat, repeat_single_telemetry) =
@@ -386,27 +394,84 @@ fn reject_unknown(label: &str, value: &str) -> Result<()> {
     Ok(())
 }
 
-fn package_ids_by_source(connection: &Connection) -> Result<BTreeMap<i64, Vec<i64>>> {
+fn stable_package_rows(connection: &Connection) -> Result<Vec<(StablePackageIdentity, i64)>> {
     let mut statement = connection
         .prepare(
-            "SELECT source_id, id FROM packages WHERE package_type = 'cityjson' \
-             ORDER BY source_id, id",
+            "SELECT s.path, p.model_id, p.path, p.offset, p.length, p.id \
+             FROM packages AS p JOIN sources AS s ON s.id = p.source_id \
+             WHERE p.package_type = 'cityjson' \
+             ORDER BY s.path, p.model_id, p.path, p.offset, p.length, p.id",
         )
         .map_err(|error| sql_error(&error))?;
     let rows = statement
-        .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))
+        .query_map([], |row| {
+            Ok((
+                StablePackageIdentity {
+                    source_path: row.get(0)?,
+                    model_id: row.get(1)?,
+                    package_path: row.get(2)?,
+                    offset: row.get(3)?,
+                    length: row.get(4)?,
+                },
+                row.get(5)?,
+            ))
+        })
         .map_err(|error| sql_error(&error))?;
-    let mut grouped = BTreeMap::<i64, Vec<i64>>::new();
-    for row in rows {
-        let (source_id, record_id) = row.map_err(|error| sql_error(&error))?;
-        grouped.entry(source_id).or_default().push(record_id);
+    rows.collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(|error| sql_error(&error))
+}
+
+fn stable_stratified_sample(
+    connection: &Connection,
+    limit: usize,
+) -> Result<Vec<StablePackageIdentity>> {
+    let mut by_source = BTreeMap::<String, Vec<StablePackageIdentity>>::new();
+    let mut occurrences = BTreeMap::<StablePackageIdentity, usize>::new();
+    for (identity, _) in stable_package_rows(connection)? {
+        *occurrences.entry(identity.clone()).or_default() += 1;
+        by_source
+            .entry(identity.source_path.clone())
+            .or_default()
+            .push(identity);
     }
-    Ok(grouped)
+    if let Some((identity, _)) = occurrences.iter().find(|(_, count)| **count != 1) {
+        return Err(import_error(format!(
+            "stable package identity is ambiguous: {} / {}",
+            identity.source_path, identity.model_id
+        )));
+    }
+    for packages in by_source.values_mut() {
+        packages.sort();
+    }
+    let queues = by_source.into_values().collect::<Vec<_>>();
+    let mut offsets = vec![0_usize; queues.len()];
+    let mut sample = Vec::with_capacity(limit.min(queues.iter().map(Vec::len).sum()));
+    while sample.len() < limit {
+        let mut progressed = false;
+        for (queue, offset) in queues.iter().zip(&mut offsets) {
+            if let Some(identity) = queue.get(*offset) {
+                sample.push(identity.clone());
+                *offset += 1;
+                progressed = true;
+                if sample.len() == limit {
+                    break;
+                }
+            }
+        }
+        if !progressed {
+            break;
+        }
+    }
+    Ok(sample)
 }
 
 fn read_sample(path: &Path, corpus_identity: &str) -> Result<SampleFile> {
     let sample: SampleFile = serde_json::from_slice(&fs::read(path)?)
         .map_err(|error| import_error(error.to_string()))?;
+    validate_sample(sample, corpus_identity)
+}
+
+fn validate_sample(sample: SampleFile, corpus_identity: &str) -> Result<SampleFile> {
     if sample.schema_version != SAMPLE_SCHEMA_VERSION {
         return Err(import_error(format!(
             "sample schema {} is unsupported; expected {SAMPLE_SCHEMA_VERSION}",
@@ -418,32 +483,69 @@ fn read_sample(path: &Path, corpus_identity: &str) -> Result<SampleFile> {
             "sample corpus identity does not match provenance",
         ));
     }
-    if sample.record_ids.is_empty() {
-        return Err(import_error("sample contains no package record ids"));
+    if sample.packages.is_empty() {
+        return Err(import_error("sample contains no package identities"));
     }
-    if sample.sample_identity != sample_identity(&sample.corpus_identity, &sample.record_ids) {
+    if sample.sample_identity != sample_identity(&sample.corpus_identity, &sample.packages)? {
         return Err(import_error("sample identity does not match its contents"));
     }
     Ok(sample)
 }
 
-fn sample_identity(corpus_identity: &str, record_ids: &[i64]) -> String {
+fn sample_identity(corpus_identity: &str, packages: &[StablePackageIdentity]) -> Result<String> {
     let mut hasher = Sha256::new();
     hasher.update(SAMPLE_SCHEMA_VERSION.to_le_bytes());
+    hasher.update((corpus_identity.len() as u64).to_le_bytes());
     hasher.update(corpus_identity.as_bytes());
-    for record_id in record_ids {
-        hasher.update(record_id.to_le_bytes());
+    for package in packages {
+        let bytes = serde_json::to_vec(package).map_err(|error| import_error(error.to_string()))?;
+        hasher.update((bytes.len() as u64).to_le_bytes());
+        hasher.update(bytes);
     }
-    digest_string(hasher.finalize().as_slice())
+    Ok(digest_string(hasher.finalize().as_slice()))
 }
 
-fn refs_for_ids(index: &CityIndex, record_ids: &[i64]) -> Result<Vec<IndexedPackageRef>> {
-    record_ids
+fn resolve_sample_record_ids(
+    connection: &Connection,
+    packages: &[StablePackageIdentity],
+) -> Result<Vec<i64>> {
+    let mut matches = BTreeMap::<StablePackageIdentity, Vec<i64>>::new();
+    for (identity, record_id) in stable_package_rows(connection)? {
+        matches.entry(identity).or_default().push(record_id);
+    }
+    packages
         .iter()
+        .map(|identity| match matches.get(identity).map(Vec::as_slice) {
+            Some([record_id]) => Ok(*record_id),
+            None | Some([]) => Err(import_error(format!(
+                "sample package is missing: {} / {}",
+                identity.source_path, identity.model_id
+            ))),
+            Some(_) => Err(import_error(format!(
+                "sample package is ambiguous: {} / {}",
+                identity.source_path, identity.model_id
+            ))),
+        })
+        .collect()
+}
+
+fn refs_for_sample(
+    index: &CityIndex,
+    connection: &Connection,
+    packages: &[StablePackageIdentity],
+) -> Result<Vec<IndexedPackageRef>> {
+    resolve_sample_record_ids(connection, packages)?
+        .into_iter()
         .map(|record_id| {
-            index
-                .lookup_package_ref_by_record_id(*record_id)?
-                .ok_or_else(|| import_error(format!("sample package {record_id} was not found")))
+            let reference = index
+                .lookup_package_ref_by_record_id(record_id)?
+                .ok_or_else(|| import_error(format!("sample package {record_id} was not found")))?;
+            if reference.package_type != PackageType::CityJson {
+                return Err(import_error(format!(
+                    "sample package {record_id} is not regular CityJSON"
+                )));
+            }
+            Ok(reference)
         })
         .collect()
 }
@@ -684,11 +786,107 @@ mod tests {
         assert!(reject_unknown("commit", "abc123").is_ok());
     }
 
+    fn identity(source: &str, model: &str) -> StablePackageIdentity {
+        StablePackageIdentity {
+            source_path: source.to_owned(),
+            model_id: model.to_owned(),
+            package_path: source.to_owned(),
+            offset: Some(10),
+            length: Some(20),
+        }
+    }
+
+    fn package_database(rows: &[(i64, i64, &str, &str)]) -> Connection {
+        let connection = Connection::open_in_memory().expect("database opens");
+        connection
+            .execute_batch(
+                "CREATE TABLE sources (id INTEGER PRIMARY KEY, path TEXT NOT NULL);                 CREATE TABLE packages (                     id INTEGER PRIMARY KEY, source_id INTEGER NOT NULL, package_type TEXT NOT NULL,                     model_id TEXT NOT NULL, path TEXT NOT NULL, offset INTEGER, length INTEGER                 );",
+            )
+            .expect("schema creates");
+        for (source_id, package_id, source, model) in rows {
+            connection
+                .execute(
+                    "INSERT OR IGNORE INTO sources (id, path) VALUES (?1, ?2)",
+                    rusqlite::params![source_id, source],
+                )
+                .expect("source inserts");
+            connection
+                .execute(
+                    "INSERT INTO packages                      (id, source_id, package_type, model_id, path, offset, length)                      VALUES (?1, ?2, 'cityjson', ?3, ?4, 10, 20)",
+                    rusqlite::params![package_id, source_id, model, source],
+                )
+                .expect("package inserts");
+        }
+        connection
+    }
+
+    #[test]
+    fn stable_sample_survives_different_numeric_ids() {
+        let first = package_database(&[(1, 10, "/a.city.json", "a"), (2, 20, "/b.city.json", "b")]);
+        let second = package_database(&[
+            (92, 700, "/b.city.json", "b"),
+            (41, 900, "/a.city.json", "a"),
+        ]);
+        let sample = stable_stratified_sample(&first, 10).expect("sample builds");
+        assert_eq!(
+            sample,
+            stable_stratified_sample(&second, 10).expect("sample rebuilds")
+        );
+        assert_eq!(
+            resolve_sample_record_ids(&first, &sample).expect("first resolves"),
+            vec![10, 20]
+        );
+        assert_eq!(
+            resolve_sample_record_ids(&second, &sample).expect("second resolves"),
+            vec![900, 700]
+        );
+        assert_eq!(
+            sample_identity("corpus", &sample).expect("identity hashes"),
+            sample_identity(
+                "corpus",
+                &stable_stratified_sample(&second, 10).expect("sample rebuilds")
+            )
+            .expect("identity rehashes")
+        );
+    }
+
+    #[test]
+    fn sample_resolution_rejects_missing_and_ambiguous_identity() {
+        let connection =
+            package_database(&[(1, 10, "/a.city.json", "a"), (1, 11, "/a.city.json", "a")]);
+        assert!(
+            resolve_sample_record_ids(&connection, &[identity("/missing.city.json", "x")]).is_err()
+        );
+        assert!(resolve_sample_record_ids(&connection, &[identity("/a.city.json", "a")]).is_err());
+    }
+
+    #[test]
+    fn old_numeric_id_sample_schema_is_rejected() {
+        let old = serde_json::json!({
+            "schema_version": 1,
+            "corpus_identity": "corpus",
+            "sample_identity": "old",
+            "record_ids": [1, 2, 3],
+            "packages": [identity("/a.city.json", "a")],
+        });
+        let sample: SampleFile = serde_json::from_value(old).expect("shape parses");
+        assert!(validate_sample(sample, "corpus").is_err());
+    }
+
     #[test]
     fn sample_identity_is_stable_and_order_sensitive() {
-        let first = sample_identity("corpus", &[1, 2, 3]);
-        assert_eq!(first, sample_identity("corpus", &[1, 2, 3]));
-        assert_ne!(first, sample_identity("corpus", &[3, 2, 1]));
+        let first = sample_identity("corpus", &[identity("/a", "a"), identity("/b", "b")])
+            .expect("identity hashes");
+        assert_eq!(
+            first,
+            sample_identity("corpus", &[identity("/a", "a"), identity("/b", "b")])
+                .expect("identity rehashes")
+        );
+        assert_ne!(
+            first,
+            sample_identity("corpus", &[identity("/b", "b"), identity("/a", "a")])
+                .expect("reordered identity hashes")
+        );
     }
 
     #[test]
