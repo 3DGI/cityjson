@@ -114,16 +114,32 @@ Each CityJSONFeature package lives in its own file. Metadata is discovered throu
 
 ## Benchmarks
 
-The `bench-index` harness prepares Basisvoorziening 3D benchmark inputs under `target/benchmarks/basisvoorziening-3d` by default:
+The `bench-index` harness includes the Tyler pipeline simulation and prepares
+its inputs under `target/benchmarks/`:
 
 ```bash
 just bench-index
 just bench-index-json
 ```
 
-Default cases include the original single-tile full/subset datasets and a generated multi-source dataset derived from the pinned artifact. CityJSONSeq and regular CityJSON indexing parallelism currently depends on multiple source files, so the generated multi-source case is the default signal for worker-count comparisons. Feature-file indexing parallelizes across individual feature files while keeping one source row per metadata file.
+For contained profiling, run one experiment or the defined campaign from this
+directory:
 
-Each worker-count measurement uses a fresh SQLite index path. Treat one pass as a smoke measurement and use repeated runs for timing comparisons. Memory fields report process RSS snapshots: `current_rss_bytes` is current RSS, `process_peak_rss_bytes` is process-lifetime peak RSS, and `peak_rss_bytes` is a deprecated compatibility alias for the same process-lifetime peak.
+```bash
+just profile-index perf-stat 24 182 "baseline" 32G
+just profile-index heaptrack 24 24 "allocation baseline"
+just profile-index-campaign "baseline" 32G
+```
+
+Full-corpus profiles require an explicit cgroup memory limit. Results and raw
+artifacts are stored under `target/profiling/cityjson-index/`. See
+[`ADR 011`](docs/adr/011-tiered-tyler-profiling.md) for the workload matrix and
+OOM classification rules.
+
+Each profiled worker-count measurement uses a fresh process and an explicit
+Rayon pool. Treat one pass as a smoke measurement and use repeated runs for
+timing comparisons. RSS and cgroup peaks are process-lifetime metrics, not
+operation-local deltas.
 
 ## Development
 

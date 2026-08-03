@@ -17,7 +17,7 @@ ffi:
 
 # Fast compile-time validation for library, binary, and test targets.
 check:
-    cargo check -p cityjson-index --lib --bin cjindex --tests --target-dir target
+    cargo check -p cityjson-index --lib --bins --tests --target-dir target
 
 # Build the production binary.
 build *args:
@@ -28,7 +28,7 @@ clean:
 
 # Run clippy with the project's strict lint settings.
 lint:
-    cargo clippy -p cityjson-index --lib --bin cjindex --tests --target-dir target
+    cargo clippy -p cityjson-index --lib --bins --tests --target-dir target
 
 # Format this workspace with rustfmt without traversing sibling path dependencies.
 fmt:
@@ -40,7 +40,11 @@ fmt-check:
 
 # Run the library and integration tests.
 test:
-    cargo test -p cityjson-index --lib --bin cjindex --tests --target-dir target
+    cargo test -p cityjson-index --lib --bins --tests --target-dir target
+
+# Test the cgroup profiling supervisor without running an expensive profile.
+test-profile-tools:
+    python3 -m unittest tools/test_profile_index.py
 
 # Run the benchmark harness with human-readable output.
 bench-index *args:
@@ -55,6 +59,39 @@ bench-index-json *args:
     set -euo pipefail
     export CITYJSON_GRONINGEN_CORPUS="${CITYJSON_GRONINGEN_CORPUS:-../../target/benchmarks/groningen-182/cityjson}"
     cargo run --release -p cityjson-index --bin bench-index --target-dir ../../target -- --json {{args}}
+
+# Run one isolated profiling experiment in a transient cgroup v2 scope.
+profile-index tool workers tiles description memory_max="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo build -p cityjson-index --bin bench-index --profile profiling --target-dir ../../target
+    python3 tools/profile_index.py \
+      --tool "{{tool}}" \
+      --workers "{{workers}}" \
+      --tiles "{{tiles}}" \
+      --description "{{description}}" \
+      --memory-max "{{memory_max}}" \
+      --corpus "${CITYJSON_GRONINGEN_CORPUS:-../../target/benchmarks/groningen-182/cityjson}" \
+      --work-root ../../target/benchmarks/cityjson-index-profile \
+      --output-root ../../target/profiling/cityjson-index
+
+# Collect the defined comparison matrix. Heaptrack is a required local dependency.
+profile-index-campaign description memory_max:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for tool in native perf-stat; do
+      for repetition in 1 2 3; do
+        for workers in 1 4 24; do
+          just profile-index "$tool" "$workers" 182 "{{description}} ${tool} repetition ${repetition}" "{{memory_max}}"
+        done
+      done
+    done
+    for tool in perf-record heaptrack; do
+      for workers in 1 4 24; do
+        just profile-index "$tool" "$workers" 24 "{{description}} ${tool}"
+      done
+    done
+    just profile-index cachegrind 1 1 "{{description}} cachegrind"
 
 # Build the shared library and run the Python install smoke tests through tox and tox-uv.
 test-python:
@@ -74,6 +111,7 @@ ci:
     just check
     just lint
     just test
+    just test-profile-tools
     just ffi
     just test-python
     just doc

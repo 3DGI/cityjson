@@ -75,6 +75,9 @@ workspace traversals).
 | `test` | Library + integration tests | All features enabled |
 | `bench-index` | Human-readable benchmark output | Uses `target/benchmarks/` |
 | `bench-index-json` | Benchmark output as JSON | For CI/automation |
+| `profile-index` | One cgroup-contained profiling run | Requires Linux cgroup v2 |
+| `profile-index-campaign` | Defined Tyler profiling matrix | Requires perf, Heaptrack, Valgrind |
+| `test-profile-tools` | Supervisor policy unit tests | No profiler run |
 | `ffi` | Build + test FFI core crate | C bindings |
 | `ffi-build` | Build FFI core only | |
 | `ffi-test` | Test FFI core only | |

@@ -37,3 +37,7 @@ pedantic = { level = "deny", priority = -1 }
 
 [profile.bench]
 debug = true
+
+[profile.profiling]
+inherits = "release"
+debug = true

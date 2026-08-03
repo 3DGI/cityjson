@@ -1,8 +1,9 @@
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::fs;
+use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::Instant;
 
 use cityjson_lib::{Error, Result};
@@ -27,18 +28,12 @@ const DEFAULT_BATCH_SIZES: &[usize] = &[1, 16, 256, 4096];
 const DEFAULT_CONCURRENT_READERS: &[usize] = &[1, 4];
 // Tyler's constants for matching its pipeline exactly
 const BENCH_CJINDEX_PARALLEL_CHUNK_SIZE: usize = 2_048;
+const BENCHMARK_SCHEMA_VERSION: u32 = 2;
 
 // Thread-local storage for CityIndex caching (matching Tyler's CJINDEX_THREAD_LOCAL pattern)
 thread_local! {
-    static BENCH_INDEX_THREAD_LOCAL: RefCell<Option<(PathBuf, CityIndex)>> = 
+    static BENCH_INDEX_THREAD_LOCAL: RefCell<Option<(PathBuf, CityIndex)>> =
         const { RefCell::new(None) };
-}
-
-/// Clear thread-local `CityIndex` cache
-fn clear_thread_local_index() {
-    BENCH_INDEX_THREAD_LOCAL.with(|cell| {
-        *cell.borrow_mut() = None;
-    });
 }
 
 #[derive(Debug, Clone, Parser)]
@@ -108,6 +103,28 @@ pub struct BenchmarkCli {
     /// Number of concurrent readers for concurrency benchmarks.
     #[arg(long, value_name = "COUNT")]
     pub concurrent_readers: Vec<usize>,
+
+    /// Prepare datasets and sidecars without running measured operations.
+    #[arg(long)]
+    pub prepare_only: bool,
+
+    /// Run one isolated Tyler profiling target.
+    #[arg(long, value_enum)]
+    pub profile_target: Option<BenchmarkProfileTarget>,
+
+    /// Reuse the prepared Tyler manifest instead of recreating the dataset.
+    #[arg(long, requires = "profile_target")]
+    pub reuse_prepared: bool,
+
+    /// Append incremental stage lifecycle events as JSON Lines.
+    #[arg(long, requires = "profile_target")]
+    pub profile_events: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum BenchmarkProfileTarget {
+    TylerPipeline,
+    TylerFeatureMaterialization,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -155,7 +172,18 @@ pub enum SourcePosition {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct BenchmarkReport {
+    pub schema_version: u32,
     pub runs: Vec<BenchmarkOperationRecord>,
+}
+
+#[derive(Debug, Serialize)]
+struct BenchmarkStageEvent<'a> {
+    schema_version: u32,
+    event: &'a str,
+    stage: &'a str,
+    worker_count: usize,
+    elapsed_ns: Option<u64>,
+    observed_worker_count: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -251,20 +279,27 @@ pub fn run(cli: &BenchmarkCli) -> Result<BenchmarkReport> {
         .artifact
         .clone()
         .unwrap_or_else(|| cli.corpus_root.join(DEFAULT_BASISVOORZIENING_ARTIFACT));
-    if !artifact.exists() {
+
+    let cases = if cli.case.is_empty() {
+        vec![BenchmarkCaseKind::TylerPipeline]
+    } else {
+        cli.case.clone()
+    };
+    if cases
+        .iter()
+        .any(|case| !matches!(case, BenchmarkCaseKind::TylerPipeline))
+        && !artifact.exists()
+    {
         return Err(Error::Import(format!(
             "missing pinned Basisvoorziening 3D artifact {}; run `cd /home/balazs/Development/cityjson-corpus && just acquire-basisvoorziening-3d`",
             artifact.display()
         )));
     }
 
-    let cases = if cli.case.is_empty() {
-        vec![
-            BenchmarkCaseKind::TylerPipeline, // Large corpus simulation (primary)
-        ]
-    } else {
-        cli.case.clone()
-    };
+    if cli.profile_target.is_some() {
+        return run_profile_target(cli);
+    }
+
     let worker_counts = worker_counts(cli.workers.clone());
     let layouts = benchmark_layouts(&cli.layout);
 
@@ -273,6 +308,10 @@ pub fn run(cli: &BenchmarkCli) -> Result<BenchmarkReport> {
         for layout in &layouts {
             for dataset in prepare_case(cli, case, *layout, &artifact)? {
                 for worker_count in &worker_counts {
+                    if cli.prepare_only {
+                        prepare_benchmark_sidecar(&dataset, *worker_count)?;
+                        continue;
+                    }
                     runs.extend(with_worker_count_env(*worker_count, || {
                         run_dataset(
                             &dataset,
@@ -287,7 +326,107 @@ pub fn run(cli: &BenchmarkCli) -> Result<BenchmarkReport> {
         }
     }
 
-    Ok(BenchmarkReport { runs })
+    Ok(BenchmarkReport {
+        schema_version: BENCHMARK_SCHEMA_VERSION,
+        runs,
+    })
+}
+
+fn run_profile_target(cli: &BenchmarkCli) -> Result<BenchmarkReport> {
+    if cli.prepare_only {
+        return Err(Error::Import(
+            "--prepare-only and --profile-target are mutually exclusive".to_owned(),
+        ));
+    }
+    if cli.workers.len() != 1 {
+        return Err(Error::Import(
+            "--profile-target requires exactly one --workers value".to_owned(),
+        ));
+    }
+    if !cli.case.is_empty()
+        && !cli
+            .case
+            .iter()
+            .all(|case| matches!(case, BenchmarkCaseKind::TylerPipeline))
+    {
+        return Err(Error::Import(
+            "--profile-target only supports --case tyler-pipeline".to_owned(),
+        ));
+    }
+
+    let layouts = if cli.layout.is_empty() {
+        vec![BenchmarkLayoutKind::CityJson]
+    } else {
+        benchmark_layouts(&cli.layout)
+    };
+    if layouts.len() != 1 {
+        return Err(Error::Import(
+            "--profile-target requires exactly one --layout value".to_owned(),
+        ));
+    }
+    let layout = layouts[0];
+    let dataset = if cli.reuse_prepared {
+        load_prepared_tyler_dataset(cli, layout)?
+    } else {
+        let groningen_root = cli.groningen_corpus.clone().unwrap_or_else(|| {
+            std::env::var("CITYJSON_GRONINGEN_CORPUS").map_or_else(
+                |_| PathBuf::from(DEFAULT_GRONINGEN_CORPUS_ROOT),
+                PathBuf::from,
+            )
+        });
+        prepare_tyler_dataset(cli, layout, &groningen_root, cli.tyler_tile_count)?
+    };
+    let worker_count = cli.workers[0];
+    let index_path = fresh_benchmark_index_path(&dataset.manifest, worker_count)?;
+    if !index_path.exists() {
+        prepare_benchmark_sidecar(&dataset, worker_count)?;
+    }
+
+    let runs = with_worker_count_env(worker_count, || {
+        run_isolated_tyler_target(
+            &dataset,
+            cli.profile_target.expect("profile target was checked"),
+            worker_count,
+            cli.profile_events.as_deref(),
+        )
+    })?;
+    Ok(BenchmarkReport {
+        schema_version: BENCHMARK_SCHEMA_VERSION,
+        runs,
+    })
+}
+
+fn load_prepared_tyler_dataset(
+    cli: &BenchmarkCli,
+    layout: BenchmarkLayoutKind,
+) -> Result<PreparedDataset> {
+    let path = cli
+        .work_root
+        .join(layout.as_label())
+        .join("tyler-pipeline")
+        .join("benchmark-manifest.json");
+    let bytes = fs::read(&path).map_err(|error| {
+        Error::Import(format!(
+            "failed to read prepared Tyler manifest {}: {error}",
+            path.display()
+        ))
+    })?;
+    let manifest = serde_json::from_slice(&bytes).map_err(|error| {
+        Error::Import(format!(
+            "failed to parse prepared Tyler manifest {}: {error}",
+            path.display()
+        ))
+    })?;
+    Ok(PreparedDataset { manifest })
+}
+
+fn prepare_benchmark_sidecar(dataset: &PreparedDataset, worker_count: usize) -> Result<()> {
+    with_worker_count_env(worker_count, || {
+        let index_path = fresh_benchmark_index_path(&dataset.manifest, worker_count)?;
+        let resolved = resolve_dataset(&dataset.manifest.prepared_dataset, Some(index_path))?;
+        let mut index = CityIndex::open(resolved.storage_layout(), &resolved.index_path)?;
+        index.reindex()
+    })
 }
 
 /// Writes the benchmark report to stdout in either JSON or compact text form.
@@ -1412,6 +1551,7 @@ fn run_tyler_dataset(
         feature_count,
         source_count,
         cityobject_count,
+        None,
     )?);
 
     // Add reconstruction benchmarks for Tyler pipeline - always included for multi-file corpora
@@ -1513,13 +1653,28 @@ fn run_tyler_pipeline(
     feature_count: usize,
     source_count: usize,
     cityobject_count: usize,
+    event_path: Option<&Path>,
 ) -> Result<Vec<BenchmarkOperationRecord>> {
     use rayon::prelude::*;
 
     let mut runs = Vec::new();
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(worker_count)
+        .build()
+        .map_err(|error| {
+            Error::Import(format!("failed to build benchmark worker pool: {error}"))
+        })?;
 
     // Stage 1: Extent construction - full scan to compute bbox
     // This simulates Tyler's first pass to compute extent
+    append_stage_event(
+        event_path,
+        "stage_start",
+        "tyler_extent_construction",
+        worker_count,
+        None,
+        None,
+    )?;
     let extent_started = Instant::now();
     let mut extent_bbox: Option<BBox> = None;
     let mut extent_feature_count = 0usize;
@@ -1558,6 +1713,14 @@ fn run_tyler_pipeline(
     let extent_elapsed = u64::try_from(extent_started.elapsed().as_nanos())
         .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
     let extent_memory = profile::current_memory_snapshot()?;
+    append_stage_event(
+        event_path,
+        "stage_end",
+        "tyler_extent_construction",
+        worker_count,
+        Some(extent_elapsed),
+        Some(1),
+    )?;
 
     runs.push(build_record(BenchmarkRecordInput {
         dataset_label: manifest.dataset_label.clone(),
@@ -1589,36 +1752,63 @@ fn run_tyler_pipeline(
 
     // Stage 2: Grid indexing - parallel processing of features for grid assignment
     // This simulates Tyler's second pass where features are assigned to grid cells
+    append_stage_event(
+        event_path,
+        "stage_start",
+        "tyler_grid_indexing",
+        worker_count,
+        None,
+        None,
+    )?;
     let grid_started = Instant::now();
     let all_refs = index.package_ref_page_after_record_id(None, feature_count)?;
 
     // Process in parallel chunks using rayon (simulating Tyler's parallelism)
     let chunk_size = 256;
-    let grid_feature_count: usize = all_refs
-        .chunks(chunk_size)
-        .par_bridge()
-        .map(|chunk| {
-            let mut chunk_count = 0usize;
-            for package_ref in chunk {
-                // Simulate grid assignment work
-                if let Some(bounds) = package_ref.bounds {
-                    let _ = BBox {
-                        min_x: bounds.min_x,
-                        max_x: bounds.max_x,
-                        min_y: bounds.min_y,
-                        max_y: bounds.max_y,
-                    };
-                    // In Tyler, this would compute grid cell assignments
+    let grid_workers = Mutex::new(BTreeSet::new());
+    let grid_feature_count: usize = pool.install(|| {
+        all_refs
+            .chunks(chunk_size)
+            .par_bridge()
+            .map(|chunk| {
+                if let Some(index) = rayon::current_thread_index() {
+                    grid_workers
+                        .lock()
+                        .expect("grid worker observation mutex was poisoned")
+                        .insert(index);
                 }
-                chunk_count += 1;
-            }
-            chunk_count
-        })
-        .sum();
+                let mut chunk_count = 0usize;
+                for package_ref in chunk {
+                    if let Some(bounds) = package_ref.bounds {
+                        let _ = BBox {
+                            min_x: bounds.min_x,
+                            max_x: bounds.max_x,
+                            min_y: bounds.min_y,
+                            max_y: bounds.max_y,
+                        };
+                    }
+                    chunk_count += 1;
+                }
+                chunk_count
+            })
+            .sum()
+    });
 
     let grid_elapsed = u64::try_from(grid_started.elapsed().as_nanos())
         .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
     let grid_memory = profile::current_memory_snapshot()?;
+    let observed_grid_workers = grid_workers
+        .into_inner()
+        .map_err(|_| Error::Import("grid worker observation mutex was poisoned".to_owned()))?
+        .len();
+    append_stage_event(
+        event_path,
+        "stage_end",
+        "tyler_grid_indexing",
+        worker_count,
+        Some(grid_elapsed),
+        Some(observed_grid_workers),
+    )?;
 
     runs.push(build_record(BenchmarkRecordInput {
         dataset_label: manifest.dataset_label.clone(),
@@ -1648,119 +1838,116 @@ fn run_tyler_pipeline(
         operation_local_peak_rss_bytes: None,
     }));
 
-    // Stage 3: Feature materialization - Tyler's pattern with thread-local caching
-    // This matches Tyler's pipeline pattern which causes OOM with thread-local CityIndex caching
+    runs.push(run_tyler_feature_materialization(
+        manifest,
+        worker_count,
+        feature_count,
+        source_count,
+        cityobject_count,
+        &all_refs,
+        &pool,
+        event_path,
+    )?);
+
+    Ok(runs)
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the benchmark record needs the complete dataset context"
+)]
+fn run_tyler_feature_materialization(
+    manifest: &BenchmarkManifest,
+    worker_count: usize,
+    feature_count: usize,
+    source_count: usize,
+    cityobject_count: usize,
+    all_refs: &[IndexedPackageRef],
+    pool: &rayon::ThreadPool,
+    event_path: Option<&Path>,
+) -> Result<BenchmarkOperationRecord> {
+    use rayon::prelude::*;
+
     let index_path = manifest
         .prepared_dataset
         .join(format!(".cityjson-index.worker-{worker_count}.sqlite"));
-    let resolved = resolve_dataset(&manifest.prepared_dataset, Some(index_path.clone()))?;
-
-    // Clear any existing thread-local indexes to start fresh
-    clear_thread_local_index();
-
-    // Use Tyler's exact constants for parallel processing
-    let chunk_size = BENCH_CJINDEX_PARALLEL_CHUNK_SIZE;
+    let resolved = resolve_dataset(&manifest.prepared_dataset, Some(index_path))?;
     let layout = resolved.storage_layout();
     let resolved_index_path = resolved.index_path.clone();
+    let observed_workers = Mutex::new(BTreeSet::new());
 
-    let read_started = Instant::now();
-    let all_refs_cloned = all_refs.clone();
-    let read_count: usize = all_refs
-        .chunks(chunk_size)
-        .par_bridge()
-        .map(|chunk| {
-            BENCH_INDEX_THREAD_LOCAL.with(|cell| {
-                let needs_open = {
-                    let slot = cell.borrow();
-                    slot.as_ref().is_none()
-                };
-                
-                if needs_open {
-                    // Open index once per thread and cache it
-                    let index = CityIndex::open(layout.clone(), &resolved_index_path).unwrap();
-                    *cell.borrow_mut() = Some((resolved_index_path.clone(), index));
-                }
-                
-                let slot = cell.borrow();
-                let Some((_, thread_index)) = slot.as_ref() else {
-                    // This should not happen if needs_open worked, but fallback to opening new index
-                    let index = CityIndex::open(layout.clone(), &resolved_index_path).unwrap();
-                    *cell.borrow_mut() = Some((resolved_index_path.clone(), index));
-                    return 0;
-                };
-                
-                let mut count = 0usize;
-                for package_ref in chunk {
-                    let _model = thread_index.read_package(package_ref).unwrap();
-                    count += 1;
-                }
-                count
-            })
-        })
-        .sum();
-
-    let read_elapsed = u64::try_from(read_started.elapsed().as_nanos())
-        .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
-    let read_memory = profile::current_memory_snapshot()?;
-
-    // Measure operation-local peak RSS for parallel processing
-    let operation_local_peak = measure_operation_local_peak_rss(|| {
-        // Clear thread-local cache to measure fresh peak
-        clear_thread_local_index();
-        let _: usize = all_refs_cloned
-            .chunks(chunk_size)
+    append_stage_event(
+        event_path,
+        "stage_start",
+        "tyler_feature_materialization",
+        worker_count,
+        None,
+        None,
+    )?;
+    let started = Instant::now();
+    let read_count = pool.install(|| {
+        all_refs
+            .chunks(BENCH_CJINDEX_PARALLEL_CHUNK_SIZE)
             .par_bridge()
             .map(|chunk| {
+                if let Some(index) = rayon::current_thread_index() {
+                    observed_workers
+                        .lock()
+                        .expect("materialization worker observation mutex was poisoned")
+                        .insert(index);
+                }
                 BENCH_INDEX_THREAD_LOCAL.with(|cell| {
-                    let needs_open = {
-                        let slot = cell.borrow();
-                        slot.as_ref().is_none()
-                    };
-                    
-                    if needs_open {
-                        // Open index once per thread and cache it
-                        let index = CityIndex::open(layout.clone(), &resolved_index_path).unwrap();
+                    if cell.borrow().is_none() {
+                        let index = CityIndex::open(layout.clone(), &resolved_index_path)
+                            .expect("benchmark worker should open its CityIndex");
                         *cell.borrow_mut() = Some((resolved_index_path.clone(), index));
                     }
-                    
+
                     let slot = cell.borrow();
-                    let Some((_, thread_index)) = slot.as_ref() else {
-                        // Fallback to opening new index
-                        let index = CityIndex::open(layout.clone(), &resolved_index_path).unwrap();
-                        *cell.borrow_mut() = Some((resolved_index_path.clone(), index));
-                        return 0;
-                    };
-                    
-                    let mut count = 0usize;
+                    let (_, thread_index) = slot
+                        .as_ref()
+                        .expect("benchmark worker CityIndex should be initialized");
                     for package_ref in chunk {
-                        let _model = thread_index.read_package(package_ref).unwrap();
-                        count += 1;
+                        let _model = thread_index
+                            .read_package(package_ref)
+                            .expect("benchmark worker should reconstruct its package");
                     }
-                    count
+                    chunk.len()
                 })
             })
-            .sum();
-        Ok(())
-    })?;
+            .sum::<usize>()
+    });
+    let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
+        .map_err(|_| Error::Import("benchmark elapsed time does not fit in u64".to_owned()))?;
+    let memory = profile::current_memory_snapshot()?;
+    let observed_worker_count = observed_workers
+        .into_inner()
+        .map_err(|_| {
+            Error::Import("materialization worker observation mutex was poisoned".to_owned())
+        })?
+        .len();
+    append_stage_event(
+        event_path,
+        "stage_end",
+        "tyler_feature_materialization",
+        worker_count,
+        Some(elapsed_ns),
+        Some(observed_worker_count),
+    )?;
 
-    runs.push(build_record(BenchmarkRecordInput {
+    Ok(build_record(BenchmarkRecordInput {
         dataset_label: manifest.dataset_label.clone(),
         source_artifact: manifest.source_artifact.clone(),
         prepared_dataset: manifest.prepared_dataset.clone(),
         subset_size: manifest.subset_size,
         layout: manifest.layout,
         byte_size: manifest.byte_size,
-        sidecar_byte_size: fs::metadata(
-            manifest
-                .prepared_dataset
-                .join(format!(".cityjson-index.worker-{worker_count}.sqlite")),
-        )
-        .map_or(0, |metadata| metadata.len()),
+        sidecar_byte_size: fs::metadata(&resolved_index_path).map_or(0, |metadata| metadata.len()),
         worker_count,
         operation: "tyler_feature_materialization".to_owned(),
-        variant: None,
-        elapsed_ns: read_elapsed,
-        memory: read_memory,
+        variant: Some(format!("observed-workers-{observed_worker_count}")),
+        elapsed_ns,
+        memory,
         feature_count,
         package_count: feature_count,
         source_count,
@@ -1768,10 +1955,89 @@ fn run_tyler_pipeline(
         cityobject_relationship_count: manifest.cityobject_relationship_count,
         multi_geometry_cityobject_count: manifest.multi_geometry_cityobject_count,
         query_hit_count: Some(read_count),
-        operation_local_peak_rss_bytes: operation_local_peak,
-    }));
+        operation_local_peak_rss_bytes: None,
+    }))
+}
 
-    Ok(runs)
+fn run_isolated_tyler_target(
+    dataset: &PreparedDataset,
+    target: BenchmarkProfileTarget,
+    worker_count: usize,
+    event_path: Option<&Path>,
+) -> Result<Vec<BenchmarkOperationRecord>> {
+    let manifest = &dataset.manifest;
+    let index_path = fresh_benchmark_index_path(manifest, worker_count)?;
+    let resolved = resolve_dataset(&manifest.prepared_dataset, Some(index_path))?;
+    let index = CityIndex::open(resolved.storage_layout(), &resolved.index_path)?;
+    let feature_count = index.package_count()?;
+    let source_count = index.source_count()?;
+    let cityobject_count = index.cityobject_count()?;
+
+    match target {
+        BenchmarkProfileTarget::TylerPipeline => run_tyler_pipeline(
+            &index,
+            manifest,
+            worker_count,
+            feature_count,
+            source_count,
+            cityobject_count,
+            event_path,
+        ),
+        BenchmarkProfileTarget::TylerFeatureMaterialization => {
+            let all_refs = index.package_ref_page_after_record_id(None, feature_count)?;
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(worker_count)
+                .build()
+                .map_err(|error| {
+                    Error::Import(format!("failed to build benchmark worker pool: {error}"))
+                })?;
+            Ok(vec![run_tyler_feature_materialization(
+                manifest,
+                worker_count,
+                feature_count,
+                source_count,
+                cityobject_count,
+                &all_refs,
+                &pool,
+                event_path,
+            )?])
+        }
+    }
+}
+
+fn append_stage_event(
+    path: Option<&Path>,
+    event: &str,
+    stage: &str,
+    worker_count: usize,
+    elapsed_ns: Option<u64>,
+    observed_worker_count: Option<usize>,
+) -> Result<()> {
+    let Some(path) = path else {
+        return Ok(());
+    };
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent)?;
+    }
+    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
+    serde_json::to_writer(
+        &mut file,
+        &BenchmarkStageEvent {
+            schema_version: BENCHMARK_SCHEMA_VERSION,
+            event,
+            stage,
+            worker_count,
+            elapsed_ns,
+            observed_worker_count,
+        },
+    )
+    .map_err(|error| Error::Import(error.to_string()))?;
+    file.write_all(b"\n")?;
+    file.flush()?;
+    Ok(())
 }
 
 fn fresh_benchmark_index_path(
@@ -3407,6 +3673,10 @@ mod tests {
             source_position: Vec::new(),
             batch_size: Vec::new(),
             concurrent_readers: Vec::new(),
+            prepare_only: false,
+            profile_target: None,
+            reuse_prepared: false,
+            profile_events: None,
         };
 
         for layout in BenchmarkLayoutKind::ALL {
@@ -3459,6 +3729,10 @@ mod tests {
             source_position: Vec::new(),
             batch_size: Vec::new(),
             concurrent_readers: Vec::new(),
+            prepare_only: false,
+            profile_target: None,
+            reuse_prepared: false,
+            profile_events: None,
         };
 
         let prepared = prepare_case(
@@ -3507,6 +3781,10 @@ mod tests {
             source_position: Vec::new(),
             batch_size: Vec::new(),
             concurrent_readers: Vec::new(),
+            prepare_only: false,
+            profile_target: None,
+            reuse_prepared: false,
+            profile_events: None,
         };
 
         let prepared = prepare_single_tile_dataset(
@@ -3554,6 +3832,10 @@ mod tests {
             source_position: Vec::new(),
             batch_size: Vec::new(),
             concurrent_readers: Vec::new(),
+            prepare_only: false,
+            profile_target: None,
+            reuse_prepared: false,
+            profile_events: None,
         };
 
         let prepared = prepare_case(
