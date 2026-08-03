@@ -24,6 +24,7 @@ exclude = [
 
 [features]
 default = []
+vertex-store-bakeoff = []
 
 [package.metadata.docs.rs]
 all-features = true
@@ -40,6 +41,11 @@ path = "src/main.rs"
 [[bin]]
 name = "bench-index"
 path = "src/bin/bench-index.rs"
+
+[[bin]]
+name = "vertex-store-bakeoff"
+path = "experiments/vertex-store-bakeoff.rs"
+required-features = ["vertex-store-bakeoff"]
 
 [lints]
 workspace = true

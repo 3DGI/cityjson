@@ -1,6 +1,14 @@
 pub mod benchmark;
 pub mod profile;
 
+/// Coordinator-owned APIs for the persistent vertex-store experiment.
+///
+/// This module is deliberately feature-gated: its strategy identifiers and
+/// sidecar format are experiment inputs, not part of the normal public API.
+#[cfg(feature = "vertex-store-bakeoff")]
+#[path = "../experiments/vertex_store/mod.rs"]
+pub mod vertex_store_bakeoff;
+
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Seek, SeekFrom};
