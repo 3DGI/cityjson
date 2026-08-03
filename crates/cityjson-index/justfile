@@ -17,7 +17,7 @@ ffi:
 
 # Fast compile-time validation for library, binary, and test targets.
 check:
-    cargo check -p cityjson-index --lib --bins --tests --target-dir target
+    cargo check -p cityjson-index --lib --bins --tests --all-features --target-dir target
 
 # Build the production binary.
 build *args:
@@ -28,7 +28,7 @@ clean:
 
 # Run clippy with the project's strict lint settings.
 lint:
-    cargo clippy -p cityjson-index --lib --bins --tests --target-dir target
+    cargo clippy -p cityjson-index --lib --bins --tests --all-features --target-dir target
 
 # Format this workspace with rustfmt without traversing sibling path dependencies.
 fmt:
@@ -40,7 +40,11 @@ fmt-check:
 
 # Run the library and integration tests.
 test:
-    cargo test -p cityjson-index --lib --bins --tests --target-dir target
+    cargo test -p cityjson-index --lib --bins --tests --all-features --target-dir target
+
+# Run the shared vertex-store bake-off conformance suite.
+bakeoff-test:
+    cargo test -p cityjson-index --features vertex-store-bakeoff --lib --bin vertex-store-bakeoff --target-dir target
 
 # Test the cgroup profiling supervisor without running an expensive profile.
 test-profile-tools:

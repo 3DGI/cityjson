@@ -9,16 +9,22 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use cityjson_lib::{Error, Result};
-use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
+use rusqlite::{Connection, OpenFlags, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
 
 /// The candidate implementation supplied by the active experiment branch.
 pub mod candidate;
+mod lifecycle;
+#[cfg(test)]
+mod lifecycle_tests;
+mod source_truth;
+pub use lifecycle::{validate_common_read_sidecar, write_source_vertex_states};
+pub use source_truth::validate_source_states_against_sources;
 
 /// Schema marker written to every experiment sidecar.
 pub const BAKEOFF_SCHEMA_VERSION: i64 = 3;
 /// Version of the machine-readable measurement result format.
-pub const RESULT_SCHEMA_VERSION: u32 = 1;
+pub const RESULT_SCHEMA_VERSION: u32 = 2;
 /// Number of package references in the shared batch experiment.
 pub const READ_BATCH_SIZE: usize = 2_048;
 /// Number of references in the deterministic Groningen read sample.
@@ -67,6 +73,17 @@ pub struct VertexStoreTelemetry {
     pub persistent_bytes_read: u64,
     pub source_json_bytes_read: u64,
     pub touched_units: u64,
+    /// Decoded coordinate bytes retained by the store after the operation.
+    pub retained_decoded_bytes: u64,
+}
+
+/// Complete construction summary for one normalized `CityJSON` source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SourceVertexState {
+    pub source_id: i64,
+    pub vertex_count: u64,
+    pub unit_count: u64,
+    pub payload_bytes: u64,
 }
 
 /// Candidate-specific persistent storage boundary.
@@ -78,14 +95,27 @@ pub trait VertexStore {
     fn strategy(&self) -> VertexStoreStrategy;
 
     /// Builds persistent vertex state after the normalized index has been built.
-    fn build(&mut self, connection: &mut Connection) -> Result<()>;
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when construction cannot complete atomically.
+    fn build(&mut self, transaction: &Transaction<'_>) -> Result<Vec<SourceVertexState>>;
 
     /// Validates the candidate tables before serving a measured read process.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for incomplete or malformed candidate state.
     fn validate_for_read(&self, connection: &Connection) -> Result<()>;
 
     /// Loads exactly the sorted, deduplicated requirements for one batch.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for invalid requirements or unavailable coordinates.
     fn load(
         &self,
+        connection: &Connection,
         requirements: &[VertexRequirement],
     ) -> Result<(BTreeMap<VertexRequirement, [i64; 3]>, VertexStoreTelemetry)>;
 }
@@ -104,6 +134,10 @@ pub fn deduplicate_requirements(
 }
 
 /// Sidecar provenance written only by an explicit construction operation.
+///
+/// # Errors
+///
+/// Returns an error when the marker cannot be created or written.
 pub fn write_sidecar_marker(connection: &Connection, strategy: VertexStoreStrategy) -> Result<()> {
     sqlite(connection.execute_batch(
         "CREATE TABLE IF NOT EXISTS vertex_store_bakeoff_state (\
@@ -121,6 +155,10 @@ pub fn write_sidecar_marker(connection: &Connection, strategy: VertexStoreStrate
 }
 
 /// Opens and validates an already-built experiment sidecar without modifying it.
+///
+/// # Errors
+///
+/// Returns an error for missing, stale, mismatched, or malformed state.
 pub fn open_matching_read_sidecar(
     path: &Path,
     strategy: VertexStoreStrategy,
@@ -159,6 +197,7 @@ pub fn open_matching_read_sidecar(
             strategy.identifier()
         )));
     }
+    validate_common_read_sidecar(&connection, strategy)?;
     Ok(connection)
 }
 
@@ -241,7 +280,11 @@ impl<T> BakeoffResult<T> {
     }
 }
 
-/// Writes one result artifact atomically enough for a single-process harness.
+/// Writes one result artifact through a temporary sibling file.
+///
+/// # Errors
+///
+/// Returns an error when serialization or atomic replacement fails.
 pub fn write_result<T: Serialize>(path: &Path, result: &BakeoffResult<T>) -> Result<()> {
     let parent = path
         .parent()
@@ -249,7 +292,15 @@ pub fn write_result<T: Serialize>(path: &Path, result: &BakeoffResult<T>) -> Res
     fs::create_dir_all(parent)?;
     let bytes =
         serde_json::to_vec_pretty(result).map_err(|error| import_error(error.to_string()))?;
-    fs::write(path, bytes)?;
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| import_error("result path has no file name"))?
+        .to_string_lossy();
+    let temporary = parent.join(format!(".{file_name}.tmp-{}", std::process::id()));
+    fs::write(&temporary, bytes)?;
+    fs::rename(&temporary, path).inspect_err(|_error| {
+        let _ = fs::remove_file(&temporary);
+    })?;
     Ok(())
 }
 

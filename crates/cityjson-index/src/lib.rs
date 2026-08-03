@@ -22,6 +22,8 @@ use cityjson_lib::{CityModel, Error, Result};
 use globset::GlobMatcher;
 use ignore::WalkBuilder;
 use lru::LruCache;
+#[cfg(feature = "vertex-store-bakeoff")]
+use rusqlite::OpenFlags;
 use rusqlite::{OptionalExtension, params, params_from_iter};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -1181,6 +1183,22 @@ fn sql_placeholders(count: usize) -> String {
         .join(", ")
 }
 
+fn storage_backend(layout: StorageLayout) -> Box<dyn StorageBackend> {
+    match layout {
+        StorageLayout::Ndjson { paths } => Box::new(NdjsonBackend { paths }),
+        StorageLayout::CityJson { paths } => Box::new(CityJsonBackend::new(paths)),
+        StorageLayout::FeatureFiles {
+            root,
+            metadata_glob,
+            feature_glob,
+        } => Box::new(FeatureFilesBackend::new(
+            root,
+            metadata_glob.as_str(),
+            feature_glob.as_str(),
+        )),
+    }
+}
+
 impl CityIndex {
     /// Opens an index for the given storage layout.
     ///
@@ -1189,23 +1207,41 @@ impl CityIndex {
     /// Returns an error if the index backend cannot be created or the index
     /// store cannot be opened.
     pub fn open(layout: StorageLayout, index_path: &Path) -> Result<Self> {
-        let backend: Box<dyn StorageBackend> = match layout {
-            StorageLayout::Ndjson { paths } => Box::new(NdjsonBackend { paths }),
-            StorageLayout::CityJson { paths } => Box::new(CityJsonBackend::new(paths)),
-            StorageLayout::FeatureFiles {
-                root,
-                metadata_glob,
-                feature_glob,
-            } => Box::new(FeatureFilesBackend::new(
-                root,
-                metadata_glob.as_str(),
-                feature_glob.as_str(),
-            )),
-        };
+        let backend = storage_backend(layout);
 
         Ok(Self {
             index: Index::open(index_path)?,
             backend,
+        })
+    }
+
+    /// Opens an existing normalized experiment sidecar without modifying it.
+    ///
+    /// This path never creates parent directories, creates tables, or migrates
+    /// schema state. Both common and candidate-specific vertex state must be
+    /// valid before the index is returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the sidecar is absent, is not current normalized
+    /// schema v2, requires reindexing, or fails vertex-store validation.
+    #[cfg(feature = "vertex-store-bakeoff")]
+    pub fn open_vertex_store_read_only(
+        layout: StorageLayout,
+        index_path: &Path,
+        store: &dyn vertex_store_bakeoff::VertexStore,
+    ) -> Result<Self> {
+        if !matches!(&layout, StorageLayout::CityJson { .. }) {
+            return Err(import_error(
+                "vertex-store experiments support only regular CityJSON layouts",
+            ));
+        }
+        let index = Index::open_read_only(index_path)?;
+        vertex_store_bakeoff::validate_common_read_sidecar(&index.conn, store.strategy())?;
+        store.validate_for_read(&index.conn)?;
+        Ok(Self {
+            index,
+            backend: storage_backend(layout),
         })
     }
 
@@ -1225,6 +1261,25 @@ impl CityIndex {
         let worker_count = configured_worker_count()?;
         self.index
             .rebuild_from_backend(self.backend.as_ref(), worker_count)
+    }
+
+    /// Rebuilds normalized and candidate vertex state in one transaction.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if normalized scanning, candidate construction, common
+    /// coverage validation, or committing the transaction fails.
+    #[cfg(feature = "vertex-store-bakeoff")]
+    pub fn reindex_with_vertex_store(
+        &mut self,
+        store: &mut dyn vertex_store_bakeoff::VertexStore,
+    ) -> Result<()> {
+        let worker_count = configured_worker_count()?;
+        self.index.rebuild_from_backend_with_vertex_store(
+            self.backend.as_ref(),
+            worker_count,
+            store,
+        )
     }
 
     /// Returns every indexed `CityObject` occurrence with the given external id.
@@ -1719,6 +1774,162 @@ impl CityIndex {
             .collect()
     }
 
+    /// Reads regular `CityJSON` packages through the active experimental store.
+    ///
+    /// Vertex requirements are deduplicated across the complete input batch and
+    /// passed to `VertexStore::load` exactly once. Input order and duplicate
+    /// package references are retained in the returned packages.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for non-CityJSON packages, malformed indexed fragments,
+    /// missing candidate vertices, or candidate store failures.
+    #[cfg(feature = "vertex-store-bakeoff")]
+    // The linear staging/load/assembly sequence is kept together for auditability.
+    #[allow(clippy::too_many_lines)]
+    pub fn read_packages_with_vertex_store(
+        &self,
+        packages: &[IndexedPackageRef],
+        store: &dyn vertex_store_bakeoff::VertexStore,
+    ) -> Result<(
+        Vec<IndexedPackage>,
+        vertex_store_bakeoff::VertexStoreTelemetry,
+    )> {
+        if packages.is_empty() {
+            return Ok((
+                Vec::new(),
+                vertex_store_bakeoff::VertexStoreTelemetry::default(),
+            ));
+        }
+
+        let record_ids = packages
+            .iter()
+            .map(|package| package.record_id)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let locations = self.package_locations_for_record_ids(&record_ids)?;
+        let members = self.index.package_members_for_package_ids(&record_ids)?;
+        let mut source_files = HashMap::new();
+        let mut prepared = BTreeMap::new();
+        let mut requirements = Vec::new();
+
+        for record_id in record_ids {
+            let location = locations
+                .get(&record_id)
+                .ok_or_else(|| import_error(format!("package record {record_id} was not found")))?;
+            if location.reference.package_type != PackageType::CityJson {
+                return Err(import_error(
+                    "vertex-store reads support only regular CityJSON packages",
+                ));
+            }
+            let package_members = members.get(&record_id).ok_or_else(|| {
+                import_error(format!(
+                    "regular CityJSON package {} has no indexed members",
+                    location.reference.model_id
+                ))
+            })?;
+            let object_entries =
+                read_cityjson_object_entries(location, package_members, &mut source_files)?;
+            let mut referenced_vertices = BTreeSet::new();
+            for (_, object) in &object_entries {
+                collect_object_vertex_indices(object, &mut referenced_vertices)?;
+            }
+            requirements.extend(
+                referenced_vertices
+                    .into_iter()
+                    .map(|vertex_index| {
+                        Ok(vertex_store_bakeoff::VertexRequirement {
+                            source_id: location.source_id,
+                            vertex_index: u64::try_from(vertex_index)
+                                .map_err(|_| import_error("vertex index does not fit in u64"))?,
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?,
+            );
+            prepared.insert(
+                record_id,
+                PreparedVertexStorePackage {
+                    reference: location.reference.clone(),
+                    source_id: location.source_id,
+                    metadata: self.index.get_cached_metadata(location.source_id)?,
+                    object_entries,
+                },
+            );
+        }
+
+        let requested_vertex_count = u64::try_from(requirements.len())
+            .map_err(|_| import_error("requested vertex count does not fit in u64"))?;
+        let requirements = vertex_store_bakeoff::deduplicate_requirements(requirements);
+        let unique_vertex_count = u64::try_from(requirements.len())
+            .map_err(|_| import_error("unique vertex count does not fit in u64"))?;
+        let (vertices, mut telemetry) = store.load(&self.index.conn, &requirements)?;
+        if vertices.len() != requirements.len()
+            || requirements
+                .iter()
+                .any(|requirement| !vertices.contains_key(requirement))
+        {
+            return Err(import_error(
+                "vertex store did not return exactly the requested vertex set",
+            ));
+        }
+        telemetry.requested_vertex_count = requested_vertex_count;
+        telemetry.unique_vertex_count = unique_vertex_count;
+        telemetry.returned_vertex_count = u64::try_from(vertices.len())
+            .map_err(|_| import_error("returned vertex count does not fit in u64"))?;
+
+        let mut decoded = BTreeMap::new();
+        for (record_id, package) in prepared {
+            let parts = build_feature_parts_from_vertex_store(
+                &package.reference.model_id,
+                package.object_entries,
+                package.source_id,
+                &vertices,
+            )?;
+            let model = assemble_feature_model(&parts, package.metadata.bytes.as_ref())?;
+            decoded.insert(
+                record_id,
+                IndexedPackage {
+                    reference: package.reference,
+                    metadata: package.metadata.value,
+                    model,
+                },
+            );
+        }
+
+        let packages = packages
+            .iter()
+            .map(|package| {
+                decoded
+                    .get(&package.record_id)
+                    .map(clone_indexed_package)
+                    .ok_or_else(|| {
+                        import_error(format!("package {} was not decoded", package.record_id))
+                    })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok((packages, telemetry))
+    }
+
+    /// Reads one regular `CityJSON` package through the experimental store.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if candidate-backed batch reconstruction fails.
+    #[cfg(feature = "vertex-store-bakeoff")]
+    pub fn read_package_with_vertex_store(
+        &self,
+        package: &IndexedPackageRef,
+        store: &dyn vertex_store_bakeoff::VertexStore,
+    ) -> Result<(CityModel, vertex_store_bakeoff::VertexStoreTelemetry)> {
+        let (mut packages, telemetry) =
+            self.read_packages_with_vertex_store(std::slice::from_ref(package), store)?;
+        let package = packages
+            .pop()
+            .ok_or_else(|| import_error("singleton vertex-store read returned no package"))?;
+        Ok((package.model, telemetry))
+    }
+
     /// Reads and filters packages while preserving input order.
     ///
     /// # Errors
@@ -2143,6 +2354,14 @@ struct PackageLocation {
     length: Option<u64>,
 }
 
+#[cfg(feature = "vertex-store-bakeoff")]
+struct PreparedVertexStorePackage {
+    reference: IndexedPackageRef,
+    source_id: i64,
+    metadata: CachedMetadata,
+    object_entries: Vec<(String, Value)>,
+}
+
 struct PackageMemberLocation {
     external_id: String,
     source_id: i64,
@@ -2199,6 +2418,44 @@ impl Index {
         );
         Self::ensure_schema_state(&conn, needs_reindex)?;
 
+        Ok(Self {
+            conn,
+            metadata_cache: Mutex::new(HashMap::new()),
+        })
+    }
+
+    #[cfg(feature = "vertex-store-bakeoff")]
+    fn open_read_only(path: &Path) -> Result<Self> {
+        if !path.is_file() {
+            return Err(import_error(format!(
+                "missing experiment sidecar {}; run an explicit reindex first",
+                path.display()
+            )));
+        }
+        let conn = sqlite_result(rusqlite::Connection::open_with_flags(
+            path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY,
+        ))?;
+        let has_schema_state = Self::table_exists(&conn, "schema_state")?;
+        if !has_schema_state {
+            return Err(import_error("sidecar is missing normalized schema state"));
+        }
+        let schema_version = Self::schema_version(&conn)?;
+        if schema_version != SCHEMA_VERSION {
+            return Err(import_error(format!(
+                "sidecar schema {schema_version} is not normalized schema {SCHEMA_VERSION}"
+            )));
+        }
+        let needs_reindex = sqlite_result(conn.query_row(
+            "SELECT needs_reindex FROM schema_state WHERE id = 1",
+            [],
+            |row| row.get::<_, i64>(0),
+        ))?;
+        if needs_reindex != 0 {
+            return Err(import_error(
+                "sidecar requires reindexing and cannot be opened for measured reads",
+            ));
+        }
         Ok(Self {
             conn,
             metadata_cache: Mutex::new(HashMap::new()),
@@ -2347,6 +2604,42 @@ impl Index {
             "UPDATE schema_state SET schema_version = ?1, needs_reindex = 0 WHERE id = 1",
             params![SCHEMA_VERSION],
         ))?;
+        sqlite_result(tx.commit())?;
+
+        self.metadata_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clear();
+        Ok(())
+    }
+
+    #[cfg(feature = "vertex-store-bakeoff")]
+    fn rebuild_from_backend_with_vertex_store(
+        &mut self,
+        backend: &dyn StorageBackend,
+        worker_count: usize,
+        store: &mut dyn vertex_store_bakeoff::VertexStore,
+    ) -> Result<()> {
+        let tx = sqlite_result(self.conn.transaction())?;
+        Self::clear_tables(&tx)?;
+        Self::drop_rebuild_indexes(&tx)?;
+
+        {
+            let mut inserter = NormalizedFeatureInserter::new(&tx)?;
+            let mut sink = RebuildSink::new(&tx, &mut inserter);
+            backend.scan_into(worker_count, &mut sink)?;
+        }
+
+        Self::create_rebuild_indexes(&tx)?;
+        sqlite_result(tx.execute(
+            "UPDATE schema_state SET schema_version = ?1, needs_reindex = 0 WHERE id = 1",
+            params![SCHEMA_VERSION],
+        ))?;
+        let strategy = store.strategy();
+        let states = store.build(&tx)?;
+        vertex_store_bakeoff::validate_source_states_against_sources(&tx, &states)?;
+        vertex_store_bakeoff::write_source_vertex_states(&tx, &states)?;
+        vertex_store_bakeoff::write_sidecar_marker(&tx, strategy)?;
         sqlite_result(tx.commit())?;
 
         self.metadata_cache
@@ -3509,21 +3802,7 @@ impl CityJsonBackend {
             self.load_shared_vertices(source_path, source_file, vertices_offset, vertices_length)?;
         let feature_parts =
             build_feature_parts(model_id, object_entries, shared_vertices.as_ref())?;
-        let cityobjects = feature_parts
-            .cityobjects
-            .iter()
-            .map(|cityobject| staged::FeatureObjectFragment {
-                id: cityobject.id.as_str(),
-                object: cityobject.object_json.as_ref(),
-            })
-            .collect::<Vec<_>>();
-        let assembly = staged::FeatureAssembly {
-            id: feature_parts.feature_id.as_str(),
-            cityobjects: &cityobjects,
-            vertices: &feature_parts.vertices,
-        };
-
-        staged::from_feature_assembly_with_base(assembly, metadata_bytes)
+        assemble_feature_model(&feature_parts, metadata_bytes)
     }
 }
 
@@ -3790,6 +4069,88 @@ fn trim_fragment_delimiters(bytes: &[u8]) -> &[u8] {
     &bytes[start..end]
 }
 
+fn assemble_feature_model(
+    feature_parts: &LocalizedFeatureParts,
+    metadata_bytes: &[u8],
+) -> Result<CityModel> {
+    let cityobjects = feature_parts
+        .cityobjects
+        .iter()
+        .map(|cityobject| staged::FeatureObjectFragment {
+            id: cityobject.id.as_str(),
+            object: cityobject.object_json.as_ref(),
+        })
+        .collect::<Vec<_>>();
+    let assembly = staged::FeatureAssembly {
+        id: feature_parts.feature_id.as_str(),
+        cityobjects: &cityobjects,
+        vertices: &feature_parts.vertices,
+    };
+    staged::from_feature_assembly_with_base(assembly, metadata_bytes)
+}
+
+#[cfg(feature = "vertex-store-bakeoff")]
+fn read_cityjson_object_entries(
+    location: &PackageLocation,
+    members: &[PackageMemberLocation],
+    source_files: &mut HashMap<PathBuf, fs::File>,
+) -> Result<Vec<(String, Value)>> {
+    let first_member = members.first().ok_or_else(|| {
+        import_error(format!(
+            "package {} has no CityObject members",
+            location.reference.model_id
+        ))
+    })?;
+    if first_member.source_id != location.source_id
+        || first_member.source_path != location.path
+        || members.iter().any(|member| {
+            member.source_id != first_member.source_id
+                || member.source_path != first_member.source_path
+        })
+    {
+        return Err(import_error(format!(
+            "package {} spans multiple CityJSON sources",
+            location.reference.model_id
+        )));
+    }
+
+    if !source_files.contains_key(&location.path) {
+        let file = fs::File::open(&location.path).map_err(|error| {
+            import_error(format!(
+                "failed to open {}: {error}",
+                location.path.display()
+            ))
+        })?;
+        source_files.insert(location.path.clone(), file);
+    }
+    let source_file = source_files.get_mut(&location.path).ok_or_else(|| {
+        import_error(format!(
+            "source file {} was not opened",
+            location.path.display()
+        ))
+    })?;
+
+    members
+        .iter()
+        .map(|member| {
+            let fragment = read_exact_range_from_file(
+                source_file,
+                &location.path,
+                member.offset,
+                member.length,
+            )?;
+            let (object_id, object_value) = parse_cityobject_entry(&fragment)?;
+            if object_id != member.external_id {
+                return Err(import_error(format!(
+                    "indexed CityJSON member {} resolved to fragment for {}",
+                    member.external_id, object_id
+                )));
+            }
+            Ok((object_id, object_value))
+        })
+        .collect()
+}
+
 fn parse_cityobject_entry(fragment: &[u8]) -> Result<(String, Value)> {
     let fragment = trim_fragment_delimiters(fragment);
     if fragment.is_empty() {
@@ -3829,9 +4190,50 @@ fn parse_vertices_fragment(fragment: &[u8]) -> Result<Vec<[i64; 3]>> {
 
 fn build_feature_parts(
     feature_id: &str,
-    mut object_entries: Vec<(String, Value)>,
+    object_entries: Vec<(String, Value)>,
     shared_vertices: &[[i64; 3]],
 ) -> Result<LocalizedFeatureParts> {
+    build_feature_parts_with(feature_id, object_entries, |index| {
+        shared_vertices.get(index).copied().ok_or_else(|| {
+            import_error(format!(
+                "vertex index {index} is outside the shared vertices array"
+            ))
+        })
+    })
+}
+
+#[cfg(feature = "vertex-store-bakeoff")]
+fn build_feature_parts_from_vertex_store(
+    feature_id: &str,
+    object_entries: Vec<(String, Value)>,
+    source_id: i64,
+    vertices: &BTreeMap<vertex_store_bakeoff::VertexRequirement, [i64; 3]>,
+) -> Result<LocalizedFeatureParts> {
+    build_feature_parts_with(feature_id, object_entries, |index| {
+        let vertex_index =
+            u64::try_from(index).map_err(|_| import_error("vertex index does not fit in u64"))?;
+        vertices
+            .get(&vertex_store_bakeoff::VertexRequirement {
+                source_id,
+                vertex_index,
+            })
+            .copied()
+            .ok_or_else(|| {
+                import_error(format!(
+                    "vertex store omitted source {source_id} vertex {vertex_index}"
+                ))
+            })
+    })
+}
+
+fn build_feature_parts_with<F>(
+    feature_id: &str,
+    mut object_entries: Vec<(String, Value)>,
+    mut vertex_at: F,
+) -> Result<LocalizedFeatureParts>
+where
+    F: FnMut(usize) -> Result<[i64; 3]>,
+{
     let retained_ids = object_entries
         .iter()
         .map(|(id, _)| id.clone())
@@ -3846,7 +4248,11 @@ fn build_feature_parts(
         collect_object_vertex_indices(object_value, &mut referenced_vertices)?;
     }
 
-    let local_vertices = build_local_vertices(shared_vertices, &referenced_vertices)?;
+    let local_vertices = referenced_vertices
+        .iter()
+        .copied()
+        .map(&mut vertex_at)
+        .collect::<Result<Vec<_>>>()?;
     let remap = referenced_vertices
         .iter()
         .enumerate()
@@ -3962,24 +4368,6 @@ fn remap_vertex_indices(value: &mut Value, remap: &HashMap<usize, usize>) -> Res
             value_kind(other)
         ))),
     }
-}
-
-fn build_local_vertices(
-    shared_vertices: &[[i64; 3]],
-    referenced_vertices: &BTreeSet<usize>,
-) -> Result<Vec<[i64; 3]>> {
-    let mut vertices = Vec::with_capacity(referenced_vertices.len());
-
-    for &index in referenced_vertices {
-        let vertex = shared_vertices.get(index).copied().ok_or_else(|| {
-            import_error(format!(
-                "vertex index {index} is outside the shared vertices array"
-            ))
-        })?;
-        vertices.push(vertex);
-    }
-
-    Ok(vertices)
 }
 
 fn number_to_index(number: &Number) -> Result<usize> {
@@ -5072,6 +5460,133 @@ mod tests {
             ids.extend(page.into_iter().map(|package| package.model_id));
         }
         ids
+    }
+
+    #[cfg(feature = "vertex-store-bakeoff")]
+    struct RecordingVertexStore {
+        calls: Mutex<Vec<Vec<vertex_store_bakeoff::VertexRequirement>>>,
+    }
+
+    #[cfg(feature = "vertex-store-bakeoff")]
+    impl RecordingVertexStore {
+        fn new() -> Self {
+            Self {
+                calls: Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    #[cfg(feature = "vertex-store-bakeoff")]
+    impl vertex_store_bakeoff::VertexStore for RecordingVertexStore {
+        fn strategy(&self) -> vertex_store_bakeoff::VertexStoreStrategy {
+            vertex_store_bakeoff::VertexStoreStrategy::PackedChunks
+        }
+
+        fn build(
+            &mut self,
+            _transaction: &rusqlite::Transaction<'_>,
+        ) -> Result<Vec<vertex_store_bakeoff::SourceVertexState>> {
+            unreachable!("read test does not build candidate state")
+        }
+
+        fn validate_for_read(&self, _connection: &rusqlite::Connection) -> Result<()> {
+            Ok(())
+        }
+
+        fn load(
+            &self,
+            _connection: &rusqlite::Connection,
+            requirements: &[vertex_store_bakeoff::VertexRequirement],
+        ) -> Result<(
+            BTreeMap<vertex_store_bakeoff::VertexRequirement, [i64; 3]>,
+            vertex_store_bakeoff::VertexStoreTelemetry,
+        )> {
+            self.calls
+                .lock()
+                .expect("recording store lock")
+                .push(requirements.to_vec());
+            let vertices = requirements
+                .iter()
+                .map(|requirement| {
+                    (
+                        *requirement,
+                        [
+                            i64::try_from(requirement.vertex_index)
+                                .expect("fixture vertex fits i64"),
+                            0,
+                            0,
+                        ],
+                    )
+                })
+                .collect();
+            Ok((
+                vertices,
+                vertex_store_bakeoff::VertexStoreTelemetry::default(),
+            ))
+        }
+    }
+
+    #[cfg(feature = "vertex-store-bakeoff")]
+    #[test]
+    fn vertex_store_batch_deduplicates_once_and_preserves_package_order() {
+        let root = temp_dir("vertex-store-batch");
+        let path = root.join("tile.city.json");
+        let document = r#"{
+            "type":"CityJSON",
+            "version":"2.0",
+            "transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},
+            "CityObjects":{
+                "root-a":{"type":"Building","geometry":[{"type":"MultiPoint","lod":"1","boundaries":[0,1]}]},
+                "root-b":{"type":"Building","geometry":[{"type":"MultiPoint","lod":"1","boundaries":[1,2]}]}
+            },
+            "vertices":[[10,0,0],[11,0,0],[12,0,0]]
+        }"#;
+        fs::write(&path, document).expect("CityJSON fixture should be written");
+        let index_path = root.join("index.sqlite");
+        let index = build_index_with_workers(
+            StorageLayout::CityJson {
+                paths: vec![root.clone()],
+            },
+            &index_path,
+            1,
+        );
+        let refs = index
+            .package_ref_page_after_record_id(None, 10)
+            .expect("package refs should load");
+        assert_eq!(refs.len(), 2);
+        let requested = vec![refs[0].clone(), refs[1].clone(), refs[0].clone()];
+        let store = RecordingVertexStore::new();
+
+        let (packages, telemetry) = index
+            .read_packages_with_vertex_store(&requested, &store)
+            .expect("candidate-backed batch should reconstruct");
+
+        assert_eq!(
+            packages
+                .iter()
+                .map(|package| package.reference.record_id)
+                .collect::<Vec<_>>(),
+            requested
+                .iter()
+                .map(|package| package.record_id)
+                .collect::<Vec<_>>()
+        );
+        let calls = store.calls.lock().expect("recording store lock");
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].len(), 3);
+        assert!(calls[0].windows(2).all(|pair| pair[0] < pair[1]));
+        assert_eq!(telemetry.requested_vertex_count, 4);
+        assert_eq!(telemetry.unique_vertex_count, 3);
+        assert_eq!(telemetry.returned_vertex_count, 3);
+    }
+
+    #[cfg(feature = "vertex-store-bakeoff")]
+    #[test]
+    fn read_only_index_open_does_not_create_a_missing_sidecar() {
+        let root = temp_dir("read-only-missing-sidecar");
+        let path = root.join("missing.sqlite");
+        assert!(Index::open_read_only(&path).is_err());
+        assert!(!path.exists());
     }
 
     #[test]
