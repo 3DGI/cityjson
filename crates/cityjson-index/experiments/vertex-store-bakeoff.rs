@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Condvar, Mutex, mpsc};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use cityjson_index::vertex_store_bakeoff::{
@@ -11,7 +12,7 @@ use cityjson_index::vertex_store_bakeoff::{
 };
 use cityjson_index::{
     CityIndex, IndexedPackageRef, PackageType, PackageVertexCoverage, ResolvedDataset,
-    resolve_dataset,
+    StorageLayout, resolve_dataset,
 };
 use cityjson_lib::{Error, Result};
 use clap::{Args, Parser, Subcommand};
@@ -142,6 +143,7 @@ struct TylerResult {
     configured_workers: usize,
     model_digest: String,
     elapsed_ns: u128,
+    total_pipeline_elapsed_ns: u128,
 }
 
 fn main() -> Result<()> {
@@ -284,25 +286,30 @@ fn read_latency(args: &MeasuredArgs) -> Result<()> {
 }
 
 fn tyler_materialization(args: &MeasuredArgs) -> Result<()> {
-    if args.workers != 1 {
-        return Err(import_error(
-            "this harness currently has one read-only connection; --workers must be 1",
-        ));
-    }
     if args.sample.is_some() {
         return Err(import_error(
             "tyler-materialization reads the complete index and does not accept --sample",
         ));
     }
+    validate_tyler_workers(args.workers)?;
+    let pipeline_started = Instant::now();
     let context = MeasurementContext::open(args, false)?;
     let connection = open_matching_read_sidecar(&args.dataset.sidecar, context.strategy)?;
     let refs = all_stable_package_refs(&context.index, &connection)?;
-    let (summary, telemetry) = materialize_batches(&context.index, context.store.as_ref(), &refs)?;
+    let resolved = resolved(&args.dataset)?;
+    let (summary, telemetry) = materialize_batches_parallel(
+        &resolved,
+        &args.dataset.sidecar,
+        context.strategy,
+        &refs,
+        args.workers,
+    )?;
     let payload = TylerResult {
         package_count: summary.package_count,
         configured_workers: args.workers,
         model_digest: summary.model_digest,
         elapsed_ns: summary.elapsed_ns,
+        total_pipeline_elapsed_ns: pipeline_started.elapsed().as_nanos(),
     };
     context.write("tyler-materialization", telemetry, payload)
 }
@@ -377,6 +384,15 @@ fn ensure_strategy(store: &dyn VertexStore, expected: VertexStoreStrategy) -> Re
     if store.strategy() != expected {
         return Err(import_error(
             "candidate factory returned the wrong strategy",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_tyler_workers(workers: usize) -> Result<()> {
+    if !matches!(workers, 1 | 4 | 24) {
+        return Err(import_error(
+            "tyler-materialization requires --workers 1, 4, or 24",
         ));
     }
     Ok(())
@@ -813,6 +829,297 @@ fn materialize_batches(
     ))
 }
 
+#[derive(Debug)]
+struct MaterializedBatch {
+    batch_index: usize,
+    model_digests: Vec<[u8; 32]>,
+    telemetry: VertexStoreTelemetry,
+}
+
+type TylerStartGate = Arc<(Mutex<Option<bool>>, Condvar)>;
+type TylerReadySender = mpsc::Sender<std::result::Result<(), String>>;
+
+fn materialize_tyler_worker(
+    storage_layout: StorageLayout,
+    sidecar: &Path,
+    strategy: VertexStoreStrategy,
+    refs: &[IndexedPackageRef],
+    worker_batches: Vec<usize>,
+    gate: &TylerStartGate,
+    ready: &TylerReadySender,
+) -> Result<Vec<MaterializedBatch>> {
+    let setup = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let store = candidate::create(sidecar.to_path_buf())?;
+        ensure_strategy(store.as_ref(), strategy)?;
+        let index =
+            CityIndex::open_vertex_store_read_only(storage_layout, sidecar, store.as_ref())?;
+        Ok::<_, Error>((store, index))
+    }));
+    let (store, index) = match setup {
+        Ok(Ok(setup)) => {
+            ready.send(Ok(())).map_err(|error| {
+                import_error(format!("Tyler worker could not report readiness: {error}"))
+            })?;
+            setup
+        }
+        Ok(Err(error)) => {
+            let _ = ready.send(Err(error.to_string()));
+            return Err(error);
+        }
+        Err(panic) => {
+            let message = format!(
+                "Tyler worker panicked during setup: {}",
+                panic_message(panic.as_ref())
+            );
+            let _ = ready.send(Err(message.clone()));
+            return Err(import_error(message));
+        }
+    };
+
+    let (lock, condition) = &**gate;
+    let mut run = lock
+        .lock()
+        .map_err(|_| import_error("Tyler start gate was poisoned"))?;
+    while run.is_none() {
+        run = condition
+            .wait(run)
+            .map_err(|_| import_error("Tyler start gate was poisoned"))?;
+    }
+    if !run.expect("start gate was checked") {
+        return Err(import_error(
+            "Tyler materialization aborted after worker setup failure",
+        ));
+    }
+    drop(run);
+
+    let mut output = Vec::with_capacity(worker_batches.len());
+    for batch_index in worker_batches {
+        let start = batch_index
+            .checked_mul(READ_BATCH_SIZE)
+            .ok_or_else(|| import_error("Tyler batch offset overflowed"))?;
+        let end = start.saturating_add(READ_BATCH_SIZE).min(refs.len());
+        let batch = refs
+            .get(start..end)
+            .ok_or_else(|| import_error("Tyler batch assignment is out of bounds"))?;
+        let (packages, telemetry) = index.read_packages_with_vertex_store(batch, store.as_ref())?;
+        if packages.len() != batch.len() {
+            return Err(import_error(format!(
+                "Tyler batch {batch_index} returned {} packages for {} references",
+                packages.len(),
+                batch.len()
+            )));
+        }
+        let model_digests = packages
+            .iter()
+            .map(|package| canonical_model_digest(&package.model))
+            .collect::<Result<Vec<_>>>()?;
+        output.push(MaterializedBatch {
+            batch_index,
+            model_digests,
+            telemetry,
+        });
+    }
+    Ok(output)
+}
+
+fn release_tyler_workers(gate: &TylerStartGate, should_run: bool) -> Result<()> {
+    let (lock, condition) = &**gate;
+    match lock.lock() {
+        Ok(mut run) => {
+            *run = Some(should_run);
+            condition.notify_all();
+            Ok(())
+        }
+        Err(poisoned) => {
+            *poisoned.into_inner() = Some(false);
+            condition.notify_all();
+            Err(import_error("Tyler start gate was poisoned"))
+        }
+    }
+}
+
+fn materialize_batches_parallel(
+    resolved: &ResolvedDataset,
+    sidecar: &Path,
+    strategy: VertexStoreStrategy,
+    refs: &[IndexedPackageRef],
+    workers: usize,
+) -> Result<(MaterializationResult, VertexStoreTelemetry)> {
+    let assignments = partition_batch_indices(refs.len(), READ_BATCH_SIZE, workers)?;
+    let expected_batch_count = refs.len().div_ceil(READ_BATCH_SIZE);
+    let gate = Arc::new((Mutex::new(None::<bool>), Condvar::new()));
+    let (ready_sender, ready_receiver) = mpsc::channel::<std::result::Result<(), String>>();
+
+    let (mut materialized, materialization_elapsed_ns) = std::thread::scope(|scope| {
+        let mut handles = Vec::with_capacity(assignments.len());
+        let mut failure = None;
+        for (worker_index, worker_batches) in assignments.into_iter().enumerate() {
+            let storage_layout = resolved.storage_layout();
+            let sidecar = sidecar.to_path_buf();
+            let worker_gate = std::sync::Arc::clone(&gate);
+            let worker_ready = ready_sender.clone();
+            let spawn = std::thread::Builder::new()
+                .name(format!("vertex-store-tyler-{worker_index}"))
+                .spawn_scoped(scope, move || {
+                    materialize_tyler_worker(
+                        storage_layout,
+                        &sidecar,
+                        strategy,
+                        refs,
+                        worker_batches,
+                        &worker_gate,
+                        &worker_ready,
+                    )
+                });
+            match spawn {
+                Ok(handle) => handles.push(handle),
+                Err(error) => {
+                    failure = Some(import_error(format!(
+                        "failed to spawn Tyler worker {worker_index}: {error}"
+                    )));
+                    break;
+                }
+            }
+        }
+        drop(ready_sender);
+
+        for _ in 0..handles.len() {
+            match ready_receiver.recv() {
+                Ok(Ok(())) => {}
+                Ok(Err(message)) => {
+                    if failure.is_none() {
+                        failure = Some(import_error(format!(
+                            "Tyler worker setup failed: {message}"
+                        )));
+                    }
+                }
+                Err(error) => {
+                    if failure.is_none() {
+                        failure = Some(import_error(format!(
+                            "Tyler readiness channel closed unexpectedly: {error}"
+                        )));
+                    }
+                    break;
+                }
+            }
+        }
+
+        let should_run = failure.is_none() && handles.len() == workers;
+        let materialization_started = should_run.then(Instant::now);
+        if let Err(error) = release_tyler_workers(&gate, should_run)
+            && failure.is_none()
+        {
+            failure = Some(error);
+        }
+
+        let mut output = Vec::with_capacity(expected_batch_count);
+        for handle in handles {
+            match handle.join() {
+                Ok(Ok(worker_output)) => output.extend(worker_output),
+                Ok(Err(error)) => {
+                    if failure.is_none() {
+                        failure = Some(error);
+                    }
+                }
+                Err(panic) => {
+                    if failure.is_none() {
+                        failure = Some(import_error(format!(
+                            "Tyler worker panicked: {}",
+                            panic_message(panic.as_ref())
+                        )));
+                    }
+                }
+            }
+        }
+        if let Some(error) = failure {
+            return Err(error);
+        }
+        let elapsed_ns = materialization_started
+            .expect("successful worker setup starts the timer")
+            .elapsed()
+            .as_nanos();
+        Ok((output, elapsed_ns))
+    })?;
+    materialized.sort_by_key(|batch| batch.batch_index);
+    summarize_materialized_batches(
+        &materialized,
+        refs.len(),
+        expected_batch_count,
+        materialization_elapsed_ns,
+    )
+}
+
+fn partition_batch_indices(
+    package_count: usize,
+    batch_size: usize,
+    workers: usize,
+) -> Result<Vec<Vec<usize>>> {
+    if workers == 0 {
+        return Err(import_error("--workers must be greater than zero"));
+    }
+    if batch_size == 0 {
+        return Err(import_error("batch size must be greater than zero"));
+    }
+    let batch_count = package_count.div_ceil(batch_size);
+    let mut assignments = vec![Vec::new(); workers];
+    for batch_index in 0..batch_count {
+        assignments[batch_index % workers].push(batch_index);
+    }
+    Ok(assignments)
+}
+
+fn summarize_materialized_batches(
+    batches: &[MaterializedBatch],
+    expected_package_count: usize,
+    expected_batch_count: usize,
+    elapsed_ns: u128,
+) -> Result<(MaterializationResult, VertexStoreTelemetry)> {
+    if batches.len() != expected_batch_count {
+        return Err(import_error(format!(
+            "Tyler materialized {} batches; expected {expected_batch_count}",
+            batches.len()
+        )));
+    }
+    let mut hasher = Sha256::new();
+    let mut telemetry = VertexStoreTelemetry::default();
+    let mut package_count = 0_usize;
+    for (expected_batch_index, batch) in batches.iter().enumerate() {
+        if batch.batch_index != expected_batch_index {
+            return Err(import_error(format!(
+                "Tyler batch order is incomplete at {expected_batch_index}"
+            )));
+        }
+        for digest in &batch.model_digests {
+            hasher.update(digest);
+        }
+        package_count = package_count
+            .checked_add(batch.model_digests.len())
+            .ok_or_else(|| import_error("Tyler package count overflowed"))?;
+        telemetry = sum_telemetry([telemetry, batch.telemetry]);
+    }
+    if package_count != expected_package_count {
+        return Err(import_error(format!(
+            "Tyler materialized {package_count} packages; expected {expected_package_count}"
+        )));
+    }
+    Ok((
+        MaterializationResult {
+            package_count,
+            model_digest: digest_string(hasher.finalize().as_slice()),
+            elapsed_ns,
+        },
+        telemetry,
+    ))
+}
+
+fn panic_message(panic: &(dyn std::any::Any + Send)) -> &str {
+    panic
+        .downcast_ref::<&str>()
+        .copied()
+        .or_else(|| panic.downcast_ref::<String>().map(String::as_str))
+        .unwrap_or("non-string panic payload")
+}
+
 fn summarize_packages(
     packages: &[cityjson_index::IndexedPackage],
     elapsed_ns: u128,
@@ -838,15 +1145,25 @@ fn digest_string(bytes: &[u8]) -> String {
     value
 }
 
+/// Hashes one canonical model digest into the package-order digest stream.
+///
+/// The fixed-size intermediate digest preserves the canonical model equivalence
+/// relation while allowing parallel workers to retain only 32 bytes per package.
 fn hash_model(hasher: &mut Sha256, model: &cityjson_lib::CityModel) -> Result<()> {
+    hasher.update(canonical_model_digest(model)?);
+    Ok(())
+}
+
+fn canonical_model_digest(model: &cityjson_lib::CityModel) -> Result<[u8; 32]> {
     let serialized = cityjson_lib::json::to_vec(model)?;
     let value: serde_json::Value =
         serde_json::from_slice(&serialized).map_err(|error| import_error(error.to_string()))?;
     let mut canonical = Vec::with_capacity(serialized.len());
     write_canonical_value(&value, &mut canonical)?;
-    write_hash_length(hasher, canonical.len())?;
+    let mut hasher = Sha256::new();
+    write_hash_length(&mut hasher, canonical.len())?;
     hasher.update(canonical);
-    Ok(())
+    Ok(hasher.finalize().into())
 }
 
 fn write_canonical_value(value: &serde_json::Value, output: &mut Vec<u8>) -> Result<()> {
@@ -1351,6 +1668,71 @@ mod tests {
             digest_models(&[&alpha_first, &changed]),
             digest_models(&[&beta_first, &changed])
         );
+    }
+
+    #[test]
+    fn batch_partition_is_deterministic_and_keeps_complete_batches() {
+        assert_eq!(
+            partition_batch_indices(9, 2, 3).expect("partition builds"),
+            vec![vec![0, 3], vec![1, 4], vec![2]]
+        );
+        assert_eq!(
+            partition_batch_indices(3, 2, 4).expect("wide partition builds"),
+            vec![vec![0], vec![1], vec![], vec![]]
+        );
+        assert!(partition_batch_indices(1, 2, 0).is_err());
+        assert!(partition_batch_indices(1, 0, 1).is_err());
+    }
+
+    #[test]
+    fn tyler_rejects_workers_outside_the_adr_campaign() {
+        for workers in [1, 4, 24] {
+            assert!(validate_tyler_workers(workers).is_ok());
+        }
+        for workers in [0, 2, 3, 23, 25] {
+            assert!(validate_tyler_workers(workers).is_err());
+        }
+    }
+
+    #[test]
+    fn fixed_model_digests_preserve_equivalence_and_package_order() {
+        let alpha_first = feature_with_attributes(r#"{"alpha":1,"beta":"two"}"#);
+        let beta_first = feature_with_attributes(r#"{"beta":"two","alpha":1}"#);
+        let changed = feature_with_attributes(r#"{"alpha":1,"beta":"changed"}"#);
+        assert_eq!(
+            canonical_model_digest(&alpha_first).expect("model hashes"),
+            canonical_model_digest(&beta_first).expect("equivalent model hashes")
+        );
+
+        let first = digest_models(&[&alpha_first, &changed]);
+        let reversed = digest_models(&[&changed, &alpha_first]);
+        assert_ne!(first, reversed);
+
+        let batches = vec![
+            MaterializedBatch {
+                batch_index: 0,
+                model_digests: vec![
+                    canonical_model_digest(&alpha_first).expect("first model hashes"),
+                ],
+                telemetry: VertexStoreTelemetry::default(),
+            },
+            MaterializedBatch {
+                batch_index: 1,
+                model_digests: vec![canonical_model_digest(&changed).expect("second model hashes")],
+                telemetry: VertexStoreTelemetry::default(),
+            },
+        ];
+        let (summary, _) =
+            summarize_materialized_batches(&batches, 2, 2, 7).expect("batches summarize");
+        assert_eq!(summary.model_digest, first);
+        assert_eq!(summary.elapsed_ns, 7);
+
+        let incomplete = vec![MaterializedBatch {
+            batch_index: 1,
+            model_digests: Vec::new(),
+            telemetry: VertexStoreTelemetry::default(),
+        }];
+        assert!(summarize_materialized_batches(&incomplete, 0, 1, 0).is_err());
     }
 
     #[test]
