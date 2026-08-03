@@ -119,6 +119,18 @@ pub struct IndexedCityObjectRef {
     pub bounds: Option<Bounds3D>,
 }
 
+/// Compact shared-vertex coverage for one regular `CityJSON` package.
+#[cfg(feature = "vertex-store-bakeoff")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PackageVertexCoverage {
+    pub record_id: i64,
+    pub source_id: i64,
+    pub min_vertex_index: Option<u64>,
+    pub max_vertex_index: Option<u64>,
+    pub touches_subblock_boundary: bool,
+    pub touches_chunk_boundary: bool,
+}
+
 pub struct IndexedPackage {
     pub reference: IndexedPackageRef,
     pub metadata: Arc<Meta>,
@@ -1909,6 +1921,102 @@ impl CityIndex {
             })
             .collect::<Result<Vec<_>>>()?;
         Ok((packages, telemetry))
+    }
+
+    /// Computes compact shared-vertex coverage without loading shared vertices.
+    ///
+    /// Package work is deduplicated by record id, while the returned summaries
+    /// preserve input order and duplicate references.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for non-`CityJSON` packages, missing index records or
+    /// members, malformed object fragments, or invalid boundary indices.
+    #[cfg(feature = "vertex-store-bakeoff")]
+    pub fn package_vertex_coverage(
+        &self,
+        packages: &[IndexedPackageRef],
+    ) -> Result<Vec<PackageVertexCoverage>> {
+        if packages.is_empty() {
+            return Ok(Vec::new());
+        }
+        let record_ids = packages
+            .iter()
+            .map(|package| package.record_id)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let locations = self.package_locations_for_record_ids(&record_ids)?;
+        let members = self.index.package_members_for_package_ids(&record_ids)?;
+        let mut source_files = HashMap::new();
+        let mut summaries = BTreeMap::new();
+
+        for record_id in record_ids {
+            let location = locations
+                .get(&record_id)
+                .ok_or_else(|| import_error(format!("package record {record_id} was not found")))?;
+            if location.reference.package_type != PackageType::CityJson {
+                return Err(import_error(
+                    "vertex coverage supports only regular CityJSON packages",
+                ));
+            }
+            let package_members = members.get(&record_id).ok_or_else(|| {
+                import_error(format!(
+                    "regular CityJSON package {} has no indexed members",
+                    location.reference.model_id
+                ))
+            })?;
+            let object_entries =
+                read_cityjson_object_entries(location, package_members, &mut source_files)?;
+            let mut indices = BTreeSet::new();
+            for (_, object) in &object_entries {
+                collect_object_vertex_indices(object, &mut indices)?;
+            }
+            let min_vertex_index = indices
+                .first()
+                .copied()
+                .map(|index| {
+                    u64::try_from(index)
+                        .map_err(|_| import_error("vertex index does not fit in u64"))
+                })
+                .transpose()?;
+            let max_vertex_index = indices
+                .last()
+                .copied()
+                .map(|index| {
+                    u64::try_from(index)
+                        .map_err(|_| import_error("vertex index does not fit in u64"))
+                })
+                .transpose()?;
+            let touches_subblock_boundary =
+                indices.iter().any(|index| matches!(index % 128, 0 | 127));
+            let touches_chunk_boundary = indices
+                .iter()
+                .any(|index| matches!(index % 16_384, 0 | 16_383));
+            summaries.insert(
+                record_id,
+                PackageVertexCoverage {
+                    record_id,
+                    source_id: location.source_id,
+                    min_vertex_index,
+                    max_vertex_index,
+                    touches_subblock_boundary,
+                    touches_chunk_boundary,
+                },
+            );
+        }
+
+        packages
+            .iter()
+            .map(|package| {
+                summaries.get(&package.record_id).copied().ok_or_else(|| {
+                    import_error(format!(
+                        "package {} coverage was not computed",
+                        package.record_id
+                    ))
+                })
+            })
+            .collect()
     }
 
     /// Reads one regular `CityJSON` package through the experimental store.
@@ -5578,6 +5686,95 @@ mod tests {
         assert_eq!(telemetry.requested_vertex_count, 4);
         assert_eq!(telemetry.unique_vertex_count, 3);
         assert_eq!(telemetry.returned_vertex_count, 3);
+    }
+
+    #[cfg(feature = "vertex-store-bakeoff")]
+    #[test]
+    fn package_vertex_coverage_reports_boundaries_without_loading_vertices() {
+        let root = temp_dir("vertex-coverage-boundaries");
+        let path = root.join("tile.city.json");
+        let vertices = vec![[0_i64, 0_i64, 0_i64]; 16_385];
+        let document = serde_json::json!({
+            "type": "CityJSON",
+            "version": "2.0",
+            "transform": {
+                "scale": [1.0, 1.0, 1.0],
+                "translate": [0.0, 0.0, 0.0]
+            },
+            "CityObjects": {
+                "root-a": {
+                    "type": "Building",
+                    "geometry": [{
+                        "type": "MultiPoint",
+                        "lod": "1",
+                        "boundaries": [5, 127, 128, 16_383, 16_384]
+                    }]
+                },
+                "root-b": {
+                    "type": "Building",
+                    "geometry": [{
+                        "type": "MultiPoint",
+                        "lod": "1",
+                        "boundaries": [4, 6]
+                    }]
+                }
+            },
+            "vertices": vertices
+        });
+        fs::write(
+            &path,
+            serde_json::to_vec(&document).expect("fixture serializes"),
+        )
+        .expect("CityJSON fixture should be written");
+        let index_path = root.join("index.sqlite");
+        let index = build_index_with_workers(
+            StorageLayout::CityJson {
+                paths: vec![root.clone()],
+            },
+            &index_path,
+            1,
+        );
+        let refs = index
+            .package_ref_page_after_record_id(None, 10)
+            .expect("package refs should load");
+        let root_a = refs
+            .iter()
+            .find(|package| package.model_id == "root-a")
+            .expect("root-a package")
+            .clone();
+        let root_b = refs
+            .iter()
+            .find(|package| package.model_id == "root-b")
+            .expect("root-b package")
+            .clone();
+        let requested = vec![root_a.clone(), root_b.clone(), root_a.clone()];
+        assert_eq!(index.vertex_cache_stats(), VertexCacheStats::default());
+
+        let coverage = index
+            .package_vertex_coverage(&requested)
+            .expect("coverage should compute");
+
+        assert_eq!(coverage.len(), 3);
+        assert_eq!(
+            coverage
+                .iter()
+                .map(|item| item.record_id)
+                .collect::<Vec<_>>(),
+            requested
+                .iter()
+                .map(|package| package.record_id)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(coverage[0].min_vertex_index, Some(5));
+        assert_eq!(coverage[0].max_vertex_index, Some(16_384));
+        assert!(coverage[0].touches_subblock_boundary);
+        assert!(coverage[0].touches_chunk_boundary);
+        assert_eq!(coverage[0], coverage[2]);
+        assert_eq!(coverage[1].min_vertex_index, Some(4));
+        assert_eq!(coverage[1].max_vertex_index, Some(6));
+        assert!(!coverage[1].touches_subblock_boundary);
+        assert!(!coverage[1].touches_chunk_boundary);
+        assert_eq!(index.vertex_cache_stats(), VertexCacheStats::default());
     }
 
     #[cfg(feature = "vertex-store-bakeoff")]

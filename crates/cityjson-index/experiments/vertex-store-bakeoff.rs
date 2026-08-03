@@ -1,6 +1,6 @@
 //! CLI for constructing and measuring an ADR 012 vertex-store candidate.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -9,7 +9,10 @@ use cityjson_index::vertex_store_bakeoff::{
     BakeoffProvenance, BakeoffResult, READ_BATCH_SIZE, SAMPLE_SIZE, VertexStore,
     VertexStoreStrategy, VertexStoreTelemetry, candidate, open_matching_read_sidecar, write_result,
 };
-use cityjson_index::{CityIndex, IndexedPackageRef, PackageType, ResolvedDataset, resolve_dataset};
+use cityjson_index::{
+    CityIndex, IndexedPackageRef, PackageType, PackageVertexCoverage, ResolvedDataset,
+    resolve_dataset,
+};
 use cityjson_lib::{Error, Result};
 use clap::{Args, Parser, Subcommand};
 use rusqlite::Connection;
@@ -204,9 +207,16 @@ fn sample(args: &SampleArgs) -> Result<()> {
         return Err(import_error("--limit must be greater than zero"));
     }
     let strategy = active_strategy()?;
-    let _resolved = resolved(&args.dataset)?;
+    let resolved = resolved(&args.dataset)?;
+    let store = candidate::create(args.dataset.sidecar.clone())?;
+    ensure_strategy(store.as_ref(), strategy)?;
+    let index = CityIndex::open_vertex_store_read_only(
+        resolved.storage_layout(),
+        &args.dataset.sidecar,
+        store.as_ref(),
+    )?;
     let connection = open_matching_read_sidecar(&args.dataset.sidecar, strategy)?;
-    let packages = stable_stratified_sample(&connection, args.limit)?;
+    let packages = stable_prioritized_sample(&index, &connection, args.limit)?;
     if packages.is_empty() {
         return Err(import_error(
             "the sidecar contains no regular CityJSON packages",
@@ -436,40 +446,228 @@ fn all_stable_package_identities(connection: &Connection) -> Result<Vec<StablePa
     Ok(identities)
 }
 
-fn stable_stratified_sample(
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SamplingCandidate {
+    identity: StablePackageIdentity,
+    source_size: u64,
+    source_vertex_count: u64,
+    coverage: PackageVertexCoverage,
+}
+
+fn source_sampling_state(connection: &Connection) -> Result<BTreeMap<i64, (String, u64, u64)>> {
+    let mut statement = connection
+        .prepare(
+            "SELECT s.id, s.path, s.source_size, v.vertex_count \
+             FROM sources AS s JOIN vertex_store_source_state AS v ON v.source_id = s.id \
+             ORDER BY s.path",
+        )
+        .map_err(|error| sql_error(&error))?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+                row.get::<_, i64>(3)?,
+            ))
+        })
+        .map_err(|error| sql_error(&error))?;
+    let mut states = BTreeMap::new();
+    for row in rows {
+        let (source_id, path, source_size, vertex_count) =
+            row.map_err(|error| sql_error(&error))?;
+        let source_size = u64::try_from(source_size)
+            .map_err(|_| import_error(format!("source {source_id} has a negative size")))?;
+        let vertex_count = u64::try_from(vertex_count)
+            .map_err(|_| import_error(format!("source {source_id} has a negative vertex count")))?;
+        if states
+            .insert(source_id, (path, source_size, vertex_count))
+            .is_some()
+        {
+            return Err(import_error(format!(
+                "source {source_id} has duplicate sampling state"
+            )));
+        }
+    }
+    Ok(states)
+}
+
+fn stable_prioritized_sample(
+    index: &CityIndex,
     connection: &Connection,
     limit: usize,
 ) -> Result<Vec<StablePackageIdentity>> {
-    let mut by_source = BTreeMap::<String, Vec<StablePackageIdentity>>::new();
-    for identity in all_stable_package_identities(connection)? {
+    let rows = stable_package_rows(connection)?;
+    if let Some(pair) = rows.windows(2).find(|pair| pair[0].0 == pair[1].0) {
+        return Err(import_error(format!(
+            "stable package identity is ambiguous: {} / {}",
+            pair[0].0.source_path, pair[0].0.model_id
+        )));
+    }
+    let references = rows
+        .iter()
+        .map(|(identity, record_id)| IndexedPackageRef {
+            record_id: *record_id,
+            model_id: identity.model_id.clone(),
+            package_type: PackageType::CityJson,
+            bounds: None,
+        })
+        .collect::<Vec<_>>();
+    let coverage = index.package_vertex_coverage(&references)?;
+    let source_state = source_sampling_state(connection)?;
+    let mut candidates = Vec::with_capacity(rows.len());
+    for ((identity, record_id), coverage) in rows.into_iter().zip(coverage) {
+        if coverage.record_id != record_id {
+            return Err(import_error(format!(
+                "coverage record {} does not match package {record_id}",
+                coverage.record_id
+            )));
+        }
+        let (source_path, source_size, source_vertex_count) =
+            source_state.get(&coverage.source_id).ok_or_else(|| {
+                import_error(format!(
+                    "source {} is missing sampling state",
+                    coverage.source_id
+                ))
+            })?;
+        if source_path != &identity.source_path {
+            return Err(import_error(format!(
+                "package {record_id} source path does not match its coverage source"
+            )));
+        }
+        candidates.push(SamplingCandidate {
+            identity,
+            source_size: *source_size,
+            source_vertex_count: *source_vertex_count,
+            coverage,
+        });
+    }
+    Ok(prioritized_sample(&candidates, limit))
+}
+
+fn prioritized_sample(
+    candidates: &[SamplingCandidate],
+    limit: usize,
+) -> Vec<StablePackageIdentity> {
+    let mut by_source = BTreeMap::<String, Vec<&SamplingCandidate>>::new();
+    for candidate in candidates {
         by_source
-            .entry(identity.source_path.clone())
+            .entry(candidate.identity.source_path.clone())
             .or_default()
-            .push(identity);
+            .push(candidate);
     }
-    for packages in by_source.values_mut() {
-        packages.sort();
+    for source_candidates in by_source.values_mut() {
+        source_candidates.sort_by_key(|candidate| &candidate.identity);
     }
+
+    let capacity = limit.min(candidates.len());
+    let mut sample = Vec::with_capacity(capacity);
+    let mut selected = BTreeSet::new();
+
+    // Baseline source coverage, using stable source-path and identity order.
+    for source_candidates in by_source.values() {
+        if let Some(candidate) = source_candidates.first() {
+            push_candidate(candidate, capacity, &mut selected, &mut sample);
+        }
+    }
+
+    // Prefer one new package per source for each source-relative or codec edge.
+    for predicate in [
+        touches_first_vertex as fn(&SamplingCandidate) -> bool,
+        touches_last_vertex,
+        touches_subblock_boundary,
+        touches_chunk_boundary,
+    ] {
+        for source_candidates in by_source.values() {
+            if let Some(candidate) = source_candidates
+                .iter()
+                .copied()
+                .find(|candidate| predicate(candidate) && !selected.contains(&candidate.identity))
+                .or_else(|| {
+                    source_candidates
+                        .iter()
+                        .copied()
+                        .find(|candidate| predicate(candidate))
+                })
+            {
+                push_candidate(candidate, capacity, &mut selected, &mut sample);
+            }
+        }
+    }
+
+    // Give the largest source files the earliest remaining representatives.
+    let mut largest_first = by_source.values().collect::<Vec<_>>();
+    largest_first.sort_by(|left, right| {
+        let left_size = left.first().map_or(0, |candidate| candidate.source_size);
+        let right_size = right.first().map_or(0, |candidate| candidate.source_size);
+        right_size.cmp(&left_size).then_with(|| {
+            left[0]
+                .identity
+                .source_path
+                .cmp(&right[0].identity.source_path)
+        })
+    });
+    for source_candidates in largest_first {
+        if let Some(candidate) = source_candidates
+            .iter()
+            .copied()
+            .find(|candidate| !selected.contains(&candidate.identity))
+        {
+            push_candidate(candidate, capacity, &mut selected, &mut sample);
+        }
+    }
+
+    // Fill without allowing a high-package-count source to dominate the tail.
     let queues = by_source.into_values().collect::<Vec<_>>();
     let mut offsets = vec![0_usize; queues.len()];
-    let mut sample = Vec::with_capacity(limit.min(queues.iter().map(Vec::len).sum()));
-    while sample.len() < limit {
+    while sample.len() < capacity {
         let mut progressed = false;
         for (queue, offset) in queues.iter().zip(&mut offsets) {
-            if let Some(identity) = queue.get(*offset) {
-                sample.push(identity.clone());
+            while let Some(candidate) = queue.get(*offset) {
                 *offset += 1;
-                progressed = true;
-                if sample.len() == limit {
+                if selected.insert(candidate.identity.clone()) {
+                    sample.push(candidate.identity.clone());
+                    progressed = true;
                     break;
                 }
+            }
+            if sample.len() == capacity {
+                break;
             }
         }
         if !progressed {
             break;
         }
     }
-    Ok(sample)
+    sample
+}
+
+fn push_candidate(
+    candidate: &SamplingCandidate,
+    limit: usize,
+    selected: &mut BTreeSet<StablePackageIdentity>,
+    sample: &mut Vec<StablePackageIdentity>,
+) {
+    if sample.len() < limit && selected.insert(candidate.identity.clone()) {
+        sample.push(candidate.identity.clone());
+    }
+}
+
+fn touches_first_vertex(candidate: &SamplingCandidate) -> bool {
+    candidate.coverage.min_vertex_index == Some(0)
+}
+
+fn touches_last_vertex(candidate: &SamplingCandidate) -> bool {
+    candidate.source_vertex_count > 0
+        && candidate.coverage.max_vertex_index == candidate.source_vertex_count.checked_sub(1)
+}
+
+fn touches_subblock_boundary(candidate: &SamplingCandidate) -> bool {
+    candidate.coverage.touches_subblock_boundary
+}
+
+fn touches_chunk_boundary(candidate: &SamplingCandidate) -> bool {
+    candidate.coverage.touches_chunk_boundary
 }
 
 fn read_sample(path: &Path, corpus_identity: &str) -> Result<SampleFile> {
@@ -878,6 +1076,148 @@ mod tests {
         connection
     }
 
+    fn sampling_candidate(
+        source: &str,
+        model: &str,
+        source_size: u64,
+        source_vertex_count: u64,
+        bounds: (Option<u64>, Option<u64>),
+        boundaries: (bool, bool),
+    ) -> SamplingCandidate {
+        SamplingCandidate {
+            identity: identity(source, model),
+            source_size,
+            source_vertex_count,
+            coverage: PackageVertexCoverage {
+                record_id: 1,
+                source_id: 1,
+                min_vertex_index: bounds.0,
+                max_vertex_index: bounds.1,
+                touches_subblock_boundary: boundaries.0,
+                touches_chunk_boundary: boundaries.1,
+            },
+        }
+    }
+
+    #[test]
+    fn sample_forces_sources_extrema_and_unit_boundaries_without_duplicates() {
+        let mut candidates = Vec::new();
+        for (source, source_size) in [("/a", 100), ("/b", 200)] {
+            candidates.extend([
+                sampling_candidate(
+                    source,
+                    "0-base",
+                    source_size,
+                    1_000,
+                    (Some(10), Some(20)),
+                    (false, false),
+                ),
+                sampling_candidate(
+                    source,
+                    "1-first",
+                    source_size,
+                    1_000,
+                    (Some(0), Some(10)),
+                    (true, true),
+                ),
+                sampling_candidate(
+                    source,
+                    "2-last",
+                    source_size,
+                    1_000,
+                    (Some(900), Some(999)),
+                    (false, false),
+                ),
+                sampling_candidate(
+                    source,
+                    "3-subblock",
+                    source_size,
+                    1_000,
+                    (Some(127), Some(130)),
+                    (true, false),
+                ),
+                sampling_candidate(
+                    source,
+                    "4-chunk",
+                    source_size,
+                    1_000,
+                    (Some(16_383), Some(16_383)),
+                    (true, true),
+                ),
+                sampling_candidate(
+                    source,
+                    "5-extra",
+                    source_size,
+                    1_000,
+                    (None, None),
+                    (false, false),
+                ),
+            ]);
+        }
+
+        let sample = prioritized_sample(&candidates, candidates.len());
+        let actual = sample
+            .iter()
+            .map(|identity| (identity.source_path.as_str(), identity.model_id.as_str()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            actual,
+            vec![
+                ("/a", "0-base"),
+                ("/b", "0-base"),
+                ("/a", "1-first"),
+                ("/b", "1-first"),
+                ("/a", "2-last"),
+                ("/b", "2-last"),
+                ("/a", "3-subblock"),
+                ("/b", "3-subblock"),
+                ("/a", "4-chunk"),
+                ("/b", "4-chunk"),
+                ("/b", "5-extra"),
+                ("/a", "5-extra"),
+            ]
+        );
+        assert_eq!(sample.iter().collect::<BTreeSet<_>>().len(), sample.len());
+    }
+
+    #[test]
+    fn sample_prioritizes_largest_sources_then_fills_round_robin_deterministically() {
+        let mut candidates = Vec::new();
+        for (source, source_size) in [("/c", 200), ("/a", 100), ("/b", 300)] {
+            for model in ["0", "1", "2", "3"] {
+                candidates.push(sampling_candidate(
+                    source,
+                    model,
+                    source_size,
+                    10,
+                    (None, None),
+                    (false, false),
+                ));
+            }
+        }
+        let expected = prioritized_sample(&candidates, 10);
+        candidates.reverse();
+        assert_eq!(prioritized_sample(&candidates, 10), expected);
+        assert_eq!(
+            expected
+                .iter()
+                .map(|identity| (identity.source_path.as_str(), identity.model_id.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("/a", "0"),
+                ("/b", "0"),
+                ("/c", "0"),
+                ("/b", "1"),
+                ("/c", "1"),
+                ("/a", "1"),
+                ("/a", "2"),
+                ("/b", "2"),
+                ("/c", "2"),
+                ("/a", "3"),
+            ]
+        );
+    }
+
     #[test]
     fn stable_sample_survives_different_numeric_ids() {
         let first = package_database(&[(1, 10, "/a.city.json", "a"), (2, 20, "/b.city.json", "b")]);
@@ -885,11 +1225,7 @@ mod tests {
             (92, 700, "/b.city.json", "b"),
             (41, 900, "/a.city.json", "a"),
         ]);
-        let sample = stable_stratified_sample(&first, 10).expect("sample builds");
-        assert_eq!(
-            sample,
-            stable_stratified_sample(&second, 10).expect("sample rebuilds")
-        );
+        let sample = vec![identity("/a.city.json", "a"), identity("/b.city.json", "b")];
         assert_eq!(
             resolve_sample_record_ids(&first, &sample).expect("first resolves"),
             vec![10, 20]
@@ -900,11 +1236,7 @@ mod tests {
         );
         assert_eq!(
             sample_identity("corpus", &sample).expect("identity hashes"),
-            sample_identity(
-                "corpus",
-                &stable_stratified_sample(&second, 10).expect("sample rebuilds")
-            )
-            .expect("identity rehashes")
+            sample_identity("corpus", &sample).expect("identity rehashes")
         );
     }
 
