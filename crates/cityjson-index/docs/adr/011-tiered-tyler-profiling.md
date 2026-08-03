@@ -28,6 +28,11 @@ are appended and flushed as JSON Lines, so the last completed stage survives an
 OOM. Process-lifetime `VmHWM` remains available only as a process metric; it is
 not interpreted as an operation-local delta.
 
+Preparation (format conversion and index construction) runs before the measured
+process. The profiled process requires the matching prepared dataset and
+worker-specific sidecar. It fails rather than creating, deleting, or rebuilding
+that sidecar under the profiler.
+
 Every experiment is launched in a transient user systemd cgroup v2 service.
 The supervisor sets `MemoryMax`, disables swap with `MemorySwapMax=0`, samples
 `memory.current`, `memory.peak`, `memory.events`, `memory.stat`, and

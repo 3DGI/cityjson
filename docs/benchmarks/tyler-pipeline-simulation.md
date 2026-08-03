@@ -14,6 +14,10 @@ parallel stages. A profiled invocation accepts exactly one worker count and one
 layout, runs in a fresh process, and materializes every selected feature once.
 The Groningen sources and prepared SQLite sidecar are reused; preparation is
 performed before profiling so indexing does not pollute the measured target.
+`CITYJSON_GRONINGEN_CORPUS` names the directory that directly contains the
+`.city.json` tiles. A profile fails before measurement if its prepared manifest
+or worker-specific sidecar is missing, empty, or belongs to a different corpus
+or tile count.
 
 Two targets are available to the profiling supervisor:
 

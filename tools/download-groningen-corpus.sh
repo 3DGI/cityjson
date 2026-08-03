@@ -4,7 +4,7 @@
 # Usage: ./tools/download-groningen-corpus.sh
 #
 # Environment variables:
-#   CITYJSON_GRONINGEN_CORPUS - Override default corpus path
+#   CITYJSON_GRONINGEN_CORPUS - Directory containing extracted .city.json files
 #   CITYJSON_GRONINGEN_CSV   - Path to selection CSV (default: derived from corpus path)
 #
 set -euo pipefail
@@ -13,15 +13,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Default paths
-DEFAULT_CORPUS_ROOT="${REPO_ROOT}/target/benchmarks/groningen-182"
+DEFAULT_CITYJSON_DIR="${REPO_ROOT}/target/benchmarks/groningen-182/cityjson"
 DEFAULT_CSV_PATH="${REPO_ROOT}/crates/cityjson-index/tools/selection-groningen-182.csv"
 
 # Override from environment
-CORPUS_ROOT="${CITYJSON_GRONINGEN_CORPUS:-${DEFAULT_CORPUS_ROOT}}"
+CITYJSON_DIR="${CITYJSON_GRONINGEN_CORPUS:-${DEFAULT_CITYJSON_DIR}}"
+CORPUS_ROOT="$(dirname "${CITYJSON_DIR}")"
 CSV_PATH="${CITYJSON_GRONINGEN_CSV:-${DEFAULT_CSV_PATH}}"
 
 RAW_DIR="${CORPUS_ROOT}/raw"
-CITYJSON_DIR="${CORPUS_ROOT}/cityjson"
 
 # Colors for output
 RED='\033[0;31m'
@@ -57,7 +57,7 @@ if [ ! -f "${CSV_PATH}" ]; then
 fi
 
 log_info "Using CSV: ${CSV_PATH}"
-log_info "Corpus root: ${CORPUS_ROOT}"
+log_info "CityJSON corpus: ${CITYJSON_DIR}"
 
 # Create directories
 mkdir -p "${RAW_DIR}"
@@ -180,5 +180,5 @@ fi
 log_info "Corpus indexed and validated successfully"
 
 log_info "Groningen corpus setup complete!"
-log_info "Corpus location: ${CORPUS_ROOT}"
-log_info "To use: export CITYJSON_GRONINGEN_CORPUS=${CORPUS_ROOT}"
+log_info "Corpus location: ${CITYJSON_DIR}"
+log_info "To use: export CITYJSON_GRONINGEN_CORPUS=${CITYJSON_DIR}"

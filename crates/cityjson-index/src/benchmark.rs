@@ -343,6 +343,12 @@ fn run_profile_target(cli: &BenchmarkCli) -> Result<BenchmarkReport> {
             "--profile-target requires exactly one --workers value".to_owned(),
         ));
     }
+    if !cli.reuse_prepared {
+        return Err(Error::Import(
+            "--profile-target requires --reuse-prepared so dataset and sidecar preparation stay outside the profiled process"
+                .to_owned(),
+        ));
+    }
     if !cli.case.is_empty()
         && !cli
             .case
@@ -365,21 +371,14 @@ fn run_profile_target(cli: &BenchmarkCli) -> Result<BenchmarkReport> {
         ));
     }
     let layout = layouts[0];
-    let dataset = if cli.reuse_prepared {
-        load_prepared_tyler_dataset(cli, layout)?
-    } else {
-        let groningen_root = cli.groningen_corpus.clone().unwrap_or_else(|| {
-            std::env::var("CITYJSON_GRONINGEN_CORPUS").map_or_else(
-                |_| PathBuf::from(DEFAULT_GRONINGEN_CORPUS_ROOT),
-                PathBuf::from,
-            )
-        });
-        prepare_tyler_dataset(cli, layout, &groningen_root, cli.tyler_tile_count)?
-    };
+    let dataset = load_prepared_tyler_dataset(cli, layout)?;
     let worker_count = cli.workers[0];
-    let index_path = fresh_benchmark_index_path(&dataset.manifest, worker_count)?;
+    let index_path = benchmark_index_path(&dataset.manifest, worker_count);
     if !index_path.exists() {
-        prepare_benchmark_sidecar(&dataset, worker_count)?;
+        return Err(Error::Import(format!(
+            "prepared Tyler sidecar {} does not exist; run --prepare-only for worker {worker_count} before profiling",
+            index_path.display()
+        )));
     }
 
     let runs = with_worker_count_env(worker_count, || {
@@ -411,12 +410,53 @@ fn load_prepared_tyler_dataset(
             path.display()
         ))
     })?;
-    let manifest = serde_json::from_slice(&bytes).map_err(|error| {
+    let manifest: BenchmarkManifest = serde_json::from_slice(&bytes).map_err(|error| {
         Error::Import(format!(
             "failed to parse prepared Tyler manifest {}: {error}",
             path.display()
         ))
     })?;
+    if manifest.layout != layout {
+        return Err(Error::Import(format!(
+            "prepared Tyler manifest {} records layout {}, expected {}",
+            path.display(),
+            manifest.layout.as_label(),
+            layout.as_label()
+        )));
+    }
+    if manifest.source_count != cli.tyler_tile_count {
+        return Err(Error::Import(format!(
+            "prepared Tyler manifest {} contains {} sources, expected {} tiles",
+            path.display(),
+            manifest.source_count,
+            cli.tyler_tile_count
+        )));
+    }
+    let requested_corpus = cli.groningen_corpus.clone().unwrap_or_else(|| {
+        std::env::var("CITYJSON_GRONINGEN_CORPUS").map_or_else(
+            |_| PathBuf::from(DEFAULT_GRONINGEN_CORPUS_ROOT),
+            PathBuf::from,
+        )
+    });
+    let prepared_corpus = fs::canonicalize(&manifest.source_artifact).map_err(|error| {
+        Error::Import(format!(
+            "failed to resolve prepared Groningen corpus {}: {error}",
+            manifest.source_artifact.display()
+        ))
+    })?;
+    let requested_corpus = fs::canonicalize(&requested_corpus).map_err(|error| {
+        Error::Import(format!(
+            "failed to resolve requested Groningen corpus {}: {error}",
+            requested_corpus.display()
+        ))
+    })?;
+    if prepared_corpus != requested_corpus {
+        return Err(Error::Import(format!(
+            "prepared Tyler manifest uses Groningen corpus {}, expected {}",
+            prepared_corpus.display(),
+            requested_corpus.display()
+        )));
+    }
     Ok(PreparedDataset { manifest })
 }
 
@@ -1966,12 +2006,27 @@ fn run_isolated_tyler_target(
     event_path: Option<&Path>,
 ) -> Result<Vec<BenchmarkOperationRecord>> {
     let manifest = &dataset.manifest;
-    let index_path = fresh_benchmark_index_path(manifest, worker_count)?;
+    let index_path = benchmark_index_path(manifest, worker_count);
+    if !index_path.exists() {
+        return Err(Error::Import(format!(
+            "prepared Tyler sidecar {} disappeared before profiling",
+            index_path.display()
+        )));
+    }
     let resolved = resolve_dataset(&manifest.prepared_dataset, Some(index_path))?;
     let index = CityIndex::open(resolved.storage_layout(), &resolved.index_path)?;
     let feature_count = index.package_count()?;
     let source_count = index.source_count()?;
     let cityobject_count = index.cityobject_count()?;
+    if feature_count != manifest.feature_count
+        || source_count != manifest.source_count
+        || cityobject_count != manifest.cityobject_count
+    {
+        return Err(Error::Import(format!(
+            "prepared Tyler sidecar does not match its manifest: packages {feature_count}/{}, sources {source_count}/{}, CityObjects {cityobject_count}/{}",
+            manifest.feature_count, manifest.source_count, manifest.cityobject_count
+        )));
+    }
 
     match target {
         BenchmarkProfileTarget::TylerPipeline => run_tyler_pipeline(
@@ -2044,13 +2099,17 @@ fn fresh_benchmark_index_path(
     manifest: &BenchmarkManifest,
     worker_count: usize,
 ) -> Result<PathBuf> {
-    let index_path = manifest
-        .prepared_dataset
-        .join(format!(".cityjson-index.worker-{worker_count}.sqlite"));
+    let index_path = benchmark_index_path(manifest, worker_count);
     remove_file_if_exists(&index_path)?;
     remove_file_if_exists(&index_path.with_extension("sqlite-wal"))?;
     remove_file_if_exists(&index_path.with_extension("sqlite-shm"))?;
     Ok(index_path)
+}
+
+fn benchmark_index_path(manifest: &BenchmarkManifest, worker_count: usize) -> PathBuf {
+    manifest
+        .prepared_dataset
+        .join(format!(".cityjson-index.worker-{worker_count}.sqlite"))
 }
 
 fn remove_file_if_exists(path: &Path) -> Result<()> {
@@ -3886,6 +3945,78 @@ mod tests {
             );
             Ok(())
         })?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn isolated_profile_reuses_a_matching_prepared_sidecar() -> Result<()> {
+        let root = temp_dir("benchmark-profile-reuse");
+        let corpus = root.join("groningen");
+        fs::create_dir_all(&corpus)?;
+        fs::write(
+            corpus.join("tile.city.json"),
+            serde_json::to_vec(&synthetic_cityjson_document(3))
+                .map_err(|error| Error::Import(error.to_string()))?,
+        )?;
+        let mut cli = BenchmarkCli {
+            json: false,
+            corpus_root: root.clone(),
+            work_root: root.join("work"),
+            artifact: None,
+            case: vec![BenchmarkCaseKind::TylerPipeline],
+            layout: vec![BenchmarkLayoutKind::CityJson],
+            workers: vec![1],
+            multi_tile_root: None,
+            groningen_corpus: Some(corpus),
+            tyler_tile_count: 1,
+            warmth: Vec::new(),
+            source_position: Vec::new(),
+            batch_size: Vec::new(),
+            concurrent_readers: Vec::new(),
+            prepare_only: false,
+            profile_target: Some(BenchmarkProfileTarget::TylerFeatureMaterialization),
+            reuse_prepared: true,
+            profile_events: None,
+        };
+        let prepared = prepare_tyler_dataset(
+            &cli,
+            BenchmarkLayoutKind::CityJson,
+            cli.groningen_corpus
+                .as_deref()
+                .expect("test Groningen corpus should be configured"),
+            1,
+        )?;
+        prepare_benchmark_sidecar(&prepared, 1)?;
+        let sidecar = benchmark_index_path(&prepared.manifest, 1);
+
+        let report = run(&cli)?;
+
+        assert!(
+            sidecar.exists(),
+            "profile must preserve the prepared sidecar"
+        );
+        assert_eq!(report.runs.len(), 1);
+        assert_eq!(report.runs[0].feature_count, 3);
+        assert_eq!(report.runs[0].package_count, 3);
+        assert_eq!(report.runs[0].source_count, 1);
+
+        cli.tyler_tile_count = 2;
+        let mismatch = run(&cli).expect_err("mismatched preparation should fail");
+        assert!(
+            mismatch
+                .to_string()
+                .contains("contains 1 sources, expected 2 tiles"),
+            "unexpected mismatch error: {mismatch}"
+        );
+
+        cli.tyler_tile_count = 1;
+        remove_file_if_exists(&sidecar)?;
+        let missing = run(&cli).expect_err("missing prepared sidecar should fail");
+        assert!(
+            missing.to_string().contains("does not exist"),
+            "unexpected missing-sidecar error: {missing}"
+        );
 
         Ok(())
     }

@@ -67,6 +67,10 @@ class ParsingTests(unittest.TestCase):
         properties = {"Result": "timeout", "ExecMainStatus": "9"}
         self.assertEqual(profile_index.classify_outcome(properties, {}), "killed")
 
+    def test_empty_terminal_sample_does_not_contain_measurements(self) -> None:
+        self.assertFalse(profile_index.sample_has_measurements({"memory_peak_bytes": None}))
+        self.assertTrue(profile_index.sample_has_measurements({"memory_peak_bytes": 1024}))
+
 
 if __name__ == "__main__":
     unittest.main()

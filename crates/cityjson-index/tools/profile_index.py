@@ -73,6 +73,10 @@ def sample_cgroup(cgroup: Path) -> dict[str, object]:
     }
 
 
+def sample_has_measurements(sample: dict[str, object]) -> bool:
+    return sample.get("memory_peak_bytes") is not None
+
+
 def classify_outcome(properties: dict[str, str], memory_events: dict[str, int]) -> str:
     """Distinguish a cgroup OOM from ordinary failures and external termination."""
     if memory_events.get("oom_kill", 0) > 0:
@@ -282,6 +286,7 @@ def run_profile(args: argparse.Namespace) -> int:
 
     cgroup: Path | None = None
     final_properties: dict[str, str] = {}
+    last_sample: dict[str, object] | None = None
     try:
         for _ in range(100):
             properties = systemctl_properties(unit, "ControlGroup", "SubState")
@@ -296,7 +301,10 @@ def run_profile(args: argparse.Namespace) -> int:
             raise RuntimeError(f"systemd unit {unit} did not expose its cgroup")
 
         while True:
-            append_json_line(samples, sample_cgroup(cgroup))
+            current_sample = sample_cgroup(cgroup)
+            append_json_line(samples, current_sample)
+            if sample_has_measurements(current_sample):
+                last_sample = current_sample
             final_properties = systemctl_properties(
                 unit,
                 "SubState",
@@ -307,12 +315,17 @@ def run_profile(args: argparse.Namespace) -> int:
             if final_properties.get("SubState") in {"exited", "failed", "dead"}:
                 break
             time.sleep(SAMPLE_INTERVAL_SECONDS)
-        final_sample = sample_cgroup(cgroup)
-        append_json_line(samples, final_sample)
+        terminal_sample = sample_cgroup(cgroup)
+        append_json_line(samples, terminal_sample)
+        if sample_has_measurements(terminal_sample):
+            last_sample = terminal_sample
     finally:
         subprocess.run(["systemctl", "--user", "stop", unit], check=False)
         subprocess.run(["systemctl", "--user", "reset-failed", unit], check=False)
 
+    if last_sample is None:
+        raise RuntimeError(f"cgroup {cgroup} disappeared before yielding a memory sample")
+    final_sample = last_sample
     events_data = final_sample.get("memory_events", {})
     typed_events = events_data if isinstance(events_data, dict) else {}
     outcome = classify_outcome(final_properties, typed_events)
