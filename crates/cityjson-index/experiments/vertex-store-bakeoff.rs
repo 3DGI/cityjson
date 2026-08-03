@@ -17,7 +17,6 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 const SAMPLE_SCHEMA_VERSION: u32 = 2;
-const PAGE_SIZE: usize = 4_096;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -286,7 +285,8 @@ fn tyler_materialization(args: &MeasuredArgs) -> Result<()> {
         ));
     }
     let context = MeasurementContext::open(args, false)?;
-    let refs = all_package_refs(&context.index)?;
+    let connection = open_matching_read_sidecar(&args.dataset.sidecar, context.strategy)?;
+    let refs = all_stable_package_refs(&context.index, &connection)?;
     let (summary, telemetry) = materialize_batches(&context.index, context.store.as_ref(), &refs)?;
     let payload = TylerResult {
         package_count: summary.package_count,
@@ -421,24 +421,31 @@ fn stable_package_rows(connection: &Connection) -> Result<Vec<(StablePackageIden
         .map_err(|error| sql_error(&error))
 }
 
+fn all_stable_package_identities(connection: &Connection) -> Result<Vec<StablePackageIdentity>> {
+    let mut identities = stable_package_rows(connection)?
+        .into_iter()
+        .map(|(identity, _)| identity)
+        .collect::<Vec<_>>();
+    identities.sort();
+    if let Some(pair) = identities.windows(2).find(|pair| pair[0] == pair[1]) {
+        return Err(import_error(format!(
+            "stable package identity is ambiguous: {} / {}",
+            pair[0].source_path, pair[0].model_id
+        )));
+    }
+    Ok(identities)
+}
+
 fn stable_stratified_sample(
     connection: &Connection,
     limit: usize,
 ) -> Result<Vec<StablePackageIdentity>> {
     let mut by_source = BTreeMap::<String, Vec<StablePackageIdentity>>::new();
-    let mut occurrences = BTreeMap::<StablePackageIdentity, usize>::new();
-    for (identity, _) in stable_package_rows(connection)? {
-        *occurrences.entry(identity.clone()).or_default() += 1;
+    for identity in all_stable_package_identities(connection)? {
         by_source
             .entry(identity.source_path.clone())
             .or_default()
             .push(identity);
-    }
-    if let Some((identity, _)) = occurrences.iter().find(|(_, count)| **count != 1) {
-        return Err(import_error(format!(
-            "stable package identity is ambiguous: {} / {}",
-            identity.source_path, identity.model_id
-        )));
     }
     for packages in by_source.values_mut() {
         packages.sort();
@@ -550,18 +557,12 @@ fn refs_for_sample(
         .collect()
 }
 
-fn all_package_refs(index: &CityIndex) -> Result<Vec<IndexedPackageRef>> {
-    let mut refs = Vec::new();
-    let mut after = None;
-    loop {
-        let page = index.package_ref_page_after_record_id(after, PAGE_SIZE)?;
-        if page.is_empty() {
-            break;
-        }
-        after = page.last().map(|reference| reference.record_id);
-        refs.extend(page);
-    }
-    Ok(refs)
+fn all_stable_package_refs(
+    index: &CityIndex,
+    connection: &Connection,
+) -> Result<Vec<IndexedPackageRef>> {
+    let identities = all_stable_package_identities(connection)?;
+    refs_for_sample(index, connection, &identities)
 }
 
 fn materialize_singletons(
@@ -904,6 +905,38 @@ mod tests {
                 &stable_stratified_sample(&second, 10).expect("sample rebuilds")
             )
             .expect("identity rehashes")
+        );
+    }
+
+    #[test]
+    fn full_scan_order_and_batch_boundaries_ignore_numeric_ids() {
+        let first = package_database(&[
+            (1, 10, "/c.city.json", "c"),
+            (2, 20, "/a.city.json", "a2"),
+            (2, 21, "/a.city.json", "a1"),
+            (3, 30, "/b.city.json", "b2"),
+            (3, 31, "/b.city.json", "b1"),
+        ]);
+        let second = package_database(&[
+            (93, 501, "/b.city.json", "b1"),
+            (42, 801, "/a.city.json", "a1"),
+            (71, 101, "/c.city.json", "c"),
+            (93, 502, "/b.city.json", "b2"),
+            (42, 802, "/a.city.json", "a2"),
+        ]);
+        let first_order = all_stable_package_identities(&first).expect("first order builds");
+        let second_order = all_stable_package_identities(&second).expect("second order builds");
+        assert_eq!(first_order, second_order);
+        assert_eq!(
+            first_order.chunks(2).map(<[_]>::to_vec).collect::<Vec<_>>(),
+            second_order
+                .chunks(2)
+                .map(<[_]>::to_vec)
+                .collect::<Vec<_>>()
+        );
+        assert_ne!(
+            resolve_sample_record_ids(&first, &first_order).expect("first ids resolve"),
+            resolve_sample_record_ids(&second, &second_order).expect("second ids resolve")
         );
     }
 
