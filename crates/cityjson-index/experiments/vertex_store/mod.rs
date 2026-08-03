@@ -12,6 +12,9 @@ use cityjson_lib::{Error, Result};
 use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 
+/// The candidate implementation supplied by the active experiment branch.
+pub mod candidate;
+
 /// Schema marker written to every experiment sidecar.
 pub const BAKEOFF_SCHEMA_VERSION: i64 = 3;
 /// Version of the machine-readable measurement result format.
