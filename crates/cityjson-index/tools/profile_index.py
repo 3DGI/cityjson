@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import platform
 import shutil
@@ -117,8 +118,8 @@ def validate(args: argparse.Namespace) -> None:
         raise SystemExit("the 182-tile profile requires an explicit --memory-max")
     if args.tool in {"cachegrind", "massif"} and (args.workers != 1 or args.tiles != 1):
         raise SystemExit(f"{args.tool} is restricted to --workers 1 --tiles 1")
-    if args.tool in {"perf-record", "heaptrack"} and args.tiles > 24:
-        raise SystemExit(f"{args.tool} is restricted to at most 24 tiles")
+    if args.tool == "perf-record" and args.tiles > 24:
+        raise SystemExit("perf-record is restricted to at most 24 tiles")
     required = ["systemd-run", "systemctl"]
     tool_executable = executable_for(args.tool)
     if tool_executable:
@@ -185,7 +186,13 @@ def profiler_command(
             *benchmark,
         ]
     if args.tool == "heaptrack":
-        return ["heaptrack", "-o", str(output_dir / "heaptrack"), *benchmark]
+        return [
+            "heaptrack",
+            "--record-only",
+            "-o",
+            str(output_dir / "heaptrack"),
+            *benchmark,
+        ]
     if args.tool == "cachegrind":
         return [
             "valgrind",
@@ -225,8 +232,32 @@ def prepare(args: argparse.Namespace, binary: Path) -> None:
     run_checked(command)
 
 
-def metadata(args: argparse.Namespace, run_id: str, command: list[str]) -> dict[str, object]:
+def command_version(executable: str) -> str:
+    result = run_checked([executable, "--version"], capture=True)
+    return (result.stdout or result.stderr).strip().splitlines()[0]
+
+
+def working_tree_provenance(repo: Path) -> dict[str, object]:
+    status = run_checked(
+        ["git", "status", "--porcelain=v1", "--untracked-files=all"], capture=True
+    ).stdout
+    diff = run_checked(["git", "diff", "--binary", "HEAD"], capture=True).stdout
+    digest = hashlib.sha256()
+    digest.update(status.encode("utf-8"))
+    digest.update(b"\0")
+    digest.update(diff.encode("utf-8"))
+    return {
+        "dirty": bool(status.strip()),
+        "status": status.splitlines(),
+        "diff_sha256": digest.hexdigest(),
+    }
+
+
+def metadata(
+    args: argparse.Namespace, run_id: str, command: list[str], repo: Path
+) -> dict[str, object]:
     commit = run_checked(["git", "rev-parse", "HEAD"], capture=True).stdout.strip()
+    tool_executable = executable_for(args.tool)
     return {
         "schema_version": 1,
         "run_id": run_id,
@@ -237,6 +268,8 @@ def metadata(args: argparse.Namespace, run_id: str, command: list[str]) -> dict[
         "memory_max": args.memory_max,
         "memory_swap_max": "0",
         "commit": commit,
+        "working_tree": working_tree_provenance(repo),
+        "tool_version": command_version(tool_executable) if tool_executable else None,
         "platform": platform.platform(),
         "python": sys.version,
         "command": command,
@@ -251,7 +284,8 @@ def run_profile(args: argparse.Namespace) -> int:
         raise SystemExit(f"profiling binary not found: {binary}; run the just recipe instead")
     args.work_root = args.work_root.resolve()
     args.corpus = args.corpus.resolve()
-    prepare(args, binary)
+    if not args.skip_prepare:
+        prepare(args, binary)
 
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     run_id = f"{timestamp}-{args.tool}-w{args.workers}-t{args.tiles}-{uuid.uuid4().hex[:8]}"
@@ -261,7 +295,7 @@ def run_profile(args: argparse.Namespace) -> int:
     samples = output_dir / "cgroup-memory.jsonl"
     command = profiler_command(args, binary, events, output_dir)
     (output_dir / "metadata.json").write_text(
-        json.dumps(metadata(args, run_id, command), indent=2, sort_keys=True) + "\n",
+        json.dumps(metadata(args, run_id, command, repo), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
 
@@ -354,6 +388,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--corpus", type=Path, required=True)
     result.add_argument("--work-root", type=Path, required=True)
     result.add_argument("--output-root", type=Path, required=True)
+    result.add_argument("--skip-prepare", action="store_true")
     return result
 
 

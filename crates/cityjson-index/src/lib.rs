@@ -63,6 +63,13 @@ pub struct CityIndex {
     backend: Box<dyn StorageBackend>,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct VertexCacheStats {
+    pub cached_source_count: usize,
+    pub cached_vertex_count: usize,
+    pub vertex_capacity_bytes: u64,
+}
+
 pub const WORKER_COUNT_ENV: &str = "CITYJSON_INDEX_WORKERS";
 const DEFAULT_SCAN_PAGE_SIZE: usize = 512;
 const REBUILD_FEATURE_BATCH_SIZE: usize = 512;
@@ -1192,6 +1199,13 @@ impl CityIndex {
             index: Index::open(index_path)?,
             backend,
         })
+    }
+
+    pub(crate) fn vertex_cache_stats(&self) -> VertexCacheStats {
+        self.backend.as_cityjson().map_or_else(
+            VertexCacheStats::default,
+            CityJsonBackend::vertex_cache_stats,
+        )
     }
 
     /// Rebuilds the index from the configured backend.
@@ -3401,6 +3415,27 @@ impl CityJsonBackend {
         let vertices = Arc::new(parse_vertices_fragment(&vertices_bytes)?);
         cache.put(source_path.to_path_buf(), Arc::clone(&vertices));
         Ok(vertices)
+    }
+
+    fn vertex_cache_stats(&self) -> VertexCacheStats {
+        let cache = self
+            .vertices_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut stats = VertexCacheStats {
+            cached_source_count: cache.len(),
+            ..VertexCacheStats::default()
+        };
+        for (_, vertices) in cache.iter() {
+            stats.cached_vertex_count = stats.cached_vertex_count.saturating_add(vertices.len());
+            let capacity_bytes = vertices
+                .capacity()
+                .saturating_mul(std::mem::size_of::<[i64; 3]>());
+            stats.vertex_capacity_bytes = stats
+                .vertex_capacity_bytes
+                .saturating_add(u64::try_from(capacity_bytes).unwrap_or(u64::MAX));
+        }
+        stats
     }
 }
 

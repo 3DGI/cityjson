@@ -126,9 +126,9 @@ For contained profiling, run one experiment or the defined campaign from this
 directory:
 
 ```bash
-just profile-index perf-stat 24 182 "baseline" 32G
-just profile-index heaptrack 24 24 "allocation baseline"
-just profile-index-campaign "baseline" 32G
+just profile-index perf-stat 24 182 "baseline" 28G
+just profile-index heaptrack 1 182 "allocation baseline" 28G
+just profile-index-campaign "baseline"
 ```
 
 Full-corpus profiles require an explicit cgroup memory limit. Results and raw
@@ -139,7 +139,11 @@ OOM classification rules.
 Each profiled worker-count measurement uses a fresh process and an explicit
 Rayon pool. Treat one pass as a smoke measurement and use repeated runs for
 timing comparisons. RSS and cgroup peaks are process-lifetime metrics, not
-operation-local deltas.
+operation-local deltas. Heaptrack campaigns progress from 1 to 4 to 24 workers
+only while projected memory remains below the safety threshold; a gated or OOM
+run is replaced by a 24-tile attribution matrix. Use `just analyze-profile
+<artifact>` to regenerate the machine-readable allocation categories and cache
+drop analysis for one retained Heaptrack trace.
 
 ## Development
 

@@ -35,7 +35,9 @@ The authoritative policy and experiment matrix are in
 In short:
 
 - native cgroup runs and `perf stat` use all 182 tiles at 1, 4, and 24 workers;
-- `perf record` and Heaptrack use 24 tiles and the same worker counts;
+- Heaptrack stages full 182-tile runs at 1, 4, and 24 workers under a 28 GiB
+  cap, falling back to a 24-tile matrix when projected memory is unsafe;
+- `perf record` uses 24 tiles and the same worker counts;
 - Cachegrind and optional Massif use only one tile and one worker.
 
 Valgrind serializes threads, so its output is a reduced diagnostic and cannot
@@ -45,15 +47,17 @@ execution. A full-corpus run must always specify a cgroup memory cap.
 From `crates/cityjson-index`:
 
 ```sh
-just profile-index perf-stat 24 182 "baseline" 32G
-just profile-index heaptrack 24 24 "allocation baseline"
-just profile-index-campaign "baseline" 32G
+just profile-index perf-stat 24 182 "baseline" 28G
+just profile-index heaptrack 1 182 "allocation baseline" 28G
+just profile-index-campaign "baseline"
 ```
 
 The supervisor writes one immutable directory per invocation below
 `target/profiling/cityjson-index/`. It contains run metadata, stdout and stderr,
 incremental stage events, 100 ms cgroup memory samples, an outcome summary, and
-the selected profiler's raw output.
+the selected profiler's raw output. Heaptrack artifacts additionally contain
+per-worker retained cache capacity, pre-/post-cache-drop RSS checkpoints, peak
+allocation categories, folded stacks, and a Massif-compatible timeline.
 
 An OOM outcome is based on the cgroup's `memory.events` `oom_kill` counter, not
 on an inferred signal. Timeouts and other failures remain distinct outcomes.

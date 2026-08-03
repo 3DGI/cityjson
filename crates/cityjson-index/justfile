@@ -44,7 +44,7 @@ test:
 
 # Test the cgroup profiling supervisor without running an expensive profile.
 test-profile-tools:
-    python3 -m unittest tools/test_profile_index.py
+    python3 -m unittest discover -s tools -p 'test_*.py'
 
 # Run the benchmark harness with human-readable output.
 bench-index *args:
@@ -76,22 +76,20 @@ profile-index tool workers tiles description memory_max="":
       --output-root ../../target/profiling/cityjson-index
 
 # Collect the defined comparison matrix. Heaptrack is a required local dependency.
-profile-index-campaign description memory_max:
+profile-index-campaign description memory_max="28G":
     #!/usr/bin/env bash
     set -euo pipefail
-    for tool in native perf-stat; do
-      for repetition in 1 2 3; do
-        for workers in 1 4 24; do
-          just profile-index "$tool" "$workers" 182 "{{description}} ${tool} repetition ${repetition}" "{{memory_max}}"
-        done
-      done
-    done
-    for tool in perf-record heaptrack; do
-      for workers in 1 4 24; do
-        just profile-index "$tool" "$workers" 24 "{{description}} ${tool}"
-      done
-    done
-    just profile-index cachegrind 1 1 "{{description}} cachegrind"
+    cargo build -p cityjson-index --bin bench-index --profile profiling --target-dir ../../target
+    python3 tools/profile_campaign.py \
+      --description "{{description}}" \
+      --memory-max "{{memory_max}}" \
+      --corpus "${CITYJSON_GRONINGEN_CORPUS:-../../target/benchmarks/groningen-182/cityjson}" \
+      --work-root ../../target/benchmarks/cityjson-index-profile \
+      --output-root ../../target/profiling/cityjson-index
+
+# Analyze one retained Heaptrack artifact.
+analyze-profile artifact:
+    python3 tools/analyze_profile.py "{{artifact}}"
 
 # Build the shared library and run the Python install smoke tests through tox and tox-uv.
 test-python:

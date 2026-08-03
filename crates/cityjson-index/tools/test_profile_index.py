@@ -24,6 +24,7 @@ def arguments(**overrides: object) -> argparse.Namespace:
         "memory_max": "",
         "work_root": Path("work"),
         "corpus": Path("corpus"),
+        "skip_prepare": False,
     }
     values.update(overrides)
     return argparse.Namespace(**values)
@@ -43,6 +44,10 @@ class ValidationTests(unittest.TestCase):
             arguments(tool="heaptrack"), Path("bench-index"), Path("events"), Path("out")
         )
         self.assertIn("tyler-feature-materialization", command)
+        self.assertIn("--record-only", command)
+
+    def test_heaptrack_allows_the_full_corpus_with_a_memory_limit(self) -> None:
+        profile_index.validate(arguments(tool="heaptrack", tiles=182, memory_max="28G"))
 
     def test_native_runs_target_the_complete_pipeline(self) -> None:
         command = profile_index.profiler_command(

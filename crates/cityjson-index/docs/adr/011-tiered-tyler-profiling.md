@@ -48,15 +48,30 @@ Use these tiers:
 |---|---|---:|---:|---|
 | End-to-end time and memory | Full Tyler pipeline | 182 tiles | 1, 4, 24 | native cgroup run plus `perf stat`, three repetitions |
 | CPU attribution | Feature materialization | 24 tiles | 1, 4, 24 | `perf record` |
-| Allocation attribution | Feature materialization | 24 tiles | 1, 4, 24 | Heaptrack |
+| Allocation attribution | Feature materialization | 182 tiles | 1, 4, 24 | staged Heaptrack runs, one repetition |
 | Cache and branch diagnosis | Feature materialization | 1 tile | 1 | Cachegrind |
 | Optional allocation timeline | Feature materialization | 1 tile | 1 | Massif |
 
 Heaptrack is the primary allocation profiler because it preserves concurrent
-execution. Cachegrind and Massif are diagnostic only and are mechanically
-restricted to one worker and one tile because Valgrind serializes threads and
-adds substantial memory and time overhead. Instrumented results must not be
-extrapolated into claims about the 24-worker OOM.
+execution. Full-corpus Heaptrack runs execute sequentially under a 28 GiB
+cgroup limit. The 4-worker peak is attempted only when four times the observed
+1-worker peak remains below 90% of the limit. The 24-worker projection uses the
+observed 1-to-4-worker duplicated-memory slope and the same threshold. A failed
+gate or cgroup OOM stops the full-corpus sequence and triggers a comparable
+24-tile Heaptrack fallback for 1, 4, and 24 workers.
+
+The benchmark reports the retained vertex count and allocated vertex-buffer
+capacity for every worker immediately after materialization. It then clears
+the thread-local `CityIndex` values while the Rayon pool remains alive and
+records a second RSS checkpoint. Heaptrack's live requested heap, these exact
+cache capacities, and the before/after RSS checkpoints are interpreted
+together. RSS minus requested heap is an upper bound that also includes
+allocator metadata and arenas, stacks, anonymous mappings, and profiler
+overhead; it is not labelled as pure fragmentation.
+
+Cachegrind and Massif are diagnostic only and are mechanically restricted to
+one worker and one tile because Valgrind serializes threads and adds substantial
+memory and time overhead.
 
 Profiling is diagnostic. This decision introduces no automated performance
 threshold; comparisons record the commit, command, platform, corpus size,
@@ -66,8 +81,8 @@ worker count, memory cap, outcome, and raw artifacts for review.
 
 - Worker-count comparisons describe the materialization pool that actually ran.
 - OOM experiments cannot take down the host and leave useful partial evidence.
-- Full-pipeline measurements remain representative, while expensive profilers
-  operate on a stable reduced workload.
+- Full-pipeline measurements remain representative, while Heaptrack either
+  measures the full corpus safely or records why the reduced fallback was used.
 - Running the complete campaign requires Linux, cgroup v2, a systemd user
   manager, `perf`, Heaptrack, and Valgrind.
 - Reduced profiler runs diagnose causes but do not replace the native 182-tile
@@ -91,15 +106,15 @@ worker count, memory cap, outcome, and raw artifacts for review.
 Run one experiment from `crates/cityjson-index`:
 
 ```sh
-just profile-index perf-stat 24 182 "baseline before vertex-cache change" 32G
-just profile-index heaptrack 24 24 "allocation baseline"
+just profile-index perf-stat 24 182 "baseline before vertex-cache change" 28G
+just profile-index heaptrack 1 182 "allocation baseline" 28G
 just profile-index cachegrind 1 1 "cache diagnostic"
 ```
 
 Run the defined matrix with:
 
 ```sh
-just profile-index-campaign "baseline before vertex-cache change" 32G
+just profile-index-campaign "baseline before vertex-cache change"
 ```
 
 Artifacts are written below `target/profiling/cityjson-index/`.

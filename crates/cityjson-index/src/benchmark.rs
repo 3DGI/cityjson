@@ -4,7 +4,7 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::time::Instant;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use cityjson_lib::{Error, Result};
 use clap::{Parser, ValueEnum};
@@ -29,6 +29,8 @@ const DEFAULT_CONCURRENT_READERS: &[usize] = &[1, 4];
 // Tyler's constants for matching its pipeline exactly
 const BENCH_CJINDEX_PARALLEL_CHUNK_SIZE: usize = 2_048;
 const BENCHMARK_SCHEMA_VERSION: u32 = 2;
+const BENCHMARK_STAGE_EVENT_SCHEMA_VERSION: u32 = 3;
+const PROFILE_CHECKPOINT_SETTLE_TIME: Duration = Duration::from_millis(300);
 
 // Thread-local storage for CityIndex caching (matching Tyler's CJINDEX_THREAD_LOCAL pattern)
 thread_local! {
@@ -179,11 +181,35 @@ pub struct BenchmarkReport {
 #[derive(Debug, Serialize)]
 struct BenchmarkStageEvent<'a> {
     schema_version: u32,
+    timestamp_ns: u64,
     event: &'a str,
     stage: &'a str,
     worker_count: usize,
     elapsed_ns: Option<u64>,
     observed_worker_count: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct WorkerVertexCacheStats {
+    worker_index: usize,
+    cached_source_count: usize,
+    cached_vertex_count: usize,
+    vertex_capacity_bytes: u64,
+}
+
+#[derive(Debug, Serialize)]
+struct BenchmarkCacheCheckpointEvent<'a> {
+    schema_version: u32,
+    timestamp_ns: u64,
+    event: &'a str,
+    stage: &'a str,
+    worker_count: usize,
+    current_rss_bytes: u64,
+    process_peak_rss_bytes: u64,
+    cached_source_count: usize,
+    cached_vertex_count: usize,
+    vertex_capacity_bytes: u64,
+    workers: &'a [WorkerVertexCacheStats],
 }
 
 #[derive(Debug, Clone)]
@@ -734,6 +760,11 @@ fn prepare_tyler_dataset(
     tile_count: usize,
 ) -> Result<PreparedDataset> {
     let prepared_root = cli.work_root.join(layout.as_label()).join("tyler-pipeline");
+    if prepared_root.join("benchmark-manifest.json").exists()
+        && let Ok(dataset) = load_prepared_tyler_dataset(cli, layout)
+    {
+        return Ok(dataset);
+    }
     reset_dir(&prepared_root)?;
     fs::create_dir_all(&prepared_root)?;
 
@@ -1975,6 +2006,10 @@ fn run_tyler_feature_materialization(
         Some(observed_worker_count),
     )?;
 
+    if event_path.is_some() {
+        record_and_clear_worker_vertex_caches(event_path, pool, worker_count)?;
+    }
+
     Ok(build_record(BenchmarkRecordInput {
         dataset_label: manifest.dataset_label.clone(),
         source_artifact: manifest.source_artifact.clone(),
@@ -2081,7 +2116,8 @@ fn append_stage_event(
     serde_json::to_writer(
         &mut file,
         &BenchmarkStageEvent {
-            schema_version: BENCHMARK_SCHEMA_VERSION,
+            schema_version: BENCHMARK_STAGE_EVENT_SCHEMA_VERSION,
+            timestamp_ns: unix_time_ns()?,
             event,
             stage,
             worker_count,
@@ -2093,6 +2129,113 @@ fn append_stage_event(
     file.write_all(b"\n")?;
     file.flush()?;
     Ok(())
+}
+
+fn collect_worker_vertex_cache_stats(pool: &rayon::ThreadPool) -> Vec<WorkerVertexCacheStats> {
+    pool.broadcast(|context| {
+        BENCH_INDEX_THREAD_LOCAL.with(|cell| {
+            let stats = cell
+                .borrow()
+                .as_ref()
+                .map_or_else(crate::VertexCacheStats::default, |(_, index)| {
+                    index.vertex_cache_stats()
+                });
+            WorkerVertexCacheStats {
+                worker_index: context.index(),
+                cached_source_count: stats.cached_source_count,
+                cached_vertex_count: stats.cached_vertex_count,
+                vertex_capacity_bytes: stats.vertex_capacity_bytes,
+            }
+        })
+    })
+}
+
+fn record_and_clear_worker_vertex_caches(
+    event_path: Option<&Path>,
+    pool: &rayon::ThreadPool,
+    worker_count: usize,
+) -> Result<()> {
+    let worker_cache_stats = collect_worker_vertex_cache_stats(pool);
+    append_cache_checkpoint_event(
+        event_path,
+        "cache_before_drop",
+        worker_count,
+        &worker_cache_stats,
+    )?;
+    std::thread::sleep(PROFILE_CHECKPOINT_SETTLE_TIME);
+    clear_worker_vertex_caches(pool);
+    std::thread::sleep(PROFILE_CHECKPOINT_SETTLE_TIME);
+    let cleared_cache_stats = collect_worker_vertex_cache_stats(pool);
+    append_cache_checkpoint_event(
+        event_path,
+        "cache_after_drop",
+        worker_count,
+        &cleared_cache_stats,
+    )?;
+    std::thread::sleep(PROFILE_CHECKPOINT_SETTLE_TIME);
+    Ok(())
+}
+
+fn clear_worker_vertex_caches(pool: &rayon::ThreadPool) {
+    pool.broadcast(|_| {
+        BENCH_INDEX_THREAD_LOCAL.with(|cell| {
+            cell.borrow_mut().take();
+        });
+    });
+}
+
+fn append_cache_checkpoint_event(
+    path: Option<&Path>,
+    event: &str,
+    worker_count: usize,
+    workers: &[WorkerVertexCacheStats],
+) -> Result<()> {
+    let Some(path) = path else {
+        return Ok(());
+    };
+    let memory = profile::current_memory_snapshot()?;
+    let cached_source_count = workers
+        .iter()
+        .map(|worker| worker.cached_source_count)
+        .sum();
+    let cached_vertex_count = workers
+        .iter()
+        .map(|worker| worker.cached_vertex_count)
+        .sum();
+    let vertex_capacity_bytes = workers.iter().try_fold(0_u64, |total, worker| {
+        total
+            .checked_add(worker.vertex_capacity_bytes)
+            .ok_or_else(|| Error::Import("worker vertex cache capacity overflowed u64".to_owned()))
+    })?;
+    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
+    serde_json::to_writer(
+        &mut file,
+        &BenchmarkCacheCheckpointEvent {
+            schema_version: BENCHMARK_STAGE_EVENT_SCHEMA_VERSION,
+            timestamp_ns: unix_time_ns()?,
+            event,
+            stage: "tyler_feature_materialization",
+            worker_count,
+            current_rss_bytes: memory.current_rss_bytes,
+            process_peak_rss_bytes: memory.process_peak_rss_bytes,
+            cached_source_count,
+            cached_vertex_count,
+            vertex_capacity_bytes,
+            workers,
+        },
+    )
+    .map_err(|error| Error::Import(error.to_string()))?;
+    file.write_all(b"\n")?;
+    file.flush()?;
+    Ok(())
+}
+
+fn unix_time_ns() -> Result<u64> {
+    let elapsed = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| Error::Import(format!("system clock is before Unix epoch: {error}")))?;
+    u64::try_from(elapsed.as_nanos())
+        .map_err(|_| Error::Import("Unix timestamp does not fit in u64".to_owned()))
 }
 
 fn fresh_benchmark_index_path(
@@ -3950,6 +4093,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the lifecycle regression verifies reuse, telemetry, mismatch, and missing-sidecar failures"
+    )]
     fn isolated_profile_reuses_a_matching_prepared_sidecar() -> Result<()> {
         let root = temp_dir("benchmark-profile-reuse");
         let corpus = root.join("groningen");
@@ -3977,7 +4124,7 @@ mod tests {
             prepare_only: false,
             profile_target: Some(BenchmarkProfileTarget::TylerFeatureMaterialization),
             reuse_prepared: true,
-            profile_events: None,
+            profile_events: Some(root.join("stage-events.jsonl")),
         };
         let prepared = prepare_tyler_dataset(
             &cli,
@@ -3990,6 +4137,20 @@ mod tests {
         prepare_benchmark_sidecar(&prepared, 1)?;
         let sidecar = benchmark_index_path(&prepared.manifest, 1);
 
+        let reused = prepare_tyler_dataset(
+            &cli,
+            BenchmarkLayoutKind::CityJson,
+            cli.groningen_corpus
+                .as_deref()
+                .expect("test Groningen corpus should be configured"),
+            1,
+        )?;
+        assert_eq!(reused.manifest.source_count, 1);
+        assert!(
+            sidecar.exists(),
+            "reusing a matching prepared dataset must preserve worker sidecars"
+        );
+
         let report = run(&cli)?;
 
         assert!(
@@ -4000,6 +4161,35 @@ mod tests {
         assert_eq!(report.runs[0].feature_count, 3);
         assert_eq!(report.runs[0].package_count, 3);
         assert_eq!(report.runs[0].source_count, 1);
+
+        let events_path = cli
+            .profile_events
+            .as_deref()
+            .expect("profile event path should be configured");
+        let events = fs::read_to_string(events_path)?
+            .lines()
+            .map(|line| {
+                serde_json::from_str::<Value>(line)
+                    .map_err(|error| Error::Import(error.to_string()))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let before_drop = events
+            .iter()
+            .find(|event| event["event"] == "cache_before_drop")
+            .expect("profile should record the populated worker caches");
+        assert_eq!(before_drop["schema_version"], 3);
+        assert!(before_drop["timestamp_ns"].as_u64().unwrap_or(0) > 0);
+        assert_eq!(before_drop["cached_source_count"], 1);
+        assert!(before_drop["cached_vertex_count"].as_u64().unwrap_or(0) > 0);
+        assert!(before_drop["vertex_capacity_bytes"].as_u64().unwrap_or(0) > 0);
+        assert_eq!(before_drop["workers"].as_array().map(Vec::len), Some(1));
+        let after_drop = events
+            .iter()
+            .find(|event| event["event"] == "cache_after_drop")
+            .expect("profile should record cleared worker caches");
+        assert_eq!(after_drop["cached_source_count"], 0);
+        assert_eq!(after_drop["cached_vertex_count"], 0);
+        assert_eq!(after_drop["vertex_capacity_bytes"], 0);
 
         cli.tyler_tile_count = 2;
         let mismatch = run(&cli).expect_err("mismatched preparation should fail");
