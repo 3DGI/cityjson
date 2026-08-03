@@ -640,9 +640,66 @@ fn digest_string(bytes: &[u8]) -> String {
 }
 
 fn hash_model(hasher: &mut Sha256, model: &cityjson_lib::CityModel) -> Result<()> {
-    let bytes = cityjson_lib::json::to_vec(model)?;
-    hasher.update((bytes.len() as u64).to_le_bytes());
-    hasher.update(bytes);
+    let serialized = cityjson_lib::json::to_vec(model)?;
+    let value: serde_json::Value =
+        serde_json::from_slice(&serialized).map_err(|error| import_error(error.to_string()))?;
+    let mut canonical = Vec::with_capacity(serialized.len());
+    write_canonical_value(&value, &mut canonical)?;
+    write_hash_length(hasher, canonical.len())?;
+    hasher.update(canonical);
+    Ok(())
+}
+
+fn write_canonical_value(value: &serde_json::Value, output: &mut Vec<u8>) -> Result<()> {
+    match value {
+        serde_json::Value::Null => output.push(b'n'),
+        serde_json::Value::Bool(value) => output.push(if *value { b't' } else { b'f' }),
+        serde_json::Value::Number(value) => {
+            output.push(b'd');
+            write_canonical_bytes(value.to_string().as_bytes(), output)?;
+        }
+        serde_json::Value::String(value) => {
+            output.push(b's');
+            write_canonical_bytes(value.as_bytes(), output)?;
+        }
+        serde_json::Value::Array(values) => {
+            output.push(b'[');
+            write_canonical_length(values.len(), output)?;
+            for value in values {
+                write_canonical_value(value, output)?;
+            }
+        }
+        serde_json::Value::Object(values) => {
+            output.push(b'{');
+            write_canonical_length(values.len(), output)?;
+            let mut keys = values.keys().collect::<Vec<_>>();
+            keys.sort_unstable();
+            for key in keys {
+                write_canonical_bytes(key.as_bytes(), output)?;
+                write_canonical_value(&values[key], output)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn write_canonical_bytes(bytes: &[u8], output: &mut Vec<u8>) -> Result<()> {
+    write_canonical_length(bytes.len(), output)?;
+    output.extend_from_slice(bytes);
+    Ok(())
+}
+
+fn write_canonical_length(length: usize, output: &mut Vec<u8>) -> Result<()> {
+    let length = u64::try_from(length)
+        .map_err(|_| import_error("canonical value length does not fit in u64"))?;
+    output.extend_from_slice(&length.to_le_bytes());
+    Ok(())
+}
+
+fn write_hash_length(hasher: &mut Sha256, length: usize) -> Result<()> {
+    let length = u64::try_from(length)
+        .map_err(|_| import_error("canonical model length does not fit in u64"))?;
+    hasher.update(length.to_le_bytes());
     Ok(())
 }
 
@@ -886,6 +943,48 @@ mod tests {
             first,
             sample_identity("corpus", &[identity("/b", "b"), identity("/a", "a")])
                 .expect("reordered identity hashes")
+        );
+    }
+
+    fn feature_with_attributes(attributes: &str) -> cityjson_lib::CityModel {
+        let feature = format!(
+            r#"{{
+                "type":"CityJSONFeature",
+                "id":"building",
+                "CityObjects":{{
+                    "building":{{
+                        "type":"Building",
+                        "attributes":{attributes}
+                    }}
+                }},
+                "vertices":[]
+            }}"#
+        );
+        cityjson_lib::json::from_feature_slice(feature.as_bytes()).expect("feature fixture parses")
+    }
+
+    fn digest_models(models: &[&cityjson_lib::CityModel]) -> String {
+        let mut hasher = Sha256::new();
+        for model in models {
+            hash_model(&mut hasher, model).expect("model hashes");
+        }
+        digest_string(hasher.finalize().as_slice())
+    }
+
+    #[test]
+    fn model_digest_canonicalizes_map_order_and_detects_value_changes() {
+        let alpha_first = feature_with_attributes(r#"{"alpha":1,"beta":"two"}"#);
+        let beta_first = feature_with_attributes(r#"{"beta":"two","alpha":1}"#);
+        let changed = feature_with_attributes(r#"{"alpha":1,"beta":"changed"}"#);
+
+        assert_eq!(
+            digest_models(&[&alpha_first]),
+            digest_models(&[&beta_first])
+        );
+        assert_ne!(digest_models(&[&alpha_first]), digest_models(&[&changed]));
+        assert_eq!(
+            digest_models(&[&alpha_first, &changed]),
+            digest_models(&[&beta_first, &changed])
         );
     }
 
