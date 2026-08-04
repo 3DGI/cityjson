@@ -6,7 +6,7 @@ The format is based on Keep a Changelog, and this project follows
 Semantic Versioning at the workspace level: every release bumps every
 crate in the workspace to the same version.
 
-## [Unreleased]
+## [0.11.0] - 2026-08-04
 
 ### Changed
 - Changed the Arrow and Parquet canonical schema to `cityjson-arrow.package.v3alpha4`; geometry ownership columns are now nullable together so pooled geometries referenced by attributes, including CityJSON address locations, round-trip correctly.
