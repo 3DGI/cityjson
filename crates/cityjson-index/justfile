@@ -91,6 +91,32 @@ profile-index-campaign description memory_max="28G":
       --work-root ../../target/benchmarks/cityjson-index-profile \
       --output-root ../../target/profiling/cityjson-index
 
+# Run the JSON-offset candidate Tyler campaign in isolated prepared roots.
+profile-vertex-store-campaign candidate description memory_max="28G" corpus_identity="groningen-182-local-2026-08-04":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    candidate_path="{{candidate}}"
+    work_root=../../target/benchmarks/cityjson-index-vertex-store-profile
+    output_root=../../target/profiling/cityjson-index-vertex-store
+    if [[ -d "$candidate_path" ]]; then
+      candidate_option=(--candidate-worktree "$candidate_path")
+    else
+      candidate_option=(--candidate-binary "$candidate_path")
+    fi
+    python3 tools/profile_vertex_store_campaign.py \
+      "${candidate_option[@]}" \
+      --candidate-commit 1f33165e5481455074ff007f7dff4b8d948e4287 \
+      --harness-commit bc23d7e \
+      --corpus-identity "{{corpus_identity}}" \
+      --description "{{description}}" \
+      --memory-max "{{memory_max}}" \
+      --corpus "${CITYJSON_GRONINGEN_CORPUS:-../../target/benchmarks/groningen-182/cityjson}" \
+      --work-root "$work_root" \
+      --output-root "$output_root" \
+      --sidecar-182 "$work_root/json-offsets-182.sqlite" \
+      --sidecar-24 "$work_root/json-offsets-24.sqlite" \
+      --sidecar-1 "$work_root/json-offsets-1.sqlite"
+
 # Analyze one retained Heaptrack artifact.
 analyze-profile artifact:
     python3 tools/analyze_profile.py "{{artifact}}"

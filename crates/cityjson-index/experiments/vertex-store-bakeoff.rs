@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex, mpsc};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
+use cityjson_index::profile::{MemorySnapshot, current_memory_snapshot};
 use cityjson_index::vertex_store_bakeoff::{
     BakeoffProvenance, BakeoffResult, READ_BATCH_SIZE, SAMPLE_SIZE, VertexStore,
     VertexStoreStrategy, VertexStoreTelemetry, candidate, open_matching_read_sidecar, write_result,
@@ -81,6 +82,9 @@ struct MeasuredArgs {
     sample: Option<PathBuf>,
     #[arg(long)]
     result: PathBuf,
+    /// Optional final VmRSS/VmHWM snapshot written atomically.
+    #[arg(long)]
+    profile_output: Option<PathBuf>,
     #[arg(long)]
     candidate_commit: String,
     #[arg(long)]
@@ -304,6 +308,10 @@ fn tyler_materialization(args: &MeasuredArgs) -> Result<()> {
         &refs,
         args.workers,
     )?;
+    if let Some(path) = &args.profile_output {
+        let snapshot = current_memory_snapshot()?;
+        write_memory_snapshot(path, &snapshot)?;
+    }
     let payload = TylerResult {
         package_count: summary.package_count,
         configured_workers: args.workers,
@@ -1298,6 +1306,10 @@ fn write_json_atomically<T: Serialize>(path: &Path, value: &T) -> Result<()> {
     Ok(())
 }
 
+fn write_memory_snapshot(path: &Path, snapshot: &MemorySnapshot) -> Result<()> {
+    write_json_atomically(path, snapshot)
+}
+
 fn parse_key_value(value: &str) -> std::result::Result<(String, String), String> {
     let (key, value) = value
         .split_once('=')
@@ -1751,5 +1763,47 @@ mod tests {
         ]);
         assert_eq!(total.persistent_bytes_read, 15);
         assert_eq!(total.retained_decoded_bytes, 20);
+    }
+
+    #[test]
+    fn optional_memory_snapshot_replaces_previous_output_atomically() {
+        let path = std::env::temp_dir().join(format!(
+            "cityjson-index-bakeoff-profile-{}.json",
+            std::process::id()
+        ));
+        let first = MemorySnapshot {
+            current_rss_bytes: 11,
+            process_peak_rss_bytes: 22,
+            peak_rss_bytes: 22,
+        };
+        let second = MemorySnapshot {
+            current_rss_bytes: 33,
+            process_peak_rss_bytes: 44,
+            peak_rss_bytes: 44,
+        };
+        write_memory_snapshot(&path, &first).expect("first profile writes");
+        write_memory_snapshot(&path, &second).expect("replacement profile writes");
+        let value: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).expect("profile reads")).expect("json parses");
+        assert_eq!(value["current_rss_bytes"], 33);
+        assert_eq!(value["process_peak_rss_bytes"], 44);
+        assert_eq!(value["peak_rss_bytes"], 44);
+        let temporary_prefix = format!(
+            ".{}.result.",
+            path.file_name()
+                .expect("profile file name")
+                .to_string_lossy()
+        );
+        let temporary_exists = fs::read_dir(path.parent().expect("profile parent"))
+            .expect("profile parent reads")
+            .any(|entry| {
+                entry
+                    .expect("profile directory entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(&temporary_prefix)
+            });
+        assert!(!temporary_exists);
+        fs::remove_file(path).expect("profile removes");
     }
 }
