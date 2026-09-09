@@ -1,0 +1,87 @@
+name: Specification site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/scripts/check-spec-site.py
+      - .github/workflows/specs.yml
+      - CITATION.cff
+      - LICENSE-CC-BY-4.0
+      - SPECIFICATION-LICENSE.md
+      - README.md
+      - docs/specs-site/**
+      - crates/cityjson-arrow/docs/**
+      - crates/cityjson-arrow/properdocs.yml
+      - crates/cityjson-arrow/pyproject.toml
+      - crates/cityjson-arrow/uv.lock
+      - crates/cityjson-parquet/docs/**
+      - crates/cityjson-parquet/properdocs.yml
+      - crates/cityjson-parquet/pyproject.toml
+      - crates/cityjson-parquet/uv.lock
+  pull_request:
+    paths:
+      - .github/scripts/check-spec-site.py
+      - .github/workflows/specs.yml
+      - CITATION.cff
+      - LICENSE-CC-BY-4.0
+      - SPECIFICATION-LICENSE.md
+      - README.md
+      - docs/specs-site/**
+      - crates/cityjson-arrow/docs/**
+      - crates/cityjson-arrow/properdocs.yml
+      - crates/cityjson-arrow/pyproject.toml
+      - crates/cityjson-arrow/uv.lock
+      - crates/cityjson-parquet/docs/**
+      - crates/cityjson-parquet/properdocs.yml
+      - crates/cityjson-parquet/pyproject.toml
+      - crates/cityjson-parquet/uv.lock
+  workflow_dispatch:
+
+concurrency:
+  group: pages-specs-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build specification site
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v9
+        with:
+          enable-cache: true
+      - uses: extractions/setup-just@v4
+      - name: Build and validate specification site
+        run: just specs-build _site
+      - name: Validate citation metadata
+        run: uvx --from cffconvert cffconvert --validate
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy specification site
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - name: Deploy GitHub Pages site
+        id: deployment
+        uses: actions/deploy-pages@v4

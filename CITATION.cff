@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: >-
+  If you use the CityJSON Arrow or CityJSON Parquet specification, please cite
+  the specifications using this metadata. The CC BY 4.0 license applies to the
+  specification prose and diagrams; source code remains MIT OR Apache-2.0.
+title: CityJSON Arrow and CityJSON Parquet specifications
+type: software
+authors:
+  - family-names: Dukai
+    given-names: Balázs
+    affiliation: 3DGI
+version: v3alpha3
+date-released: 2026-08-13
+url: https://specs.citymodel.3dgi.nl/
+repository-code: https://github.com/3DGI/cityjson-rs
+license: CC-BY-4.0

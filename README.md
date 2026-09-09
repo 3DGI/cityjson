@@ -26,6 +26,19 @@ Shared test fixtures and benchmark data live in
 repository consumed by this workspace via the
 `CITYJSON_SHARED_CORPUS_ROOT` environment variable.
 
+## Format specifications
+
+The experimental [CityJSON Arrow and CityJSON Parquet
+specifications](https://specs.citymodel.3dgi.nl/) define the live Arrow IPC
+stream, shared canonical table schema, seekable package, and native Parquet
+dataset layouts. The current format version is
+`cityjson-arrow.package.v3alpha3`.
+
+The specifications are authored and maintained by Balázs Dukai at 3DGI. Their
+prose and diagrams are licensed under CC BY 4.0; implementation code retains
+the repository's MIT OR Apache-2.0 license. See [`CITATION.cff`](CITATION.cff)
+and [`SPECIFICATION-LICENSE.md`](SPECIFICATION-LICENSE.md).
+
 ## Dependency graph
 
 ```mermaid
@@ -100,6 +113,9 @@ release workflow.
 
 ## License
 
-Dual-licensed under MIT or Apache-2.0, at your option. See
+Implementation source code is dual-licensed under MIT or Apache-2.0, at your
+option. See
 [`LICENSE-MIT`](LICENSE-MIT) and [`LICENSE-APACHE`](LICENSE-APACHE). Each
 crate's `Cargo.toml` is the authoritative source if that ever changes.
+Specification prose and original diagrams are licensed separately under CC BY
+4.0 as described in [`SPECIFICATION-LICENSE.md`](SPECIFICATION-LICENSE.md).

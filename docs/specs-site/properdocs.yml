@@ -1,0 +1,44 @@
+site_name: CityJSON Arrow and Parquet Specifications
+site_description: Experimental Arrow IPC and Parquet format specifications for CityJSON
+site_url: https://specs.citymodel.3dgi.nl/
+repo_url: https://github.com/3DGI/cityjson-rs
+repo_name: 3DGI/cityjson-rs
+docs_dir: content
+strict: true
+copyright: >-
+  CityJSON Arrow and Parquet specifications by Balázs Dukai at 3DGI ·
+  CC BY 4.0
+
+nav:
+  - Specifications: index.md
+  - Citation: citation.md
+  - License: license.md
+
+theme:
+  name: materialx
+  topbar_style: primary
+  palette:
+    primary: orange
+  font:
+    text: Roboto
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - toc.follow
+    - content.code.copy
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences
+  - toc:
+      permalink: true

@@ -1,5 +1,14 @@
 # Native Parquet dataset
 
+| Document information | Value |
+|---|---|
+| Status | Experimental |
+| Format version | `cityjson-arrow.package.v3alpha3` |
+| Specification author and editor | Balázs Dukai |
+| Affiliation | 3DGI |
+| License | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| Source | [`3DGI/cityjson-rs`](https://github.com/3DGI/cityjson-rs) |
+
 The native Parquet dataset format stores each canonical CityJSON Arrow table as a
 separate Parquet file. It is the interoperability target for PyArrow, DuckDB,
 Polars, and other Parquet-native tools.

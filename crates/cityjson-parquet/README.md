@@ -27,6 +27,12 @@ Both formats use the same CityJSON Arrow canonical table schema. They are not
 binary-equivalent encodings, and tests should compare semantic CityJSON equality
 rather than byte-for-byte output.
 
+## Format specification
+
+The experimental [CityJSON Parquet specification](https://specs.citymodel.3dgi.nl/parquet/)
+defines the seekable package and native Parquet dataset layouts. The current
+format version is `cityjson-arrow.package.v3alpha3`.
+
 ## How it works
 
 - The package format is a seekable single-file container: `PACKAGE_MAGIC`, ordered Arrow IPC
@@ -101,6 +107,8 @@ and release flow.
 
 Dual-licensed under MIT or Apache-2.0, at your option. See
 [`LICENSE-MIT`](LICENSE-MIT) and [`LICENSE-APACHE`](LICENSE-APACHE).
+Specification prose and original diagrams are licensed separately under CC BY
+4.0; see [`SPECIFICATION-LICENSE.md`](../../SPECIFICATION-LICENSE.md).
 
 ## Repository map
 

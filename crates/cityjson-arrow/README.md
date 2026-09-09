@@ -24,6 +24,12 @@ It moves `cityjson_types::v2_0::OwnedCityModel` across Arrow IPC boundaries:
   pre-declared schema registry.
 - Import reconstructs `OwnedCityModel` through direct mutation.
 
+## Format specification
+
+The experimental [CityJSON Arrow specification](https://specs.citymodel.3dgi.nl/arrow/)
+defines the live Arrow IPC stream and shared canonical table schema. The current
+format version is `cityjson-arrow.package.v3alpha3`.
+
 ## Benchmarks
 
 Read and write throughput compared to `cityjson-json` on the same models.
@@ -75,6 +81,8 @@ and release flow.
 
 Dual-licensed under MIT or Apache-2.0, at your option. See
 [`LICENSE-MIT`](LICENSE-MIT) and [`LICENSE-APACHE`](LICENSE-APACHE).
+Specification prose and original diagrams are licensed separately under CC BY
+4.0; see [`SPECIFICATION-LICENSE.md`](../../SPECIFICATION-LICENSE.md).
 
 ## Repository map
 

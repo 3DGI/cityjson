@@ -1,12 +1,18 @@
 site_name: cityjson-arrow
 site_description: User-facing documentation for cityjson-arrow and cityjson-parquet
-repo_url: https://github.com/3DGI/cityjson-arrow
-repo_name: 3DGI/cityjson-arrow
+site_url: https://specs.citymodel.3dgi.nl/arrow/
+repo_url: https://github.com/3DGI/cityjson-rs
+repo_name: 3DGI/cityjson-rs
 docs_dir: docs
 strict: true
+copyright: >-
+  CityJSON Arrow and Parquet specifications by Balázs Dukai at 3DGI ·
+  CC BY 4.0
 
 nav:
   - Home: index.md
+  - Specification portal: https://specs.citymodel.3dgi.nl/
+  - CityJSON Parquet: https://specs.citymodel.3dgi.nl/parquet/
   - APIs:
       - cityjson-arrow: cityjson-arrow.md
       - Persistent package: package.md

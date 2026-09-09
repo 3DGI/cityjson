@@ -38,6 +38,14 @@ test:
 doc:
     RUSTDOCFLAGS="--cfg docsrs -Dwarnings" cargo +nightly doc --workspace --all-features --no-deps
 
+# Build and validate the complete Arrow and Parquet specification site
+specs-build output="site/specs":
+    uv run --project crates/cityjson-arrow --locked properdocs build --strict --config-file docs/specs-site/properdocs.yml --site-dir "{{justfile_directory()}}/{{output}}"
+    uv run --project crates/cityjson-arrow --locked properdocs build --strict --config-file crates/cityjson-arrow/properdocs.yml --site-dir "{{justfile_directory()}}/{{output}}/arrow"
+    uv run --project crates/cityjson-parquet --locked properdocs build --strict --config-file crates/cityjson-parquet/properdocs.yml --site-dir "{{justfile_directory()}}/{{output}}/parquet"
+    python3 .github/scripts/check-spec-site.py "{{justfile_directory()}}/{{output}}"
+    @echo "Specification site built at {{justfile_directory()}}/{{output}}"
+
 # Miri on the cityjson-types crate's unsafe-touching test suites
 miri:
     MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p cityjson-types boundary

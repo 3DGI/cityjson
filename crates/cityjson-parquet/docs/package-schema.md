@@ -1,5 +1,14 @@
 # Canonical Table Schema
 
+| Document information | Value |
+|---|---|
+| Status | Experimental |
+| Format version | `cityjson-arrow.package.v3alpha3` |
+| Specification author and editor | Balázs Dukai |
+| Affiliation | 3DGI |
+| License | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| Source | [`3DGI/cityjson-rs`](https://github.com/3DGI/cityjson-rs) |
+
 This document specifies the canonical table contract shared by `cityjson-arrow`
 streams, `.cityjson-parquet` packages, and native Parquet datasets.
 
